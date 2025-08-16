@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-19T00:00:00.000Z",
+  "title": "Design System: Emergent Civilization Simulation",
+  "extensions": {
+    "colorMeta": {
+      "ochre": {
+        "role": "primary",
+        "displayName": "Lantern Ochre",
+        "canonical": "#d8a743",
+        "tonalRamp": ["#3f2f0d", "#705317", "#a07621", "#d09a2b", "#ddb159", "#e7c889", "#f1dfba", "#fbf5ea"]
+      },
+      "terracotta": {
+        "role": "secondary",
+        "displayName": "Terracotta (Struggling / Pressure)",
+        "canonical": "#cf7250",
+        "tonalRamp": ["#3c1c10", "#6a321d", "#98472a", "#c55c36", "#d48062", "#e0a590", "#edcabd", "#faefeb"]
+      },
+      "sage": {
+        "role": "secondary",
+        "displayName": "Sage (Settled / Learned)",
+        "canonical": "#82a075",
+        "tonalRamp": ["#232d1f", "#3e5037", "#59724f", "#759566", "#94ad88", "#b3c5ab", "#d2ddcd", "#f1f5f0"]
+      },
+      "slate-blue": {
+        "role": "secondary",
+        "displayName": "Slate-Blue (Exploring / Scouting)",
+        "canonical": "#7088a4",
+        "tonalRamp": ["#1e262f", "#344252", "#4b5f76", "#627c9a", "#8599b1", "#a8b7c8", "#ccd4de", "#eff2f5"]
+      },
+      "vellum": {
+        "role": "neutral",
+        "displayName": "Aged Vellum (panel surface)",
+        "canonical": "#322a20",
+        "tonalRamp": ["#2f271e", "#524535", "#76634b", "#998162", "#b19d85", "#c8baa8", "#ded6cc", "#f5f3ef"]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Parchment Ink (primary text)",
+        "canonical": "#e7d9bb",
+        "tonalRamp": ["#392d14", "#644f23", "#8f7132", "#ba9442", "#cbac6b", "#dac496", "#e9dcc1", "#f8f4ec"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "The world title in the app header. The largest type on the surface — modest by design." },
+      "headline": { "displayName": "Headline", "purpose": "A selected band's name in its overview headline." },
+      "title": { "displayName": "Title", "purpose": "Panel headings and section titles." },
+      "body": { "displayName": "Body", "purpose": "Values, descriptions, and prose in panels. Sans (Inter)." },
+      "label": { "displayName": "Label", "purpose": "Uppercase tracked field/group labels only — never decorative eyebrows." },
+      "mono": { "displayName": "Mono", "purpose": "Raw internal values (ids, coordinates, scores) in the Technical tab only." }
+    },
+    "shadows": [
+      { "name": "panel-ambient", "value": "0 2px 12px rgba(0,0,0,0.45)", "purpose": "Floats the major working sheets (panels, world-setup, time-controls) off the dark desk. The only resting shadow." },
+      { "name": "active-ring", "value": "0 0 0 1px #d8a743", "purpose": "Marks the selected card/control. A ring, not a glow." },
+      { "name": "inset-rule", "value": "inset 0 0 0 1px rgba(233,222,198,0.14)", "purpose": "The recessed track of a progress bar and other sunken wells." }
+    ],
+    "motion": [
+      { "name": "state-transition", "value": "120ms ease", "purpose": "Hover/active transitions on cards and controls (border-color, background-color). Keep product motion in the 120–200ms range." },
+      { "name": "reduced-motion", "value": "none", "purpose": "Under prefers-reduced-motion: reduce, transitions are removed; rely on crossfade/instant. The world canvas is the only place motion is essential." }
+    ],
+    "breakpoints": [
+      { "name": "compact", "value": "860px", "purpose": "Below this the app-shell unlocks from the fixed full-height grid to a scrolling column: workspace collapses to one column, header stacks, world canvas becomes 58vh." }
+    ]
+  },
+  "components": [
+    {
+      "name": "Inspection Panel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "The signature surface — a vellum sheet floated off the desk, carrying a serif heading and progressively disclosed data.",
+      "html": "<section class=\"ds-panel\"><h2>Riverside Band</h2><p class=\"ds-panel-sub\">Settled near the lake margin</p></section>",
+      "css": ".ds-panel { border: 1px solid rgba(233,222,198,0.28); border-radius: 8px; background: #322a20; box-shadow: 0 2px 12px rgba(0,0,0,0.45); color: #e7d9bb; padding: 12px; } .ds-panel h2 { margin: 0 0 8px; font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 1.02rem; font-weight: 600; letter-spacing: 0.2px; color: #e7d9bb; } .ds-panel-sub { margin: 0; font-family: Inter, system-ui, sans-serif; font-size: 0.85rem; color: #c2b291; }"
+    },
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The quiet primary — an ochre-tinted vellum fill with an ochre border and icon. Marks the main action without shouting.",
+      "html": "<button class=\"ds-btn-primary\"><svg viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" fill=\"#d8a743\" shape-rendering=\"crispEdges\" aria-hidden=\"true\"><rect x=\"5\" y=\"4\" width=\"2\" height=\"8\"/><rect x=\"7\" y=\"5\" width=\"2\" height=\"6\"/><rect x=\"9\" y=\"6\" width=\"2\" height=\"4\"/><rect x=\"11\" y=\"7\" width=\"1\" height=\"2\"/></svg> Play</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; gap: 4px; border: 1px solid #d8a743; border-radius: 4px; background: color-mix(in srgb, #d8a743 20%, #322a20); color: #e7d9bb; font-family: Inter, system-ui, sans-serif; font-size: 0.82rem; font-weight: 600; padding: 6px 10px; cursor: pointer; transition: background 120ms ease, border-color 120ms ease; } .ds-btn-primary:hover { background: color-mix(in srgb, #d8a743 28%, #322a20); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 1px #d8a743; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Vellum-sunken fill with a hairline rule — the default action vocabulary across setup and transport controls.",
+      "html": "<button class=\"ds-btn-secondary\">Step Daily</button>",
+      "css": ".ds-btn-secondary { border: 1px solid rgba(233,222,198,0.14); border-radius: 4px; background: #29221a; color: #e7d9bb; font-family: Inter, system-ui, sans-serif; font-size: 0.82rem; padding: 6px 10px; cursor: pointer; transition: background 120ms ease, border-color 120ms ease; } .ds-btn-secondary:hover { border-color: rgba(233,222,198,0.28); background: #3d3428; } .ds-btn-secondary:focus-visible { outline: none; box-shadow: 0 0 0 1px #d8a743; } .ds-btn-secondary:disabled { opacity: 0.52; cursor: not-allowed; }"
+    },
+    {
+      "name": "View Tab",
+      "kind": "nav",
+      "refersTo": "tab",
+      "description": "Primary navigation between views and band/tile inspection. Default vellum-sunken; active gains the ochre lantern border.",
+      "html": "<div class=\"ds-tabs\"><button class=\"ds-tab\">Overview</button><button class=\"ds-tab ds-tab--active\" aria-pressed=\"true\">Activity</button><button class=\"ds-tab\">History</button></div>",
+      "css": ".ds-tabs { display: flex; gap: 5px; } .ds-tab { border: 1px solid rgba(233,222,198,0.14); border-radius: 4px; background: #29221a; color: #c2b291; font-family: Inter, system-ui, sans-serif; font-size: 0.75rem; padding: 6px 8px; cursor: pointer; transition: background 120ms ease, color 120ms ease, border-color 120ms ease; } .ds-tab:hover { background: #3d3428; color: #e7d9bb; } .ds-tab--active, .ds-tab[aria-pressed=\"true\"] { border-color: #d8a743; background: #3d3428; color: #e7d9bb; } .ds-tab:focus-visible { outline: none; box-shadow: 0 0 0 1px #d8a743; }"
+    },
+    {
+      "name": "Status Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "A pill carrying band/world state. Tints toward its --tone but always pairs the color with a glyph and label (colorblind-safe).",
+      "html": "<span class=\"ds-status-chip\"><svg viewBox=\"0 0 16 16\" width=\"12\" height=\"12\" fill=\"currentColor\" shape-rendering=\"crispEdges\" aria-hidden=\"true\"><rect x=\"7\" y=\"3\" width=\"2\" height=\"1\"/><rect x=\"6\" y=\"4\" width=\"4\" height=\"1\"/><rect x=\"5\" y=\"5\" width=\"6\" height=\"1\"/><rect x=\"4\" y=\"6\" width=\"8\" height=\"1\"/><rect x=\"3\" y=\"7\" width=\"10\" height=\"1\"/><rect x=\"4\" y=\"8\" width=\"8\" height=\"5\"/></svg> Settled</span>",
+      "css": ".ds-status-chip { display: inline-flex; align-items: center; gap: 4px; border: 1px solid color-mix(in srgb, #82a075 60%, transparent); border-radius: 999px; background: color-mix(in srgb, #82a075 18%, #322a20); color: color-mix(in srgb, #82a075 70%, #e7d9bb); font-family: Inter, system-ui, sans-serif; font-size: 0.8rem; font-weight: 600; padding: 3px 10px; } .ds-status-chip svg { color: #82a075; }"
+    },
+    {
+      "name": "Seed Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Vellum-raised field with a hairline rule; ochre ring on focus.",
+      "html": "<label class=\"ds-field\"><span>Seed</span><input class=\"ds-input\" value=\"seed-k4f2-9x\" /></label>",
+      "css": ".ds-field { display: inline-flex; align-items: center; gap: 6px; font-family: Inter, system-ui, sans-serif; } .ds-field span { color: #c2b291; font-size: 0.76rem; font-weight: 600; } .ds-input { width: 130px; border: 1px solid rgba(233,222,198,0.14); border-radius: 4px; background: #3d3428; color: #e7d9bb; font: inherit; font-size: 0.82rem; padding: 5px 8px; } .ds-input::placeholder { color: #a89878; } .ds-input:focus-visible { outline: none; border-color: #d8a743; box-shadow: 0 0 0 1px #d8a743; }"
+    },
+    {
+      "name": "Measure Bar",
+      "kind": "custom",
+      "refersTo": "stat-tile",
+      "description": "The compact, calm way to show a 0–1 measure inside dense panels — a sunken pill track with a --tone fill.",
+      "html": "<div class=\"ds-bar\"><div class=\"ds-bar-fill\" style=\"width:64%\"></div></div>",
+      "css": ".ds-bar { height: 7px; overflow: hidden; border-radius: 999px; background: #29221a; box-shadow: inset 0 0 0 1px rgba(233,222,198,0.14); } .ds-bar-fill { height: 100%; border-radius: 999px; background: #82a075; }"
+    },
+    {
+      "name": "Stat Tile",
+      "kind": "custom",
+      "refersTo": "stat-tile",
+      "description": "A small labeled value tile (icon + label + value), tiled 2-up inside inspection panels.",
+      "html": "<div class=\"ds-stat-tile\"><span class=\"ds-stat-icon\"><svg viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" fill=\"currentColor\" shape-rendering=\"crispEdges\" aria-hidden=\"true\"><rect x=\"4\" y=\"2\" width=\"3\" height=\"3\"/><rect x=\"3\" y=\"6\" width=\"5\" height=\"7\"/><rect x=\"9\" y=\"4\" width=\"3\" height=\"3\"/><rect x=\"8\" y=\"8\" width=\"5\" height=\"5\"/></svg></span><span class=\"ds-stat-body\"><span class=\"ds-stat-label\">POPULATION</span><span class=\"ds-stat-value\">42 people</span></span></div>",
+      "css": ".ds-stat-tile { display: flex; align-items: center; gap: 8px; border: 1px solid rgba(233,222,198,0.14); border-radius: 4px; background: #29221a; padding: 8px; font-family: Inter, system-ui, sans-serif; } .ds-stat-icon { display: inline-flex; color: #c2b291; } .ds-stat-body { display: grid; gap: 1px; min-width: 0; } .ds-stat-label { color: #c2b291; font-size: 0.68rem; letter-spacing: 0.3px; text-transform: uppercase; } .ds-stat-value { color: #e7d9bb; font-size: 0.9rem; font-weight: 600; white-space: nowrap; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Lantern-Lit Atlas",
+    "overview": "This is an old map read by lamplight, after dark. The deep desk (#1e1913) is the unlit room; the aged-vellum panels (#322a20) are the sheets of map and field notes laid out on it; parchment-toned ink (#e7d9bb) is what's written on them; and a single warm ochre (#d8a743) is the lantern — the one light that means here, now, active. The system serves a product, not a poster: design exists to make emergence legible. Density is welcome but organized by the calm tonal layering of the vellum, never by decoration. The world canvas is the one place atmosphere and motion live; everything around it is instrument-quiet. Serif (Iowan Old Style) is reserved for names and headings; a tuned sans (Inter) carries every control and number.",
+    "keyCharacteristics": [
+      "Dark 'desk' backdrop; three tones of aged vellum for layered panels.",
+      "Parchment-ink text in three weights of muted warmth (ink / ink-soft / ink-faint).",
+      "One lantern accent (ochre) for interactivity; three earth tones for status only.",
+      "Serif for names and headings; sans for all data and controls; mono for raw internals.",
+      "Tonal layering over shadow; a single ambient shadow floats sheets off the desk.",
+      "WCAG AA verified on the dark vellum; status never relies on hue alone."
+    ],
+    "rules": [
+      { "name": "The Lantern Rule", "body": "Ochre means interactive / active / now and nothing else. Status pigments (terracotta/sage/slate-blue) mean state and are never used for emphasis or decor.", "section": "colors" },
+      { "name": "The Dark Vellum Rule", "body": "The surface is a map at night. Never lighten the body background toward a warm near-white parchment (the AI cream default). Warmth lives in the ink and pigments, not in a pale page.", "section": "colors" },
+      { "name": "The Serif-Speaks Rule", "body": "The serif is reserved for names — the world, a band, a section heading. Everything read as data, control, or number is set in the sans. A serif on a button or a data cell is a bug.", "section": "typography" },
+      { "name": "The Functional-Label Rule", "body": "Uppercase tracked micro-labels are permitted only as field/group labels in dense panels. They are forbidden as decorative section eyebrows above headings.", "section": "typography" },
+      { "name": "The Tonal-First Rule", "body": "Reach for a different vellum tone before reaching for a shadow. Shadows float a sheet off the desk and mark active state — that is their entire job. No decorative drop-shadows, glows, or glassmorphism on product panels.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep ochre for interactivity/active/now only, and the earth pigments for status only (The Lantern Rule).",
+      "Do build depth from the three vellum tones before reaching for a shadow (The Tonal-First Rule); use the single ambient shadow only to float a sheet.",
+      "Do set names and headings in the serif and everything else (data, controls, numbers) in the sans (The Serif-Speaks Rule).",
+      "Do pair every status color with an icon, shape, or label — band state must never rely on hue alone (colorblind-safe).",
+      "Do give every control a visible keyboard focus state (ochre ring) and make every tab, panel, and inspector reachable without a mouse.",
+      "Do honor prefers-reduced-motion on every transition with a crossfade or instant fallback.",
+      "Do use ink for small body text on lighter vellum; reserve terracotta and slate-blue as text for large/bold sizes or icons (AA-large only on base vellum)."
+    ],
+    "donts": [
+      "Don't build a flashy game HUD — no neon, glow, RGB, sci-fi overlays, XP bars, or celebratory toasts.",
+      "Don't drift toward a cyberpunk / matrix terminal — no green monospace, hacker aesthetic, or dark-mode-because-it-looks-cool.",
+      "Don't assemble a sterile SaaS dashboard — no endless identical metric-card grids or generic chart walls. Nested cards are always wrong.",
+      "Don't lighten the body background toward AI-default cream/parchment or add decorative uppercase-tracked eyebrows above sections.",
+      "Don't reintroduce the architecture map's old Obsidian chrome (slate #020617, teal #5eead4 accent, backdrop-blur). Its chrome is reconciled to the lantern-lit tokens; only the graph's node-cluster and link colors (graphData.ts) remain a sanctioned categorical data-viz palette.",
+      "Don't add glassmorphism, backdrop-blur, or drop-shadow glows to product panels.",
+      "Don't use a border-left/border-right color stripe as an accent; use a full hairline rule, a tonal tint, or a leading icon instead."
+    ]
+  }
+}

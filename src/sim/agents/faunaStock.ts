@@ -1,0 +1,1046 @@
+// Fauna / Aquatic finite-stock layer (checkpoint FAUNA/AQUATIC-1).
+//
+// WHY: until now `animal_food` and `aquatic_food` were pure DECOMPOSITION shares
+// of a band's observed habitat potential (resourceClasses.ts) — fungible food
+// numbers with no finite, place-specific population behind them. A band could
+// hunt a delta forever as if it were day one; "fishing" and "hunting" were
+// labels. This module gives those classes a bounded, causal, finite stock
+// substrate: summarized animal/aquatic POPULATIONS by zone, with seasonality,
+// recovery, mobility, human-pressure depletion, and avoidance — NOT one agent
+// per deer or fish.
+//
+// ARCHITECTURE (mirrors M0.14 tileDepletion exactly):
+//   * STATIC GEOGRAPHY (`FaunaStockGeo`) — where stocks live, their kind,
+//     habitat, anchor, influence tiles, carrying capacity, seasonality, mobility.
+//     A PURE function of `world.tiles` + seed, memoized by the (immutable) tiles
+//     reference so it is derived ONCE per world. Bounded/sparse (caps + spacing),
+//     never one-per-tile.
+//   * DYNAMIC STATE (`FaunaStockDynamic`) — current abundance (fraction of
+//     carrying capacity) + disturbance/avoidance. SPARSE physical truth stored
+//     on `world.faunaStocks`; absent ⇒ baseline (full). Advanced ONCE per season
+//     from the shared-catchment extraction index plus in-season hunting/fishing
+//     trip depletion, recovering when rested. Deterministic, bounded, capped.
+//
+// ANTI-OMNISCIENCE: this is PHYSICAL TRUTH, like tile wear. Bands experience it
+// through realized support (the fauna multiplier in carryingCapacity) and
+// through what they OBSERVE on trips/scouts (uncertain SIGNS, never a remote
+// exact read). Stock geography is never handed to a band; knowledge lives in the
+// band's own patch memory / scout signs / reports. No band can TARGET a hidden
+// stock it has not discovered.
+//
+// HARD SCOPE LOCK: no individual-animal agents, no predator-prey food web, no
+// domestication/livestock/agriculture/storage. No unseeded randomness, no any,
+// no UI imports. Deterministic same seed ⇒ same stocks ⇒ same dynamics.
+
+import { getSharedCatchmentIndex } from "./sharedCatchment";
+import type { TickContextCache } from "./contextCache";
+import { classifyForestCoverForTile, estimateForestSuitability } from "./forestPatches";
+import type { ResourceClassContribution } from "./resourceClasses";
+import type { ReasonId, RegionId, Season, TickNumber, TileId } from "../core/types";
+import type { Tile, WorldState } from "../world/types";
+
+export type FaunaStockId = string & { readonly __faunaStockId: "FaunaStockId" };
+
+// The two food resource classes a stock backs (subset of ResourceClassId).
+export type FaunaClass = "animal_food" | "aquatic_food";
+
+export type FaunaStockKind =
+  // aquatic
+  | "lake_fish"
+  | "river_reach_fish"
+  | "delta_wetland_fish"
+  | "seasonal_fish_run"
+  | "shellfish_reedbed"
+  // terrestrial
+  | "large_game"
+  | "medium_game"
+  | "small_game"
+  | "waterfowl"
+  | "upland_game"
+  | "forest_edge_game";
+
+export type FaunaHabitatType =
+  | "lake"
+  | "river_reach"
+  | "delta_wetland"
+  | "coast_reedbed"
+  | "open_valley"
+  | "open_plain"
+  | "river_meadow"
+  | "forest_edge"
+  | "wet_woodland"
+  | "scrub_edge"
+  | "dense_cover"
+  | "upland_slope"
+  | "dry_country";
+
+export interface FaunaSeasonality {
+  readonly peakSeasons: readonly Season[];
+  readonly leanSeasons: readonly Season[];
+  // 0..1 — how strongly availability swings between peak and lean.
+  readonly amplitude: number;
+}
+
+// Static placement + traits of one summarized stock zone. Never mutated.
+export interface FaunaStockGeo {
+  readonly id: FaunaStockId;
+  readonly faunaClass: FaunaClass;
+  readonly kind: FaunaStockKind;
+  readonly habitat: FaunaHabitatType;
+  readonly anchorTileId: TileId;
+  readonly regionId: RegionId;
+  readonly influenceTileIds: readonly TileId[];
+  // Ceiling fauna richness of the zone (0..1), static. Scales trip returns + sign.
+  readonly carryingCapacity: number;
+  // 0..1 habitat-fit score used at placement time. Static, explanatory only.
+  readonly habitatSuitability: number;
+  readonly habitatBasis: readonly string[];
+  // Per-season regrowth fraction toward carrying capacity when rested.
+  readonly recoveryRate: number;
+  readonly seasonality: FaunaSeasonality;
+  // 0..1 — how much the stock moves/avoids under pressure (terrestrial > aquatic).
+  readonly mobility: number;
+  // 0..1 — how strongly human pressure depletes/scatters it.
+  readonly pressureSensitivity: number;
+  // 0..1 — how readable its tracks/signs are to scouts/hunters.
+  readonly detectability: number;
+  // 0..1 — bounded hunting/fishing risk placeholder (injury / dangerous water).
+  readonly riskPlaceholder: number;
+}
+
+// Dynamic, persisted, sparse. `abundance` is a FRACTION of carryingCapacity
+// (1 = full). Absent entry ⇒ treated as baseline { abundance: 1, disturbance: 0 }.
+export interface FaunaStockDynamic {
+  readonly abundance: number; // [ABUNDANCE_FLOOR, 1]
+  readonly disturbance: number; // [0, 1]
+  readonly lastPressureTick: TickNumber;
+  readonly cumulativePressure: number; // debug only
+}
+
+export interface FaunaStockGeography {
+  readonly stocks: readonly FaunaStockGeo[];
+  readonly byId: ReadonlyMap<FaunaStockId, FaunaStockGeo>;
+  readonly byTile: ReadonlyMap<TileId, readonly FaunaStockGeo[]>;
+}
+
+// Resolved per-tile fauna effect on realized support (consumed by carryingCapacity).
+export interface FaunaTileSupportEffect {
+  readonly covered: boolean;
+  readonly animalFactor: number; // [FACTOR_FLOOR, 1] — 1 = healthy, lower = depleted/lean
+  readonly aquaticFactor: number;
+  readonly animalLoss: number; // support fraction lost to animal-stock shortfall
+  readonly aquaticLoss: number;
+  readonly faunaMultiplier: number; // [1 - FAUNA_LOSS_CAP, 1]
+}
+
+export interface FaunaTripStockTraceBase {
+  readonly stockId: string;
+  readonly faunaClass: FaunaClass;
+  readonly kind: FaunaStockKind;
+  readonly habitat: FaunaHabitatType;
+  readonly anchorTileId: TileId;
+  readonly habitatSuitability: number;
+  readonly habitatBasis: readonly string[];
+  readonly expectedReturnFactor: number;
+  readonly currentAbundance: number;
+  readonly disturbance: number;
+  readonly seasonalAvailability: number;
+  readonly pressure: number;
+  readonly recoveryRate: number;
+  readonly mobility: number;
+  readonly pressureSensitivity: number;
+  readonly detectability: number;
+  readonly risk: number;
+  readonly laborAccessCost: number;
+  readonly rawSource: string;
+  readonly reasonIds: readonly ReasonId[];
+}
+
+// --- tuning constants (all bounded, conservative; calibrated at 100/300/500y) ---
+
+// Geography generation.
+const ANCHOR_SPACING = 4; // min ~grid separation between same-class anchors
+const INFLUENCE_RADIUS = 2;
+const INFLUENCE_TILE_CAP = 13;
+const GLOBAL_STOCK_CAP = 260; // hard ceiling regardless of map size
+const STOCKS_PER_TILE_DENSITY = 22; // ~1 candidate per N tiles before caps
+const REGION_STOCK_CAP_BASE = 2;
+const REGION_STOCK_TILES_PER = 14;
+const SUITABILITY_THRESHOLD = 0.34;
+
+// Dynamics.
+const ABUNDANCE_FLOOR = 0.18; // a stock never fully disappears
+const DEPLETION_STRENGTH = 0.5; // how hard pressure pulls abundance down per season
+const GENERAL_PRESSURE_WEIGHT = 0.7; // camp/catchment occupation
+const DISTURB_GAIN = 0.5;
+const DISTURB_DECAY = 0.22;
+const DISTURB_SUPPRESS = 0.35; // disturbance suppresses realized abundance factor
+// Entries within this of baseline are dropped from the sparse record. MUST stay
+// small: a too-large epsilon would drop sub-epsilon depletion every season and
+// prevent multi-season accumulation toward a depleted equilibrium.
+const DYNAMIC_DROP_EPSILON = 0.004;
+// Mean per-tile catchment claim over a stock zone that ≈ full general (camp/
+// occupation) pressure. A delta core foraged by a large shared band for decades
+// drives sustained fauna decline; an abandoned zone rebounds. The SUPPORT impact
+// is independently capped (FAUNA_LOSS_CAP), so deeper depletion never craters
+// population — it only makes crowded cores visibly poorer fauna grounds.
+const CLAIM_PRESSURE_NORM = 2.2;
+const TRIP_DEPLETION_PULL = 0.22; // per-trip abundance pull (× sensitivity × intensity)
+
+// Support coupling.
+const FACTOR_FLOOR = 0.45; // worst-case realized fauna factor for a covered tile
+const SEASONAL_FACTOR_FLOOR = 0.78; // lean-season floor for the SUPPORT multiplier
+const FAUNA_LOSS_CAP = 0.18; // max fraction of a tile's food support fauna can remove
+
+// Trip return shaping (pulse allowed above 1 for seasonal runs — returns only,
+// never the support multiplier, so carrying capacity is never inflated).
+const RUN_PULSE_BONUS = 0.35;
+
+// --- deterministic integer hashing (no unseeded randomness) ---
+
+function hashParts(seed: string, parts: readonly (string | number)[]): number {
+  let hash = 2166136261 ^ hashString(seed);
+
+  for (const part of parts) {
+    if (typeof part === "number") {
+      hash ^= part | 0;
+      hash = Math.imul(hash, 16777619);
+    } else {
+      for (let index = 0; index < part.length; index += 1) {
+        hash ^= part.charCodeAt(index);
+        hash = Math.imul(hash, 16777619);
+      }
+    }
+    hash ^= hash >>> 13;
+    hash = Math.imul(hash, 2246822519);
+  }
+
+  return hash >>> 0;
+}
+
+function hashString(value: string): number {
+  let hash = 2166136261;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return hash >>> 0;
+}
+
+// Deterministic [0,1) from seed + parts.
+function hashUnit(seed: string, parts: readonly (string | number)[]): number {
+  return hashParts(seed, parts) / 4294967296;
+}
+
+// --- geography (memoized by world.tiles) ---
+
+const geographyMemo = new WeakMap<object, FaunaStockGeography>();
+
+export function deriveFaunaStockGeography(world: WorldState): FaunaStockGeography {
+  const cached = geographyMemo.get(world.tiles);
+
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  const value = computeFaunaStockGeography(world);
+  geographyMemo.set(world.tiles, value);
+
+  return value;
+}
+
+interface StockCandidate {
+  readonly kind: FaunaStockKind;
+  readonly habitat: FaunaHabitatType;
+  readonly faunaClass: FaunaClass;
+  readonly suitability: number;
+}
+
+function computeFaunaStockGeography(world: WorldState): FaunaStockGeography {
+  const seed = String(world.seed);
+  const tileIds = Object.keys(world.tiles).sort() as TileId[];
+  const globalCap = Math.min(GLOBAL_STOCK_CAP, Math.max(8, Math.floor(tileIds.length / STOCKS_PER_TILE_DENSITY)) * 2);
+  const occupiedCells = new Set<string>();
+  const regionCounts = new Map<RegionId, number>();
+  const stocks: FaunaStockGeo[] = [];
+
+  for (const tileId of tileIds) {
+    if (stocks.length >= globalCap) {
+      break;
+    }
+
+    const tile = world.tiles[tileId];
+
+    if (tile === undefined) {
+      continue;
+    }
+
+    // At most one aquatic + one terrestrial anchor per tile (best candidate each).
+    const candidates = classifyTileFaunaCandidates(tile);
+
+    for (const candidate of candidates) {
+      if (stocks.length >= globalCap) {
+        break;
+      }
+
+      if (candidate.suitability < SUITABILITY_THRESHOLD) {
+        continue;
+      }
+
+      const cellKey = `${candidate.faunaClass}:${Math.floor(tile.coord.x / ANCHOR_SPACING)}:${Math.floor(
+        tile.coord.y / ANCHOR_SPACING,
+      )}`;
+
+      if (occupiedCells.has(cellKey)) {
+        continue;
+      }
+
+      const regionCap = REGION_STOCK_CAP_BASE + Math.floor((world.regions[tile.regionId]?.tileIds.length ?? 0) / REGION_STOCK_TILES_PER);
+
+      if ((regionCounts.get(tile.regionId) ?? 0) >= regionCap) {
+        continue;
+      }
+
+      occupiedCells.add(cellKey);
+      regionCounts.set(tile.regionId, (regionCounts.get(tile.regionId) ?? 0) + 1);
+      stocks.push(buildStockGeo(world, tile, candidate, seed));
+    }
+  }
+
+  const byId = new Map<FaunaStockId, FaunaStockGeo>();
+  const byTile = new Map<TileId, FaunaStockGeo[]>();
+
+  for (const stock of stocks) {
+    byId.set(stock.id, stock);
+
+    for (const tileId of stock.influenceTileIds) {
+      const list = byTile.get(tileId);
+
+      if (list === undefined) {
+        byTile.set(tileId, [stock]);
+      } else {
+        list.push(stock);
+      }
+    }
+  }
+
+  return { stocks, byId, byTile };
+}
+
+// Habitat → best aquatic candidate + best terrestrial candidate for this tile.
+function classifyTileFaunaCandidates(tile: Tile): readonly StockCandidate[] {
+  const out: StockCandidate[] = [];
+  const aquatic = bestAquaticCandidate(tile);
+  const terrestrial = bestTerrestrialCandidate(tile);
+
+  if (aquatic !== undefined) {
+    out.push(aquatic);
+  }
+
+  if (terrestrial !== undefined) {
+    out.push(terrestrial);
+  }
+
+  return out;
+}
+
+function bestAquaticCandidate(tile: Tile): StockCandidate | undefined {
+  const aq = clamp01(tile.resourceProfile.aquaticPotential);
+  const water = clamp01(tile.resourceProfile.waterAccess);
+  const reliability = clamp01(tile.seasonalProfile.reliability);
+
+  if (aq < 0.18 && !tile.isAquatic && !tile.isFloodplain && !tile.isMarshChannel) {
+    return undefined;
+  }
+
+  // Delta / wetland fish: richest, density-but-sensitive.
+  if (tile.isEstuary || tile.isMarshChannel || tile.isFloodplain || tile.terrainKind === "wetlands") {
+    return { kind: "delta_wetland_fish", habitat: "delta_wetland", faunaClass: "aquatic_food", suitability: clamp01(0.55 + aq * 0.4 + water * 0.1) };
+  }
+
+  // Lake fish.
+  if (tile.terrainKind === "lake" || (tile.isAquatic && !tile.isRiver && !tile.isCoastal)) {
+    return { kind: "lake_fish", habitat: "lake", faunaClass: "aquatic_food", suitability: clamp01(0.5 + aq * 0.45) };
+  }
+
+  // Seasonal fish run on a strongly seasonal river reach; otherwise steady reach.
+  if (tile.isRiver || tile.isRiverbank || tile.isConfluence) {
+    const seasonal = clamp01(tile.seasonalProfile.seasonalVariance);
+    if (seasonal > 0.5 && tile.seasonalProfile.peakSeasons.length > 0) {
+      return { kind: "seasonal_fish_run", habitat: "river_reach", faunaClass: "aquatic_food", suitability: clamp01(0.42 + aq * 0.35 + seasonal * 0.2) };
+    }
+    return { kind: "river_reach_fish", habitat: "river_reach", faunaClass: "aquatic_food", suitability: clamp01(0.4 + aq * 0.4 + reliability * 0.15) };
+  }
+
+  // Coastal shellfish / reedbed fallback aquatic.
+  if (tile.isCoastal || (tile.isAquatic && water > 0.5)) {
+    return { kind: "shellfish_reedbed", habitat: "coast_reedbed", faunaClass: "aquatic_food", suitability: clamp01(0.36 + aq * 0.3 + water * 0.2) };
+  }
+
+  return undefined;
+}
+
+function bestTerrestrialCandidate(tile: Tile): StockCandidate | undefined {
+  if (tile.isAquatic) {
+    return undefined; // open water hosts the aquatic stock, not land game
+  }
+
+  const richness = clamp01(tile.resourceProfile.baseRichness);
+  const water = clamp01(tile.resourceProfile.waterAccess);
+  const elevation = clamp01(tile.elevation);
+  const nearWater = water > 0.45 || tile.isRiverbank || tile.isFloodplain;
+  const forestCover = classifyForestCoverForTile(tile);
+  const forestSuitability = estimateForestSuitability(tile);
+
+  // Waterfowl near wetlands / lake / delta shores.
+  if ((tile.terrainKind === "wetlands" || tile.isMarshChannel || tile.isFloodplain) && nearWater) {
+    return { kind: "waterfowl", habitat: "delta_wetland", faunaClass: "animal_food", suitability: clamp01(0.5 + water * 0.3 + richness * 0.2) };
+  }
+
+  // Forest / scrub / wet-edge cover creates habitat for boar-like, deer-like,
+  // small-game, and predator-cover future hooks without deep fauna ecology.
+  if (forestCover === "dense_woodland" || forestCover === "wet_forest_edge" || forestCover === "riparian_trees") {
+    return {
+      kind: "forest_edge_game",
+      habitat: forestCover === "dense_woodland" ? "dense_cover" : "wet_woodland",
+      faunaClass: "animal_food",
+      suitability: clamp01(0.36 + forestSuitability * 0.38 + richness * 0.16 + (nearWater ? 0.08 : 0)),
+    };
+  }
+
+  if (forestCover === "forest_edge" || forestCover === "open_woodland" || forestCover === "scrub_tree_mix") {
+    return {
+      kind: forestCover === "scrub_tree_mix" && richness < 0.52 ? "small_game" : "forest_edge_game",
+      habitat: forestCover === "scrub_tree_mix" ? "scrub_edge" : "forest_edge",
+      faunaClass: "animal_food",
+      suitability: clamp01(0.34 + forestSuitability * 0.34 + richness * 0.2 + (nearWater ? 0.06 : 0)),
+    };
+  }
+
+  // Upland game on slopes / mountains.
+  if (tile.terrainKind === "mountains" || (tile.terrainKind === "hills" && elevation > 0.5)) {
+    return { kind: "upland_game", habitat: "upland_slope", faunaClass: "animal_food", suitability: clamp01(0.34 + richness * 0.3 + elevation * 0.2) };
+  }
+
+  // Large game along water / open river-valley edges.
+  if (
+    (tile.terrainKind === "river_valley" || tile.terrainKind === "plains") &&
+    nearWater &&
+    richness > 0.4
+  ) {
+    return { kind: "large_game", habitat: tile.terrainKind === "plains" ? "river_meadow" : "open_valley", faunaClass: "animal_food", suitability: clamp01(0.46 + richness * 0.35 + water * 0.15) };
+  }
+
+  // Dry country: sparse but present, seasonal.
+  if (tile.terrainKind === "desert" || tile.terrainKind === "tundra") {
+    return { kind: "small_game", habitat: "dry_country", faunaClass: "animal_food", suitability: clamp01(0.3 + richness * 0.4) };
+  }
+
+  // Medium / small game broadly distributed elsewhere.
+  if (richness > 0.32) {
+    const kind: FaunaStockKind = richness > 0.55 ? "medium_game" : "small_game";
+    return {
+      kind,
+      habitat: tile.terrainKind === "plains" ? "open_plain" : "open_valley",
+      faunaClass: "animal_food",
+      suitability: clamp01(0.32 + richness * 0.4 + water * 0.1),
+    };
+  }
+
+  return undefined;
+}
+
+function buildStockGeo(world: WorldState, tile: Tile, candidate: StockCandidate, seed: string): FaunaStockGeo {
+  const traits = KIND_TRAITS[candidate.kind];
+  const jitter = hashUnit(seed, [String(tile.id), candidate.kind]);
+  const carryingCapacity = clamp(traits.ccBase * (0.7 + candidate.suitability * 0.5) + (jitter - 0.5) * 0.08, 0.18, 1);
+  const influenceTileIds = collectInfluenceTiles(world, tile, candidate.faunaClass);
+  const seasonality = deriveSeasonality(tile, traits, jitter);
+
+  return {
+    id: `fauna:${candidate.kind}:${tile.id}` as FaunaStockId,
+    faunaClass: candidate.faunaClass,
+    kind: candidate.kind,
+    habitat: candidate.habitat,
+    anchorTileId: tile.id,
+    regionId: tile.regionId,
+    influenceTileIds,
+    carryingCapacity: round3(carryingCapacity),
+    habitatSuitability: round3(candidate.suitability),
+    habitatBasis: describeHabitatBasis(tile, candidate),
+    recoveryRate: round3(traits.recovery),
+    seasonality,
+    mobility: traits.mobility,
+    pressureSensitivity: traits.pressureSensitivity,
+    detectability: traits.detectability,
+    riskPlaceholder: traits.risk,
+  };
+}
+
+function describeHabitatBasis(tile: Tile, candidate: StockCandidate): readonly string[] {
+  const basis: string[] = [
+    `${candidate.habitat.replace(/_/g, " ")} habitat`,
+    `terrain ${tile.terrainKind}`,
+  ];
+  const water = clamp01(tile.resourceProfile.waterAccess);
+  const richness = clamp01(tile.resourceProfile.baseRichness);
+  const aquatic = clamp01(tile.resourceProfile.aquaticPotential);
+  const forestCover = classifyForestCoverForTile(tile);
+
+  if (candidate.faunaClass === "aquatic_food" || candidate.kind === "waterfowl") {
+    if (tile.isRiver || tile.isRiverbank || tile.isConfluence) {
+      basis.push("river or confluence edge");
+    }
+    if (tile.isEstuary || tile.isFloodplain || tile.isMarshChannel || tile.terrainKind === "wetlands") {
+      basis.push("wetland/delta water edge");
+    }
+    if (tile.terrainKind === "lake" || tile.isAquatic) {
+      basis.push("standing/open water context");
+    }
+    if (aquatic >= 0.28) {
+      basis.push(`aquatic potential ${round2(aquatic)}`);
+    }
+  } else {
+    if (forestCover === "dense_woodland" || forestCover === "wet_forest_edge" || forestCover === "riparian_trees") {
+      basis.push(`${forestCover.replace(/_/g, " ")} cover`);
+    } else if (forestCover === "forest_edge" || forestCover === "open_woodland" || forestCover === "scrub_tree_mix") {
+      basis.push(`${forestCover.replace(/_/g, " ")} edge`);
+    }
+    if (tile.terrainKind === "plains" || tile.terrainKind === "river_valley") {
+      basis.push("open grazing/browsing ground");
+    }
+    if (water >= 0.42 || tile.isRiverbank || tile.isFloodplain) {
+      basis.push(`water access ${round2(water)}`);
+    }
+    if (richness >= 0.4) {
+      basis.push(`plant browse/graze potential ${round2(richness)}`);
+    }
+  }
+
+  return uniqueStrings(basis).slice(0, 5);
+}
+
+// BFS radius around the anchor, keeping only habitat-compatible tiles, capped.
+function collectInfluenceTiles(world: WorldState, anchor: Tile, faunaClass: FaunaClass): readonly TileId[] {
+  const accepted: TileId[] = [anchor.id];
+  const seen = new Set<TileId>([anchor.id]);
+  let frontier: readonly TileId[] = [anchor.id];
+
+  for (let depth = 0; depth < INFLUENCE_RADIUS && accepted.length < INFLUENCE_TILE_CAP; depth += 1) {
+    const next: TileId[] = [];
+
+    for (const tileId of frontier) {
+      const tile = world.tiles[tileId];
+
+      if (tile === undefined) {
+        continue;
+      }
+
+      for (const neighborId of [...tile.neighbors].sort()) {
+        if (seen.has(neighborId) || accepted.length >= INFLUENCE_TILE_CAP) {
+          continue;
+        }
+
+        seen.add(neighborId);
+        const neighbor = world.tiles[neighborId];
+
+        if (neighbor !== undefined && tileHostsClass(neighbor, faunaClass)) {
+          accepted.push(neighborId);
+          next.push(neighborId);
+        }
+      }
+    }
+
+    frontier = next;
+  }
+
+  return accepted;
+}
+
+function tileHostsClass(tile: Tile, faunaClass: FaunaClass): boolean {
+  if (faunaClass === "aquatic_food") {
+    return (
+      tile.isAquatic ||
+      tile.isFloodplain ||
+      tile.isMarshChannel ||
+      tile.isRiverbank ||
+      tile.resourceProfile.aquaticPotential > 0.2 ||
+      tile.resourceProfile.waterAccess > 0.5
+    );
+  }
+
+  return !tile.isAquatic;
+}
+
+function deriveSeasonality(tile: Tile, traits: KindTraits, jitter: number): FaunaSeasonality {
+  const peakSeasons = tile.seasonalProfile.peakSeasons.length > 0 ? tile.seasonalProfile.peakSeasons : traits.defaultPeak;
+  const leanSeasons = tile.seasonalProfile.leanSeasons.length > 0 ? tile.seasonalProfile.leanSeasons : traits.defaultLean;
+
+  return {
+    peakSeasons,
+    leanSeasons,
+    amplitude: clamp01(traits.amplitude * (0.85 + jitter * 0.3)),
+  };
+}
+
+interface KindTraits {
+  readonly ccBase: number;
+  readonly recovery: number;
+  readonly mobility: number;
+  readonly pressureSensitivity: number;
+  readonly detectability: number;
+  readonly risk: number;
+  readonly amplitude: number;
+  readonly defaultPeak: readonly Season[];
+  readonly defaultLean: readonly Season[];
+}
+
+// Per-kind static traits. Aquatic: higher recovery, lower mobility, can pulse.
+// Terrestrial: lower recovery, higher mobility/avoidance, large game riskier.
+const KIND_TRAITS: Readonly<Record<FaunaStockKind, KindTraits>> = {
+  lake_fish: { ccBase: 0.8, recovery: 0.22, mobility: 0.18, pressureSensitivity: 0.5, detectability: 0.4, risk: 0.08, amplitude: 0.3, defaultPeak: ["summer"], defaultLean: ["winter"] },
+  river_reach_fish: { ccBase: 0.68, recovery: 0.26, mobility: 0.3, pressureSensitivity: 0.52, detectability: 0.42, risk: 0.12, amplitude: 0.4, defaultPeak: ["spring", "summer"], defaultLean: ["winter"] },
+  delta_wetland_fish: { ccBase: 0.92, recovery: 0.3, mobility: 0.22, pressureSensitivity: 0.62, detectability: 0.46, risk: 0.1, amplitude: 0.45, defaultPeak: ["spring", "autumn"], defaultLean: ["winter"] },
+  seasonal_fish_run: { ccBase: 0.6, recovery: 0.42, mobility: 0.4, pressureSensitivity: 0.5, detectability: 0.5, risk: 0.14, amplitude: 0.85, defaultPeak: ["spring"], defaultLean: ["summer", "winter"] },
+  shellfish_reedbed: { ccBase: 0.55, recovery: 0.2, mobility: 0.1, pressureSensitivity: 0.46, detectability: 0.38, risk: 0.18, amplitude: 0.25, defaultPeak: ["summer"], defaultLean: ["winter"] },
+  large_game: { ccBase: 0.62, recovery: 0.12, mobility: 0.72, pressureSensitivity: 0.78, detectability: 0.66, risk: 0.4, amplitude: 0.4, defaultPeak: ["autumn"], defaultLean: ["winter"] },
+  medium_game: { ccBase: 0.52, recovery: 0.18, mobility: 0.6, pressureSensitivity: 0.6, detectability: 0.54, risk: 0.26, amplitude: 0.35, defaultPeak: ["autumn"], defaultLean: ["winter"] },
+  small_game: { ccBase: 0.44, recovery: 0.3, mobility: 0.45, pressureSensitivity: 0.42, detectability: 0.4, risk: 0.14, amplitude: 0.3, defaultPeak: ["summer"], defaultLean: ["winter"] },
+  waterfowl: { ccBase: 0.58, recovery: 0.34, mobility: 0.82, pressureSensitivity: 0.66, detectability: 0.6, risk: 0.16, amplitude: 0.7, defaultPeak: ["spring", "autumn"], defaultLean: ["summer"] },
+  upland_game: { ccBase: 0.46, recovery: 0.16, mobility: 0.58, pressureSensitivity: 0.56, detectability: 0.5, risk: 0.3, amplitude: 0.4, defaultPeak: ["summer"], defaultLean: ["winter"] },
+  forest_edge_game: { ccBase: 0.56, recovery: 0.2, mobility: 0.55, pressureSensitivity: 0.58, detectability: 0.52, risk: 0.24, amplitude: 0.35, defaultPeak: ["autumn"], defaultLean: ["winter"] },
+};
+
+// --- dynamic state read helpers ---
+
+export function getFaunaStockDynamic(world: WorldState, stockId: FaunaStockId): FaunaStockDynamic {
+  const stored = world.faunaStocks?.[stockId];
+
+  if (stored !== undefined) {
+    return stored;
+  }
+
+  return { abundance: 1, disturbance: 0, lastPressureTick: 0 as TickNumber, cumulativePressure: 0 };
+}
+
+// Seasonal availability multiplier. `allowPulse` permits >1 for a run season
+// (used for TRIP RETURNS only — never the support multiplier).
+export function seasonalAvailabilityFactor(geo: FaunaStockGeo, season: Season, allowPulse: boolean): number {
+  const { peakSeasons, leanSeasons, amplitude } = geo.seasonality;
+
+  if (peakSeasons.includes(season)) {
+    const pulse = allowPulse ? 1 + amplitude * RUN_PULSE_BONUS : 1;
+    return clamp(pulse, SEASONAL_FACTOR_FLOOR, allowPulse ? 1.6 : 1);
+  }
+
+  if (leanSeasons.includes(season)) {
+    return clamp(1 - amplitude * 0.5, SEASONAL_FACTOR_FLOOR, 1);
+  }
+
+  return clamp(1 - amplitude * 0.18, SEASONAL_FACTOR_FLOOR, 1);
+}
+
+// Realized relative abundance of a stock right now (for the SUPPORT multiplier):
+// fraction-of-capacity × seasonal × (1 − disturbance). Bounded [FACTOR_FLOOR, 1].
+function realizedSupportFactor(geo: FaunaStockGeo, dyn: FaunaStockDynamic, season: Season): number {
+  const seasonal = seasonalAvailabilityFactor(geo, season, false);
+  const factor = dyn.abundance * seasonal * (1 - dyn.disturbance * DISTURB_SUPPRESS);
+
+  return clamp(factor, FACTOR_FLOOR, 1);
+}
+
+// --- per-tile support effect (consumed by carryingCapacity) ---
+
+export function deriveFaunaTileSupportEffect(
+  world: WorldState,
+  geo: FaunaStockGeography,
+  tileId: TileId,
+  season: Season,
+  contributionByClass: readonly ResourceClassContribution[],
+): FaunaTileSupportEffect {
+  const stocks = geo.byTile.get(tileId);
+  const animalContribution = foodContribution(contributionByClass, "animal_food");
+  const aquaticContribution = foodContribution(contributionByClass, "aquatic_food");
+  const totalFood = totalFoodContribution(contributionByClass);
+
+  // Uncovered tile → generic fallback placeholder: factor 1 (no fauna loss). This
+  // keeps inland/non-stock tiles on the prior abstract behaviour and concentrates
+  // finite depletion where stocks actually exist (deltas, lakes, game grounds).
+  let animalFactor = 1;
+  let aquaticFactor = 1;
+  let covered = false;
+
+  if (stocks !== undefined) {
+    for (const stock of stocks) {
+      const factor = realizedSupportFactor(stock, getFaunaStockDynamic(world, stock.id), season);
+
+      if (stock.faunaClass === "animal_food") {
+        animalFactor = Math.min(animalFactor, factor);
+        covered = true;
+      } else {
+        aquaticFactor = Math.min(aquaticFactor, factor);
+        covered = true;
+      }
+    }
+  }
+
+  const animalLoss = animalContribution * (1 - animalFactor);
+  const aquaticLoss = aquaticContribution * (1 - aquaticFactor);
+  const lossFraction = totalFood <= 0 ? 0 : clamp((animalLoss + aquaticLoss) / totalFood, 0, FAUNA_LOSS_CAP);
+
+  return {
+    covered,
+    animalFactor: round3(animalFactor),
+    aquaticFactor: round3(aquaticFactor),
+    animalLoss: round3(animalLoss),
+    aquaticLoss: round3(aquaticLoss),
+    faunaMultiplier: round3(1 - lossFraction),
+  };
+}
+
+function foodContribution(contributionByClass: readonly ResourceClassContribution[], classId: FaunaClass): number {
+  for (const entry of contributionByClass) {
+    if (entry.classId === classId) {
+      return entry.supportContribution;
+    }
+  }
+
+  return 0;
+}
+
+function totalFoodContribution(contributionByClass: readonly ResourceClassContribution[]): number {
+  let sum = 0;
+
+  for (const entry of contributionByClass) {
+    if (entry.domain === "food") {
+      sum += entry.supportContribution;
+    }
+  }
+
+  return sum;
+}
+
+// --- trip return + scout sign (anti-omniscient experience signals) ---
+
+// Stock-grounded multiplier on a hunting/fishing trip's RETURN value. >1 only on
+// a seasonal run; depleted/disturbed/lean → <1. Returns 1 (neutral) when the
+// target tile hosts no stock of that class (generic placeholder hunting).
+export function deriveFaunaTripReturnFactor(
+  world: WorldState,
+  geo: FaunaStockGeography,
+  tileId: TileId,
+  faunaClass: FaunaClass,
+  season: Season,
+): number {
+  const stock = bestStockOfClassAt(geo, tileId, faunaClass);
+
+  if (stock === undefined) {
+    return 1;
+  }
+
+  const dyn = getFaunaStockDynamic(world, stock.id);
+  const seasonal = seasonalAvailabilityFactor(stock, season, true);
+  const factor = (0.4 + stock.carryingCapacity * 0.6) * dyn.abundance * seasonal * (1 - dyn.disturbance * DISTURB_SUPPRESS);
+
+  return clamp(factor, ABUNDANCE_FLOOR, 1.6);
+}
+
+export function deriveFaunaTripStockTrace(
+  world: WorldState,
+  geo: FaunaStockGeography,
+  tileId: TileId,
+  faunaClass: FaunaClass,
+  season: Season,
+  tick: TickNumber,
+): FaunaTripStockTraceBase | undefined {
+  const stock = bestStockOfClassAt(geo, tileId, faunaClass);
+
+  if (stock === undefined) {
+    return undefined;
+  }
+
+  const dyn = getFaunaStockDynamic(world, stock.id);
+  const seasonalAvailability = seasonalAvailabilityFactor(stock, season, true);
+  const expectedReturnFactor = deriveFaunaTripReturnFactor(world, geo, tileId, faunaClass, season);
+
+  return {
+    stockId: String(stock.id),
+    faunaClass: stock.faunaClass,
+    kind: stock.kind,
+    habitat: stock.habitat,
+    anchorTileId: stock.anchorTileId,
+    habitatSuitability: stock.habitatSuitability,
+    habitatBasis: stock.habitatBasis,
+    expectedReturnFactor: round3(expectedReturnFactor),
+    currentAbundance: round3(dyn.abundance),
+    disturbance: round3(dyn.disturbance),
+    seasonalAvailability: round3(seasonalAvailability),
+    pressure: round3(clamp01(dyn.cumulativePressure * 0.12 + dyn.disturbance * 0.4)),
+    recoveryRate: stock.recoveryRate,
+    mobility: stock.mobility,
+    pressureSensitivity: stock.pressureSensitivity,
+    detectability: stock.detectability,
+    risk: stock.riskPlaceholder,
+    laborAccessCost: round3(clamp01(0.18 + stock.riskPlaceholder * 0.22 + (stock.habitat === "river_reach" ? 0.1 : 0))),
+    rawSource: "deriveFaunaTripStockTrace from finite fauna/aquatic stock geography + sparse dynamic state",
+    reasonIds: [`reason:fauna-trip-stock:${String(stock.id)}:${String(tileId)}:${String(tick)}` as ReasonId],
+  };
+}
+
+// Uncertain "sign/tracks" strength a scout/hunter can read WITHOUT a remote exact
+// stock read — bounded by the stock's detectability and the band's skill, with
+// deterministic per-tile noise. Never reveals abundance precisely.
+export function deriveFaunaSignStrength(
+  world: WorldState,
+  geo: FaunaStockGeography,
+  tileId: TileId,
+  faunaClass: FaunaClass,
+  season: Season,
+  skill: number,
+  tick: TickNumber,
+): number {
+  const stock = bestStockOfClassAt(geo, tileId, faunaClass);
+
+  if (stock === undefined) {
+    return 0;
+  }
+
+  const dyn = getFaunaStockDynamic(world, stock.id);
+  const seasonal = seasonalAvailabilityFactor(stock, season, false);
+  const trueSignal = dyn.abundance * seasonal * (0.5 + stock.carryingCapacity * 0.5);
+  // Detection is uncertain: detectability + skill gate it, and deterministic noise
+  // makes signs stale/misleading rather than an exact reveal.
+  const noise = hashUnit(String(world.seed), [String(stock.id), Number(tick)]) - 0.5;
+  const detected = trueSignal * (0.4 + stock.detectability * 0.4 + clamp01(skill) * 0.2) + noise * 0.18;
+
+  return clamp01(detected);
+}
+
+function bestStockOfClassAt(geo: FaunaStockGeography, tileId: TileId, faunaClass: FaunaClass): FaunaStockGeo | undefined {
+  const stocks = geo.byTile.get(tileId);
+
+  if (stocks === undefined) {
+    return undefined;
+  }
+
+  let best: FaunaStockGeo | undefined;
+
+  for (const stock of stocks) {
+    if (stock.faunaClass !== faunaClass) {
+      continue;
+    }
+
+    if (best === undefined || stock.carryingCapacity > best.carryingCapacity) {
+      best = stock;
+    }
+  }
+
+  return best;
+}
+
+// --- in-season trip depletion (physical truth write) ---
+
+// A successful hunting/fishing trip pulls the targeted stock's abundance down and
+// raises disturbance. Bounded, deterministic, sparse. Returns a new world (or the
+// same world when the tile hosts no matching stock).
+export function applyFaunaTripDepletion(
+  world: WorldState,
+  geo: FaunaStockGeography,
+  tileId: TileId,
+  faunaClass: FaunaClass,
+  intensity: number,
+  tick: TickNumber,
+): WorldState {
+  const stock = bestStockOfClassAt(geo, tileId, faunaClass);
+
+  if (stock === undefined) {
+    return world;
+  }
+
+  const clampedIntensity = clamp01(intensity);
+
+  if (clampedIntensity <= 0) {
+    return world;
+  }
+
+  const previous = world.faunaStocks ?? {};
+  const dyn = previous[stock.id] ?? { abundance: 1, disturbance: 0, lastPressureTick: 0 as TickNumber, cumulativePressure: 0 };
+  const pull = clampedIntensity * stock.pressureSensitivity * TRIP_DEPLETION_PULL;
+  const nextAbundance = clamp(dyn.abundance - pull * dyn.abundance, ABUNDANCE_FLOOR, 1);
+  const nextDisturbance = clamp01(dyn.disturbance + clampedIntensity * stock.mobility * 0.18);
+
+  return {
+    ...world,
+    faunaStocks: {
+      ...previous,
+      [stock.id]: {
+        abundance: round4(nextAbundance),
+        disturbance: round4(nextDisturbance),
+        lastPressureTick: tick,
+        cumulativePressure: round4(dyn.cumulativePressure + clampedIntensity),
+      },
+    },
+  };
+}
+
+// --- seasonal advance (once per season, like advanceTileDepletion) ---
+
+export function advanceFaunaStocks(world: WorldState, cache: TickContextCache): WorldState {
+  const geo = deriveFaunaStockGeography(world);
+
+  if (geo.stocks.length === 0) {
+    return world.faunaStocks === undefined ? world : { ...world, faunaStocks: {} };
+  }
+
+  const index = getSharedCatchmentIndex(world, cache);
+  const previous = world.faunaStocks ?? {};
+  const tick = world.time.tick;
+  const next: Record<string, FaunaStockDynamic> = {};
+
+  for (const stock of geo.stocks) {
+    const dyn = previous[stock.id] ?? { abundance: 1, disturbance: 0, lastPressureTick: 0 as TickNumber, cumulativePressure: 0 };
+
+    // General (camp / catchment occupation) pressure over the stock's zone.
+    let claimWeight = 0;
+    for (const tileId of stock.influenceTileIds) {
+      claimWeight += index.claimsByTileId.get(tileId)?.totalWeight ?? 0;
+    }
+    const generalPressure = clamp01((claimWeight / stock.influenceTileIds.length) / CLAIM_PRESSURE_NORM);
+
+    // In-season trip depletion already lowered abundance directly; here we apply
+    // catchment-occupation pressure + recovery + disturbance dynamics.
+    const pressure = clamp01(generalPressure * GENERAL_PRESSURE_WEIGHT) * stock.pressureSensitivity;
+    const recovery = stock.recoveryRate * (1 - dyn.abundance) * (1 - dyn.disturbance * 0.5);
+    const loss = pressure * DEPLETION_STRENGTH * dyn.abundance;
+    const nextAbundance = clamp(dyn.abundance + recovery - loss, ABUNDANCE_FLOOR, 1);
+
+    const rested = generalPressure < 0.04 && dyn.lastPressureTick !== tick;
+    const nextDisturbance = clamp01(
+      dyn.disturbance * (1 - DISTURB_DECAY) + generalPressure * DISTURB_GAIN - (rested ? DISTURB_DECAY * 0.5 : 0),
+    );
+
+    // Drop entries that have returned to baseline (sparse record).
+    if (nextAbundance >= 1 - DYNAMIC_DROP_EPSILON && nextDisturbance <= DYNAMIC_DROP_EPSILON) {
+      continue;
+    }
+
+    next[stock.id] = {
+      abundance: round4(nextAbundance),
+      disturbance: round4(nextDisturbance),
+      lastPressureTick: generalPressure > 0.02 ? tick : dyn.lastPressureTick,
+      cumulativePressure: round4(dyn.cumulativePressure + generalPressure),
+    };
+  }
+
+  return { ...world, faunaStocks: next as Readonly<Record<FaunaStockId, FaunaStockDynamic>> };
+}
+
+// --- audit / debug summary ---
+
+export interface FaunaStockSummary {
+  readonly stockCount: number;
+  readonly aquaticCount: number;
+  readonly terrestrialCount: number;
+  readonly byKind: Readonly<Record<string, number>>;
+  readonly byRegion: number;
+  readonly meanCarryingCapacity: number;
+  readonly meanAbundance: number;
+  readonly minAbundance: number;
+  readonly depletedStockCount: number; // abundance < 0.7
+  readonly disturbedStockCount: number; // disturbance > 0.3
+  readonly meanInfluenceTiles: number;
+  readonly maxInfluenceTiles: number;
+}
+
+export function summarizeFaunaStocks(world: WorldState): FaunaStockSummary {
+  const geo = deriveFaunaStockGeography(world);
+  const byKind: Record<string, number> = {};
+  const regions = new Set<RegionId>();
+  let aquaticCount = 0;
+  let ccSum = 0;
+  let abundanceSum = 0;
+  let minAbundance = 1;
+  let depleted = 0;
+  let disturbed = 0;
+  let influenceSum = 0;
+  let maxInfluence = 0;
+
+  for (const stock of geo.stocks) {
+    byKind[stock.kind] = (byKind[stock.kind] ?? 0) + 1;
+    regions.add(stock.regionId);
+    ccSum += stock.carryingCapacity;
+    influenceSum += stock.influenceTileIds.length;
+    maxInfluence = Math.max(maxInfluence, stock.influenceTileIds.length);
+
+    if (stock.faunaClass === "aquatic_food") {
+      aquaticCount += 1;
+    }
+
+    const dyn = getFaunaStockDynamic(world, stock.id);
+    abundanceSum += dyn.abundance;
+    minAbundance = Math.min(minAbundance, dyn.abundance);
+
+    if (dyn.abundance < 0.7) {
+      depleted += 1;
+    }
+
+    if (dyn.disturbance > 0.3) {
+      disturbed += 1;
+    }
+  }
+
+  const count = geo.stocks.length;
+
+  return {
+    stockCount: count,
+    aquaticCount,
+    terrestrialCount: count - aquaticCount,
+    byKind,
+    byRegion: regions.size,
+    meanCarryingCapacity: count === 0 ? 0 : round3(ccSum / count),
+    meanAbundance: count === 0 ? 1 : round3(abundanceSum / count),
+    minAbundance: round3(minAbundance),
+    depletedStockCount: depleted,
+    disturbedStockCount: disturbed,
+    meanInfluenceTiles: count === 0 ? 0 : round3(influenceSum / count),
+    maxInfluenceTiles: maxInfluence,
+  };
+}
+
+// --- small numeric helpers ---
+
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function round3(value: number): number {
+  return Math.round(value * 1000) / 1000;
+}
+
+function round4(value: number): number {
+  return Math.round(value * 10000) / 10000;
+}
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function uniqueStrings(values: readonly string[]): readonly string[] {
+  const seen = new Set<string>();
+  const output: string[] = [];
+
+  for (const value of values) {
+    if (!seen.has(value)) {
+      seen.add(value);
+      output.push(value);
+    }
+  }
+
+  return output;
+}

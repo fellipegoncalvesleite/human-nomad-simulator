@@ -1,0 +1,15 @@
+# Dependencies and build output
+node_modules/
+dist/
+
+# Generated benchmark/audit artifacts
+artifacts/
+docs/baselines/
+timing_audit.txt
+
+# Local working notes — not part of the published project
+CLAUDE.md
+PRODUCT.md
+DESIGN.md
+docs/HANDOFF.md
+docs/superpowers/

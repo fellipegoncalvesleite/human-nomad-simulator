@@ -1,60 +1,41 @@
 # Human Nomad Simulator
 
-A deterministic simulation of nomadic human bands surviving, migrating and
-slowly accumulating history — told back to you as readable stories instead of
-numbers.
+Human Nomad Simulator is a browser simulation about small nomadic bands moving through a seasonal world. The bands search for food and water, remember useful places, avoid places that hurt them, split when a group gets too large, and leave behind stories that come from the run itself.
 
-Bands of foragers move through a seasonal world: they learn which places feed
-them, wear paths between camps, remember river crossings that went wrong,
-split into daughter bands when they outgrow a territory, and carry knowledge
-of places, routes and people across generations. Nothing is scripted — what
-happens emerges from terrain, seasons, ecology and the bands' own memory.
+The goal is to make the simulation readable. You can inspect numbers when you need them, but the main view is written like a field note or a short history page.
 
-## The interface
+## What You Can Do
 
-- **Band panel** — select a band and read its situation through
-  player-question tabs: Overview, Doing, Survival, Food, Nature, Place,
-  People, Story and Technical. Prose first; raw numbers stay in Technical.
-- **Chronicle** — a wiki-style article per band: a lead summary, an infobox,
-  recent years in detail, and for old bands a century framing that tells the
-  long story from what actually survives (known places, worn corridors,
-  remembered dangers). Pages link to each other like a small encyclopedia.
-- **Map maker** — paint terrain before pressing Play to set up the world the
-  simulation will unfold in.
-- **Architecture graph** — an in-app map of the simulation's systems and how
-  far along each one is.
+1. Pick a band and read what it is doing, where it is living, what it knows, who it has met and what risks it faces.
+2. Open the Chronicle tab to see a wiki style article built from that band's actual history.
+3. Paint the map before starting a run so the world has the terrain you want to test.
+4. Watch bands move through seasons on the canvas map.
+5. Open the architecture view to see how the simulation systems connect.
 
-## How it works
+## How It Works
 
-- The simulation core is pure TypeScript in `src/sim`: no React, no DOM, no
-  randomness outside the seeded generator — the same seed always produces the
-  same history. One tick is one season.
-- The UI is React + Vite + Zustand and renders the world on canvas. A worker
-  streams a small live overlay every tick and a full snapshot at a slower
-  cadence to keep the map smooth.
+The simulation core lives in `src/sim` and is written in TypeScript. It does not depend on React or the DOM. A seeded generator controls variation, so the same seed produces the same history.
+
+The interface uses React, Vite and Zustand. The world is drawn on canvas, and a worker keeps the simulation moving without blocking the main screen.
 
 ## Running it
 
 ```bash
 npm install
 npm run dev        # development server
-npm run build      # type-check + production build
+npm run build      # type check and production build
 ```
 
 ## Benchmark CLI
 
-The simulation can run headless for performance and behavior checks:
+The simulation can also run without the browser for performance checks and behavior checks:
 
 ```bash
-npm run sim:benchmark -- --scenario harsh_dry_margin --years 100
-npm run sim:benchmark -- --scenario over_capacity_core --deterministic
+npm run sim:benchmark
 ```
 
-Scenarios cover crowded deltas, over-capacity cores, daughter-band
-colonization, harsh margins and more; `--deterministic` verifies that a run
-reproduces exactly.
+Scenarios cover crowded deltas, overloaded core areas, daughter band expansion, dry margins and other cases. The benchmark script also supports reproducible checks when you want to confirm that the same setup gives the same run.
 
 ## Status
 
-Actively developed. Current focus is readability of the generated histories
-and performance of long runs.
+Actively developed. The current focus is making generated histories easier to read and keeping long runs fast.

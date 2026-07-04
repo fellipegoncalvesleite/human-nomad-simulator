@@ -1,5 +1,6 @@
 {
   "name": "emergent-civilization-simulation",
+  "description": "Interactive simulation of nomadic human bands with seasonal ecology, migration, memory, and wiki style histories.",
   "private": true,
   "version": "0.1.0",
   "type": "module",

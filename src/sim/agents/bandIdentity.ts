@@ -224,18 +224,18 @@ function buildSubsistenceCard(band: Band, events: readonly CanonicalEvent[]): Ca
     evidence.push(activityEvidence("plant gathering and local foraging", gatheredCount, band));
   }
   if (fishingCount > 0 || returnKinds.some((entry) => entry.returnedResourceKind === "fish_placeholder")) {
-    evidence.push(activityEvidence("fishing appears in recent activity", Math.max(1, fishingCount), band));
+    evidence.push(activityEvidence("fishing or aquatic returns", Math.max(1, fishingCount), band));
   }
   if (huntingCount > 0 || returnKinds.some((entry) => entry.returnedResourceKind === "hunted_food_placeholder")) {
-    evidence.push(activityEvidence("hunting appears in recent activity", Math.max(1, huntingCount), band));
+    evidence.push(activityEvidence("hunting in recent work", Math.max(1, huntingCount), band));
   }
-  evidence.push(...fallbackEvents.slice(0, 2).map((event) => eventEvidence(event, "food pressure event")));
+  evidence.push(...fallbackEvents.slice(0, 2).map((event) => eventEvidence(event, "food pressure remembered")));
   if (band.seasonalSupport !== undefined) {
     evidence.push({
       kind: "seasonal_support",
       label: band.seasonalSupport.currentSeasonSupport.foodStress > 0.35
-        ? "current food stress record"
-        : "current support record",
+        ? "current food stress"
+        : "current food support",
       sourceId: `seasonal-support:${String(band.id)}:${band.seasonalSupport.currentSeasonSupport.year}:${band.seasonalSupport.currentSeasonSupport.season}`,
       scope: "current",
       livedStatus: "personally_lived",
@@ -244,7 +244,7 @@ function buildSubsistenceCard(band: Band, events: readonly CanonicalEvent[]): Ca
     });
   }
   if (evidence.length === 0) {
-    evidence.push(demographyEvidence("current food stress record", band, 0.35));
+    evidence.push(demographyEvidence("current food stress", band, 0.35));
   }
 
   const aquaticSignal = fishingCount > 0;
@@ -252,21 +252,21 @@ function buildSubsistenceCard(band: Band, events: readonly CanonicalEvent[]): Ca
   const fallbackSignal = fallbackEvents.length > 0 || (band.seasonalSupport?.currentSeasonSupport.foodStress ?? 0) > 0.45;
   const score = clamp01(gatheredCount * 0.1 + fishingCount * 0.12 + huntingCount * 0.08 + fallbackEvents.length * 0.18 + (band.seasonalSupport?.currentSeasonSupport.foodStress ?? 0) * 0.25);
   const title = aquaticSignal
-    ? "Aquatic food is visible in recent work"
+    ? "Water foods stand out"
     : gatheringSignal
-      ? "Gathering leads the food evidence"
+      ? "Gathered food stands out"
       : fallbackSignal
-        ? "Food pressure shapes subsistence"
-        : "Subsistence signal remains broad";
+        ? "Scarcity shapes the food story"
+        : "Food pattern still open";
   const summary = aquaticSignal
-    ? "Recent activity records show fishing or aquatic returns as a practical food signal, but this is not a fixed group label."
+    ? "Fishing or aquatic returns show up often enough to mark how this band eats, without turning it into a fixed label."
     : gatheringSignal
-      ? "Recent activity records point most clearly to gathered plants and local foraging."
+      ? "Plant gathering and local foraging are the clearest food work in the recent record."
       : fallbackSignal
-        ? "Food stress and fallback records matter more than a named food identity here."
-        : "The current records do not yet narrow the band into a specific food tendency.";
+        ? "The record is defined more by pressure and fallback food than by one named foodway."
+        : "The record has not yet settled around one clear food habit.";
 
-  return makeDraft("subsistence", title, summary, score, evidence, fallbackSignal && score < 0.45 ? "Food pressure is present, but the longer pattern is still weak." : undefined);
+  return makeDraft("subsistence", title, summary, score, evidence, fallbackSignal && score < 0.45 ? "Food pressure is present, but it is not yet a long pattern." : undefined);
 }
 
 function buildFamiliarCountryCard(band: Band, events: readonly CanonicalEvent[]): CardDraft {
@@ -284,7 +284,7 @@ function buildFamiliarCountryCard(band: Band, events: readonly CanonicalEvent[])
   if (knownTiles > 0) {
     evidence.push({
       kind: "place_memory",
-      label: `${knownTiles} known places`,
+      label: countLabel(knownTiles, "known place", "known places"),
       sourceId: `known-tiles:${String(band.id)}`,
       scope: "current",
       livedStatus: "personally_lived",
@@ -298,7 +298,7 @@ function buildFamiliarCountryCard(band: Band, events: readonly CanonicalEvent[])
       String(left.tileId).localeCompare(String(right.tileId)))[0];
     evidence.push({
       kind: "place_memory",
-      label: `${returnPlaces.length} return place${returnPlaces.length === 1 ? "" : "s"}`,
+      label: countLabel(returnPlaces.length, "return place", "return places"),
       sourceId: `place-memory:${String(top.tileId)}`,
       scope: "recent",
       livedStatus: "personally_lived",
@@ -310,7 +310,7 @@ function buildFamiliarCountryCard(band: Band, events: readonly CanonicalEvent[])
   if (corridorCount > 0) {
     evidence.push({
       kind: "route_memory",
-      label: `${corridorCount} remembered route${corridorCount === 1 ? "" : "s"}`,
+      label: countLabel(corridorCount, "remembered route", "remembered routes"),
       sourceId: `routes:${String(band.id)}`,
       scope: "recent",
       livedStatus: "personally_lived",
@@ -321,7 +321,7 @@ function buildFamiliarCountryCard(band: Band, events: readonly CanonicalEvent[])
   if (crossingCount > 0) {
     evidence.push({
       kind: "crossing_memory",
-      label: `${crossingCount} known crossing${crossingCount === 1 ? "" : "s"}`,
+      label: countLabel(crossingCount, "known crossing", "known crossings"),
       sourceId: `crossings:${String(band.id)}`,
       scope: "recent",
       livedStatus: "personally_lived",
@@ -329,23 +329,23 @@ function buildFamiliarCountryCard(band: Band, events: readonly CanonicalEvent[])
       reasonIds: [],
     });
   }
-  evidence.push(...countryEvents.slice(0, 2).map((event) => eventEvidence(event, "long-memory country event")));
+  evidence.push(...countryEvents.slice(0, 2).map((event) => eventEvidence(event, "older country memory")));
 
   const score = clamp01(knownTiles / 42 + returnPlaces.length * 0.08 + attachedPlaces.length * 0.08 + corridorCount * 0.08 + crossingCount * 0.08 + countryEvents.length * 0.12);
   const title = countryEvents.some((event) => /expanded/i.test(event.title))
-    ? "Known country has widened"
+    ? "Their country has opened outward"
     : returnPlaces.length >= 2
-      ? "Return places shape familiar country"
+      ? "Return places anchor the map"
       : corridorCount + crossingCount > 0
-        ? "Routes organize familiar country"
-        : "Familiar country is still forming";
+        ? "Routes organize the known country"
+        : "Their country is still taking shape";
   const summary = countryEvents.some((event) => /expanded/i.test(event.title))
-    ? "Durable history records expansion of known country, with recent memory still carrying places and routes."
+    ? "Older history shows the known range widening, while recent memory still holds the places and routes."
     : returnPlaces.length >= 2
-      ? "Repeated returns give the band a small set of familiar places rather than a blank map."
+      ? "Repeated returns give the band a few places that matter more than the surrounding blank country."
       : corridorCount + crossingCount > 0
-        ? "Route and crossing memory are part of how the band knows its country."
-        : "Known places exist, but strong repeated-place evidence is still limited.";
+        ? "Routes and crossings are part of how this band reads the land."
+        : "Known places exist, but few have become strong landmarks yet.";
 
   return makeDraft("familiar_country", title, summary, score, evidence);
 }
@@ -364,7 +364,7 @@ function buildMobilityCard(band: Band, events: readonly CanonicalEvent[]): CardD
   if (routeUse > 0) {
     evidence.push({
       kind: "route_memory",
-      label: `${routeUse} route use${routeUse === 1 ? "" : "s"} recorded`,
+      label: countLabel(routeUse, "remembered route use", "remembered route uses"),
       sourceId: `route-use:${String(band.id)}`,
       scope: "recent",
       livedStatus: "personally_lived",
@@ -375,7 +375,7 @@ function buildMobilityCard(band: Band, events: readonly CanonicalEvent[]): CardD
   if (returnPlaceCount > 0) {
     evidence.push({
       kind: "place_memory",
-      label: `${returnPlaceCount} camp-attached place${returnPlaceCount === 1 ? "" : "s"}`,
+      label: countLabel(returnPlaceCount, "camp-attached place", "camp-attached places"),
       sourceId: `camp-attachment:${String(band.id)}`,
       scope: "recent",
       livedStatus: "personally_lived",
@@ -383,30 +383,30 @@ function buildMobilityCard(band: Band, events: readonly CanonicalEvent[]): CardD
       reasonIds: [],
     });
   }
-  evidence.push(...routeEvents.slice(0, 2).map((event) => eventEvidence(event, "movement event")));
+  evidence.push(...routeEvents.slice(0, 2).map((event) => eventEvidence(event, "movement memory")));
   if (daughter && band.deepHistory?.founding !== undefined) {
-    evidence.push(foundingEvidence(band, "daughter founding record"));
+    evidence.push(foundingEvidence(band, "daughter founding"));
   }
 
   const score = clamp01(moveEvents.length * 0.12 + routeUse * 0.06 + returnPlaceCount * 0.12 + routeEvents.length * 0.12 + (daughter ? 0.2 : 0));
   const title = daughter
-    ? "Daughter movement record is separate"
+    ? "This branch has its own movement story"
     : routeUse >= 4
-      ? "Movement leans route-bound"
+      ? "They move by remembered routes"
       : returnPlaceCount >= 2
-        ? "Movement leans camp-attached"
+        ? "They keep returning to known camps"
         : moveEvents.length > 0
-          ? "Recent camp movement is visible"
-          : "Mobility style is still broad";
+          ? "Recent camp moves stand out"
+          : "Movement pattern still open";
   const summary = daughter
-    ? "This band has its own movement record after founding; parent movement is inherited context, not personal experience."
+    ? "After founding, this band begins its own movement story; parent routes remain inheritance, not personal experience."
     : routeUse >= 4
-      ? "Repeated corridor use makes routes more important than isolated one-off moves."
+      ? "Repeated corridors now matter more than isolated one-off moves."
       : returnPlaceCount >= 2
-        ? "Known camp places pull on movement choices, without implying settlement."
+        ? "Known camp places pull them back, without implying settled life."
         : moveEvents.length > 0
-          ? "Recent residential move records show where camp shifted, but not yet a durable movement style."
-          : "The current evidence is not strong enough to name a narrow movement orientation.";
+          ? "The camp has shifted recently, though the pattern is not yet old or durable."
+          : "The record is not strong enough to describe a narrow way of moving.";
 
   return makeDraft("mobility_style", title, summary, score, evidence);
 }
@@ -420,7 +420,7 @@ function buildRiskMemoryCard(band: Band, events: readonly CanonicalEvent[]): Car
   const waterStress = band.seasonalSupport?.currentSeasonSupport.waterStress ?? 0;
   const foodStress = band.seasonalSupport?.currentSeasonSupport.foodStress ?? 0;
 
-  evidence.push(...pressureEvents.slice(0, 2).map((event) => eventEvidence(event, "pressure event")));
+  evidence.push(...pressureEvents.slice(0, 2).map((event) => eventEvidence(event, "pressure remembered")));
   if (failedMoves.length > 0) {
     evidence.push(residentialMoveEvidence(failedMoves[0], failedMoves.length, "blocked move memory"));
   }
@@ -428,7 +428,7 @@ function buildRiskMemoryCard(band: Band, events: readonly CanonicalEvent[]): Car
     const crossing = riskyCrossings.slice().sort((left, right) => right.riskMemory - left.riskMemory)[0];
     evidence.push({
       kind: "crossing_memory",
-      label: riskyCrossings.length === 1 ? "1 risky crossing memory" : `${riskyCrossings.length} risky crossing memories`,
+      label: countLabel(riskyCrossings.length, "risky crossing memory", "risky crossing memories"),
       sourceId: `crossing:${String(crossing.riverId)}:${String(crossing.crossingTileA)}:${String(crossing.crossingTileB)}`,
       scope: "recent",
       livedStatus: "personally_lived",
@@ -453,7 +453,7 @@ function buildRiskMemoryCard(band: Band, events: readonly CanonicalEvent[]): Car
   if (band.seasonalSupport !== undefined) {
     evidence.push({
       kind: "seasonal_support",
-      label: waterStress >= foodStress ? "water pressure record" : "food pressure record",
+      label: waterStress >= foodStress ? "water pressure" : "food pressure",
       sourceId: `seasonal-pressure:${String(band.id)}:${band.seasonalSupport.currentSeasonSupport.year}:${band.seasonalSupport.currentSeasonSupport.season}`,
       scope: "current",
       livedStatus: "personally_lived",
@@ -462,30 +462,30 @@ function buildRiskMemoryCard(band: Band, events: readonly CanonicalEvent[]): Car
     });
   }
   if (evidence.length === 0) {
-    evidence.push(demographyEvidence("current mortality pressure record", band, band.demography.mortalityPressure));
+    evidence.push(demographyEvidence("current mortality pressure", band, band.demography.mortalityPressure));
   }
 
   const riskScore = clamp01(pressureEvents.length * 0.14 + failedMoves.length * 0.18 + riskyCrossings.length * 0.16 + failureStories.length * 0.1 + Math.max(waterStress, foodStress) * 0.35);
   const title = riskyCrossings.length > 0
-    ? "Crossing caution is remembered"
+    ? "Crossings have taught caution"
     : failedMoves.length > 0
-      ? "Blocked movement is remembered"
+      ? "Blocked paths have taught caution"
       : waterStress > 0.45
-        ? "Water pressure shapes caution"
+        ? "Water pressure teaches caution"
         : foodStress > 0.45 || pressureEvents.length > 0
-          ? "Food pressure shapes caution"
-          : "Risk memory is still weak";
+          ? "Food pressure teaches caution"
+          : "Caution is still faint";
   const summary = riskyCrossings.length > 0
-    ? "Crossings carry practical caution because risky or uncertain passage has been recorded."
+    ? "Risky or uncertain crossings have become part of how the band judges the land."
     : failedMoves.length > 0
-      ? "Recent move records include blocked or rejected movement, so caution is grounded in what happened."
+      ? "Recent moves were blocked or rejected, so caution comes from a real failed path."
       : waterStress > 0.45
-        ? "Current support records make water pressure the clearest remembered risk."
+        ? "Water is the clearest pressure in the current record."
         : foodStress > 0.45 || pressureEvents.length > 0
-          ? "Food or fallback pressure is present, but the longer risk pattern is still forming."
-          : "The current evidence does not show a strong repeated risk orientation yet.";
+          ? "Food or fallback pressure is present, but the longer pattern is still forming."
+          : "There is no strong repeated danger shaping the band yet.";
 
-  return makeDraft("risk_memory", title, summary, riskScore, evidence, riskScore < 0.35 ? "Risk evidence exists, but it is not yet a strong identity signal." : undefined);
+  return makeDraft("risk_memory", title, summary, riskScore, evidence, riskScore < 0.35 ? "The caution is visible, but still faint." : undefined);
 }
 
 function buildSocialDemographicCard(band: Band, events: readonly CanonicalEvent[]): CardDraft {
@@ -501,7 +501,7 @@ function buildSocialDemographicCard(band: Band, events: readonly CanonicalEvent[
   if (band.demography.elders > 0) {
     evidence.push(demographyEvidence(`${band.demography.elders} elders`, band, elderShare));
   }
-  evidence.push(...demographicEvents.slice(0, 2).map((event) => eventEvidence(event, "people event")));
+  evidence.push(...demographicEvents.slice(0, 2).map((event) => eventEvidence(event, "people changes")));
 
   const laborThin = band.demography.workingAdults <= band.demography.dependents + band.demography.elders;
   const recentSplit = band.fissionEvents.length > 0 || events.some((event) => event.type === "fission_split");
@@ -511,21 +511,25 @@ function buildSocialDemographicCard(band: Band, events: readonly CanonicalEvent[
     : laborThin
       ? "Care burden narrows spare labor"
       : elderShare > 0.18
-        ? "Older people matter in the group shape"
+        ? "Older people stand out in the group"
         : demographicEvents.some((event) => /recovered/i.test(event.title))
-          ? "Recovery is part of the group record"
-          : "Demographic posture is steady";
+          ? "Recovery is part of the people story"
+          : demographicEvents.length > 0
+            ? "The group has been changing"
+            : "The age mix does not set them apart";
   const summary = recentSplit
-    ? "Fission or daughter records are part of the band's social-demographic evidence."
+    ? "A split or daughter branch is now part of how this group is shaped."
     : laborThin
       ? "Dependents and elders take up enough of the population that spare adult labor is limited."
-      : elderShare > 0.18
+    : elderShare > 0.18
         ? "The cohort shape makes elder presence visible without turning it into kinship or social rank."
         : demographicEvents.some((event) => /recovered/i.test(event.title))
-          ? "Durable or recent records show population recovery as part of the band's history."
-          : "The current cohort shape is not an extreme identity signal.";
+          ? "The record shows population recovery as part of this band's history."
+          : demographicEvents.length > 0
+            ? "Births, deaths, or other people changes show up often enough to matter."
+            : "The current mix of adults, dependents, and elders does not strongly set them apart.";
 
-  return makeDraft("social_demographic", title, summary, score, evidence, score < 0.35 ? "This is a weak posture signal, not a fixed social type." : undefined);
+  return makeDraft("social_demographic", title, summary, score, evidence, score < 0.35 ? "This is a faint clue, not a fixed social type." : undefined);
 }
 
 function buildInheritanceCard(band: Band, events: readonly CanonicalEvent[]): CardDraft {
@@ -535,11 +539,11 @@ function buildInheritanceCard(band: Band, events: readonly CanonicalEvent[]): Ca
   const daughter = history?.founding.kind === "fission_daughter" || band.parentBandId !== undefined;
 
   if (history !== undefined) {
-    evidence.push(foundingEvidence(band, daughter ? "daughter founding snapshot" : "origin founding snapshot"));
+    evidence.push(foundingEvidence(band, daughter ? "daughter founding" : "origin beginning"));
     for (const summary of history.inheritedEraSummaries.slice(0, 2)) {
       evidence.push({
         kind: "deep_history",
-        label: "inherited parent-era summary",
+        label: "parent-era memory",
         sourceId: `inherited-era:${String(summary.sourceBandId)}:${summary.startYear}-${summary.endYear}`,
         scope: "inherited",
         livedStatus: "inherited_not_personally_lived",
@@ -548,11 +552,11 @@ function buildInheritanceCard(band: Band, events: readonly CanonicalEvent[]): Ca
       });
     }
   }
-  evidence.push(...inheritedEvents.slice(0, 2).map((event) => eventEvidence(event, "inherited event")));
+  evidence.push(...inheritedEvents.slice(0, 2).map((event) => eventEvidence(event, "inherited memory")));
   if (evidence.length === 0) {
     evidence.push({
       kind: "founding_snapshot",
-      label: band.parentBandId === undefined ? "origin band record" : "parent link record",
+      label: band.parentBandId === undefined ? "origin beginning" : "parent link",
       sourceId: `identity-origin:${String(band.id)}`,
       scope: "current",
       livedStatus: band.parentBandId === undefined ? "personally_lived" : "inherited_not_personally_lived",
@@ -564,11 +568,11 @@ function buildInheritanceCard(band: Band, events: readonly CanonicalEvent[]): Ca
   const inheritedCount = evidence.filter((entry) => entry.livedStatus === "inherited_not_personally_lived").length;
   const score = clamp01((daughter ? 0.45 : 0.2) + inheritedCount * 0.16 + (history?.ancestryLine.length ?? 0) * 0.08);
   const title = daughter || inheritedCount > 0
-    ? "Parent memory is present but separate"
-    : "Identity evidence is mostly personally lived";
+    ? "They carry parent memory separately"
+    : "Most of the portrait comes from their own life";
   const summary = daughter || inheritedCount > 0
-    ? "The band carries bounded parent history as inheritance; its own lived identity begins at its founding."
-    : "Current identity evidence comes mostly from this band's own founding, movement, memory, and events.";
+    ? "Parent history travels with the band, but its own life begins at founding."
+    : "The clues come mostly from this band's own beginning, movement, memory, and events.";
 
   return makeDraft("inheritance", title, summary, score, evidence);
 }
@@ -626,21 +630,21 @@ function buildSummaryLines(cards: readonly BandIdentityCard[]): readonly string[
   const lines: string[] = [];
 
   if (strongest.length >= 2) {
-    lines.push(`The clearest signals are ${lowerFirst(strongest[0].title)} and ${lowerFirst(strongest[1].title)}.`);
+    lines.push(`What sets them apart most: ${lowerFirst(strongest[0].title)}; ${lowerFirst(strongest[1].title)}.`);
   } else if (strongest.length === 1) {
-    lines.push(`The clearest signal is ${lowerFirst(strongest[0].title)}.`);
+    lines.push(`What sets them apart most: ${lowerFirst(strongest[0].title)}.`);
   } else {
-    lines.push("Identity evidence is still forming; the profile shows weak signals rather than a fixed label.");
+    lines.push("They are still hard to distinguish from nearby bands; the clues remain faint.");
   }
 
   if (inherited > 0) {
-    lines.push("Inherited evidence is separated from what this band personally lived after founding.");
+    lines.push("Parent memory is shown separately from what this band has lived itself.");
   } else {
-    lines.push("The evidence is mostly personally lived by this band.");
+    lines.push("Most clues come from this band's own life, not inherited parent history.");
   }
 
   if (weak > 0) {
-    lines.push(`${weak} signal${weak === 1 ? " is" : "s are"} marked weak or uncertain rather than overclaimed.`);
+    lines.push(`${weak} clue${weak === 1 ? " remains" : "s remain"} faint rather than overclaimed.`);
   }
 
   return lines;
@@ -650,7 +654,41 @@ function summaryTitle(cards: readonly BandIdentityCard[]): string {
   const strongest = cards
     .filter((card) => card.strength !== "weak" && card.strength !== "uncertain")
     .sort((left, right) => right.confidence - left.confidence || dimensionOrder(left.dimension) - dimensionOrder(right.dimension))[0];
-  return strongest === undefined ? "Identity still forming" : `Becoming: ${lowerFirst(strongest.title)}`;
+  if (strongest === undefined) {
+    return "A band still taking shape";
+  }
+  switch (strongest.dimension) {
+    case "subsistence":
+      if (/gathered/i.test(strongest.title)) {
+        return "A band leaning on gathered food";
+      }
+      if (/water/i.test(strongest.title)) {
+        return "A band marked by water foods";
+      }
+      if (/scarcity/i.test(strongest.title)) {
+        return "A band shaped by scarcity";
+      }
+      return "A band with food habits still forming";
+    case "familiar_country":
+      return "A band with a widening country";
+    case "mobility_style":
+      if (/branch/i.test(strongest.title)) {
+        return "A daughter band with its own path";
+      }
+      if (/remembered routes/i.test(strongest.title)) {
+        return "A band of remembered routes";
+      }
+      if (/returning/i.test(strongest.title) || /camps/i.test(strongest.title)) {
+        return "A band of returning camps";
+      }
+      return "A band shaped by movement";
+    case "risk_memory":
+      return "A band learning caution";
+    case "social_demographic":
+      return "A band shaped by its people";
+    case "inheritance":
+      return "A band carrying earlier memory";
+  }
 }
 
 function eventEvidence(event: CanonicalEvent, label: string): BandIdentityEvidenceRef {
@@ -672,7 +710,7 @@ function eventEvidence(event: CanonicalEvent, label: string): BandIdentityEviden
 function activityEvidence(label: string, count: number, band: Band): BandIdentityEvidenceRef {
   return {
     kind: "activity",
-    label: count > 1 ? `${label} x${count}` : label,
+    label: count > 1 ? `repeated ${label}` : label,
     sourceId: `activity:${String(band.id)}:${label.replace(/\s+/g, "-")}`,
     scope: "recent",
     livedStatus: "personally_lived",
@@ -684,11 +722,11 @@ function activityEvidence(label: string, count: number, band: Band): BandIdentit
 function residentialMoveEvidence(
   event: ResidentialMoveEvent,
   count: number,
-  label = "residential move record",
+  label = "camp move",
 ): BandIdentityEvidenceRef {
   return {
     kind: "residential_move",
-    label: count > 1 ? `${label} x${count}` : label,
+    label: count > 1 ? `repeated ${label}` : label,
     sourceId: `residential-move:${String(event.eventId)}`,
     scope: "recent",
     livedStatus: "personally_lived",
@@ -817,6 +855,19 @@ function failureStoryLabel(kind: string): string {
     default:
       return kind.replace(/_/g, " ");
   }
+}
+
+function countLabel(count: number, singular: string, plural: string): string {
+  if (count <= 1) {
+    return `1 ${singular}`;
+  }
+  if (count >= 20) {
+    return `many ${plural}`;
+  }
+  if (count >= 6) {
+    return `several ${plural}`;
+  }
+  return `${count} ${plural}`;
 }
 
 function dimensionOrder(dimension: BandIdentityDimension): number {

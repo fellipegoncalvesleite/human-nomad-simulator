@@ -2,6 +2,7 @@ import type { Band } from "../../sim/agents/types";
 import { deriveBandChronicle } from "../../sim/agents/bandChronicle";
 import { deriveBandIdentityProfile } from "../../sim/agents/bandIdentity";
 import { deriveCanonicalEvents, familyLabel } from "../../sim/agents/eventSystem";
+import { deriveKnowledgeEcologyProfile } from "../../sim/agents/knowledgeEcology";
 import { deriveMemoryReferents } from "../../sim/agents/memoryReferents";
 import type { Decision } from "../../sim/rules/types";
 import type { Tile, WorldState } from "../../sim/world/types";
@@ -469,6 +470,63 @@ function BandIdentityDetails({ band, world }: { readonly band: Band; readonly wo
   );
 }
 
+function KnowledgeEcologyDetails({ band, world }: { readonly band: Band; readonly world: WorldState | null }) {
+  if (world === null) {
+    return <Detail label="knowledge ecology" value="world unavailable" />;
+  }
+
+  const profile = deriveKnowledgeEcologyProfile(world, band);
+  const domainCounts = Object.entries(profile.domainCounts)
+    .filter(([, count]) => count > 0)
+    .map(([domain, count]) => `${domain} ${count}`)
+    .join(" · ");
+  const carrierCounts = Object.entries(profile.carrierCounts)
+    .filter(([, count]) => count > 0)
+    .map(([carrier, count]) => `${carrier} ${count}`)
+    .join(" · ");
+  const evidenceKinds = Object.entries(profile.technicalProof.evidenceKindCounts)
+    .filter(([, count]) => count > 0)
+    .map(([kind, count]) => `${kind} ${count}`)
+    .join(" · ");
+  const itemSummary = profile.items
+    .slice(0, 6)
+    .map((item) => `${item.domain}:${item.confidenceBand}:${item.practicalStatus}`)
+    .join(" | ");
+
+  return (
+    <>
+      <Detail label="knowledge projection" value={`${profile.items.length}/${profile.caps.itemCap} items · ${profile.domainsPresent.length} domains`} />
+      <Detail label="overview" value={`${profile.overviewTitle} · ${profile.overviewLines.join(" ")}`} />
+      <Detail
+        label="item counts"
+        value={`lived ${profile.livedItemCount} · inherited ${profile.inheritedItemCount} · practical ${profile.practicalItemCount} · heard ${profile.heardItemCount} · story ${profile.storyOnlyItemCount} · fading ${profile.fadingItemCount}`}
+      />
+      <Detail label="domains" value={domainCounts || "none"} />
+      <Detail label="carriers" value={carrierCounts || "none"} />
+      <Detail
+        label="evidence counts"
+        value={`activity ${profile.activityEvidenceCount} · events ${profile.eventEvidenceCount} · deep history ${profile.deepHistoryEvidenceCount} · memory ${profile.memoryEvidenceCount}`}
+      />
+      <Detail label="evidence kinds" value={evidenceKinds || "none"} />
+      <Detail
+        label="caps"
+        value={`items ${profile.caps.itemCap} · per-domain ${profile.caps.perDomainCap} · evidence/item ${profile.caps.evidencePerItemCap} · links/item ${profile.caps.linkPerItemCap} · held ${String(profile.caps.capsHeld)}`}
+      />
+      <Detail
+        label="integrity"
+        value={`selectedBandOnly=${profile.integrity.selectedBandOnly} · projectionOnly=${profile.integrity.projectionOnly} · noBehaviorInfluence=${profile.integrity.noBehaviorInfluence} · existingActivityPartiesOnly=${profile.integrity.usesExistingActivityPartiesOnly} · ignoresStartingSkills=${profile.integrity.ignoresLegacyStartingSkills} · inheritedSeparated=${profile.integrity.inheritedSeparated} · practicalVsStory=${profile.integrity.practicalVsStorySeparated}`}
+      />
+      <Detail
+        label="payload estimate"
+        value={`${formatBytes(profile.technicalProof.payloadBytesEstimate)} · max item ${formatBytes(profile.technicalProof.maxItemPayloadBytes)} · unresolved refs ${profile.technicalProof.unresolvedReferenceCount}`}
+      />
+      <Detail label="item sample" value={itemSummary || "none"} />
+      <Detail label="source id samples" value={profile.technicalProof.sourceIdSamples.join(" | ") || "none"} />
+      <Detail label="event id samples" value={profile.technicalProof.relatedEventIdSamples.join(" | ") || "none"} />
+    </>
+  );
+}
+
 function estimateJsonBytes(value: unknown): number {
   return new TextEncoder().encode(JSON.stringify(value)).length;
 }
@@ -627,6 +685,9 @@ export function Technical({
       </CollapsibleGroup>
       <CollapsibleGroup title="Band identity substrate">
         <BandIdentityDetails band={band} world={world} />
+      </CollapsibleGroup>
+      <CollapsibleGroup title="Knowledge ecology substrate">
+        <KnowledgeEcologyDetails band={band} world={world} />
       </CollapsibleGroup>
       <CollapsibleGroup title="History chronicle projection">
         <BandChronicleDetails band={band} world={world} />

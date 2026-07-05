@@ -18,6 +18,7 @@ import { Place } from "./band/Place";
 import { People } from "./band/People";
 import { Identity } from "./band/Identity";
 import { Events } from "./band/Events";
+import { Knowledge } from "./band/Knowledge";
 import { History } from "./band/History";
 import { Technical } from "./band/Technical";
 import { BandMarkdownExport } from "./band/BandMarkdownExport";
@@ -30,6 +31,7 @@ type BandDetailView =
   | "nature"
   | "place"
   | "people"
+  | "knowledge"
   | "identity"
   | "events"
   | "story"
@@ -49,6 +51,7 @@ const BAND_DETAIL_VIEWS: readonly {
   { id: "nature", label: "Nature" },
   { id: "place", label: "Place" },
   { id: "people", label: "People" },
+  { id: "knowledge", label: "Knowledge" },
   { id: "identity", label: "Identity" },
   { id: "events", label: "Events" },
   { id: "story", label: "Chronicle" },
@@ -278,6 +281,14 @@ function BandDetails({
           <Place band={band} world={world} currentTick={currentTick} onOpenChronicle={openChroniclePage} />
         ) : null}
         {detailView === "people" ? <People band={band} world={world} onOpenChronicle={openChroniclePage} /> : null}
+        {detailView === "knowledge" ? (
+          <Knowledge
+            band={band}
+            world={world}
+            onOpenChronicle={openChroniclePage}
+            onOpenEvents={() => setDetailView("events")}
+          />
+        ) : null}
         {detailView === "identity" ? (
           <Identity
             band={band}

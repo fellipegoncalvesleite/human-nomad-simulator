@@ -513,7 +513,7 @@ function readableGroupDraft(band: Band, key: string, group: readonly BandReadabl
     : uiSafeReadableEventTitle(last, category);
   const safeDescription = uiSafeReadableEventDescription(last, category);
   const summary = grouped
-    ? `${sorted.length} similar ${lowerFirst(publicReadableCategoryLabel(category))} records recur from ${formatYearRange(first.year, last.year)}. ${safeDescription}`
+    ? groupedReadableSummary(sorted.length, publicReadableCategoryLabel(category), first.year, last.year, safeDescription)
     : safeDescription;
 
   return {
@@ -544,9 +544,9 @@ function readableGroupDraft(band: Band, key: string, group: readonly BandReadabl
     sourceReasonIds: capIds(sorted.flatMap((event) => event.sourceReasonIds), SOURCE_ID_CAP),
     sourceHistoryIds: [],
     evidenceChips: [
-      { kind: "recent_event", label: grouped ? `${sorted.length} grouped records` : "recent record", sourceIds: sorted.slice(0, SOURCE_ID_CAP).map((event) => String(event.eventId)) },
+      { kind: "recent_event", label: grouped ? `${sorted.length} repeated traces` : "recent trace", sourceIds: sorted.slice(0, SOURCE_ID_CAP).map((event) => String(event.eventId)) },
       { kind: "category", label: publicReadableCategoryLabel(category).toLowerCase(), sourceIds: [] },
-      ...(last.salience === "high" ? [{ kind: "salience", label: "high salience", sourceIds: [] }] : []),
+      ...(last.salience === "high" ? [{ kind: "salience", label: "strong clue", sourceIds: [] }] : []),
     ].slice(0, EVIDENCE_CHIP_CAP),
     chronicleLinkIds: capStrings([
       ...sorted.slice(-3).map((event) => `event:${String(event.eventId)}`),
@@ -1128,6 +1128,17 @@ function publicReadableCategoryLabel(category: BandReadableEventCategory): strin
     case "lineage":
       return "Lineage";
   }
+}
+
+function groupedReadableSummary(
+  count: number,
+  label: string,
+  firstYear: number,
+  lastYear: number,
+  detail: string,
+): string {
+  const when = firstYear === lastYear ? `in Year ${lastYear}` : `across Years ${firstYear}-${lastYear}`;
+  return `${label} shows up ${count} times ${when}. ${detail}`;
 }
 
 function uiSafeReadableEventTitle(event: BandReadableEvent, category: BandReadableEventCategory): string {

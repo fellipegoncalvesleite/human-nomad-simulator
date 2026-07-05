@@ -51,11 +51,11 @@ export function Identity({
     <section className="bp-section band-identity" aria-label="band identity">
       <SectionHeading icon="memory">Identity</SectionHeading>
       <p className="condition-note">
-        Identity is a cautious reading of lived evidence: repeated places, pressure, activity, demography, events, and inherited history. It does not change decisions yet.
+        A careful portrait of what sets this band apart, drawn only from what it has done, where it returns, what it eats, and what its record has taught it to notice.
       </p>
 
       <article className="identity-lead">
-        <span className="identity-kicker">Who they are becoming</span>
+        <span className="identity-kicker">Historian's reading</span>
         <h3>{profile.summaryTitle}</h3>
         {profile.summaryLines.map((line) => (
           <p key={line}>{line}</p>
@@ -107,9 +107,9 @@ function IdentityCard({
         {card.uncertainty === undefined ? null : <p className="identity-uncertainty">{card.uncertainty}</p>}
         <div className="identity-meta-row">
           <span>{confidenceLabel(card.confidence)}</span>
-          <span>{card.evidence.length} evidence chip{card.evidence.length === 1 ? "" : "s"}</span>
-          <span>{card.livedEvidenceCount} lived</span>
-          {card.inheritedEvidenceCount > 0 ? <span>{card.inheritedEvidenceCount} inherited</span> : null}
+          <span>{card.evidence.length} clue{card.evidence.length === 1 ? "" : "s"}</span>
+          <span>{card.livedEvidenceCount} lived here</span>
+          {card.inheritedEvidenceCount > 0 ? <span>{card.inheritedEvidenceCount} carried from parent</span> : null}
         </div>
         <div className="identity-evidence-list" aria-label="identity evidence">
           {card.evidence.map((entry, index) => (
@@ -123,13 +123,13 @@ function IdentityCard({
           {card.relatedEventIds.length === 0 || onOpenEvents === undefined ? null : (
             <button type="button" className="chronicle-link small" onClick={onOpenEvents}>
               <Icon name="time" />
-              <span>View supporting events</span>
+              <span>See events behind this</span>
             </button>
           )}
           {chronicleTarget === undefined || onOpenChronicle === undefined ? null : (
             <button type="button" className="chronicle-link small" onClick={() => onOpenChronicle(chronicleTarget)}>
               <Icon name="knowledge" />
-              <span>Open Chronicle support</span>
+              <span>Open Chronicle passage</span>
             </button>
           )}
         </div>
@@ -141,17 +141,17 @@ function IdentityCard({
 function dimensionLabel(dimension: BandIdentityDimension): string {
   switch (dimension) {
     case "subsistence":
-      return "Food tendency";
+      return "Food they lean on";
     case "familiar_country":
-      return "Familiar country";
+      return "Country they know";
     case "mobility_style":
-      return "Movement style";
+      return "How they move";
     case "risk_memory":
-      return "Remembered risks";
+      return "What taught caution";
     case "social_demographic":
-      return "People and labor";
+      return "Household shape";
     case "inheritance":
-      return "Inheritance";
+      return "What they carry";
   }
 }
 
@@ -160,13 +160,13 @@ function strengthLabel(strength: BandIdentityStrength): string {
     case "uncertain":
       return "uncertain";
     case "weak":
-      return "weak signal";
+      return "faint clue";
     case "forming":
       return "forming";
     case "established":
-      return "established";
+      return "clear pattern";
     case "durable":
-      return "long memory";
+      return "old memory";
     case "inherited":
       return "inherited";
   }

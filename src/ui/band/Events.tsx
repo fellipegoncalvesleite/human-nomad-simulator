@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 
 import {
   deriveCanonicalEvents,
-  familyLabel,
   type CanonicalEvent,
   type CanonicalEventFamily,
   type CanonicalEventMemoryScope,
@@ -78,7 +77,7 @@ export function Events({
     <section className="bp-section band-events" aria-label="canonical events">
       <SectionHeading icon="time">Events</SectionHeading>
       <p className="condition-note">
-        This is the band's event record: concrete changes in people, places, pressure, and memory. Talk can mention an event, but the record below is what the simulator can ground.
+        A compact timeline of things that actually changed for this band. Talk may repeat or argue about them, but the event line comes from grounded history.
       </p>
 
       <EventOverview state={eventState} />
@@ -102,7 +101,7 @@ export function Events({
       ) : (
         <>
           {quieterEvents.length === 0 ? null : (
-            <p className="event-list-note">Showing the higher-signal records first. Smaller recent changes are folded below.</p>
+            <p className="event-list-note">The main timeline shows the changes most likely to explain the band now.</p>
           )}
           <div className="canonical-event-list">
             {featuredEvents.map((event) => (
@@ -115,8 +114,8 @@ export function Events({
             ))}
           </div>
           {quieterEvents.length === 0 ? null : (
-            <CollapsibleGroup title={`Quieter recent records (${quieterEvents.length})`}>
-              <p className="event-list-note">These are still grounded records, kept out of the main list so Events reads like history instead of a tick log.</p>
+            <CollapsibleGroup title={`Smaller recent changes (${quieterEvents.length})`}>
+              <p className="event-list-note">These still happened; they are folded away from the main timeline so it reads like history instead of a tick log.</p>
               <div className="canonical-event-list">
                 {quieterEvents.map((event) => (
                   <EventCard
@@ -136,32 +135,58 @@ export function Events({
 }
 
 function EventOverview({ state }: { readonly state: CanonicalEventState }) {
-  const familySummary = Object.entries(state.familyCounts)
-    .filter(([, count]) => count > 0)
-    .map(([family, count]) => `${publicFamilyLabel(family as CanonicalEventFamily)} ${count}`)
-    .join(" · ");
+  const familySummary = familyOverviewLine(state);
 
   return (
     <div className="event-overview" aria-label="event overview">
       <div>
-        <span className="event-overview-label">Records</span>
+        <span className="event-overview-label">In the record</span>
         <strong>{state.events.length}</strong>
       </div>
       <div>
-        <span className="event-overview-label">Recent detail / long memory</span>
-        <strong>{state.recentEventCount} / {state.durableEventCount}</strong>
+        <span className="event-overview-label">Recent changes</span>
+        <strong>{state.recentEventCount}</strong>
       </div>
       <div>
-        <span className="event-overview-label">Inherited memory</span>
-        <strong>{state.inheritedEventCount}</strong>
+        <span className="event-overview-label">Long memory</span>
+        <strong>{state.durableEventCount + state.inheritedEventCount}</strong>
       </div>
       <div>
         <span className="event-overview-label">Folded repeats</span>
         <strong>{state.groupedEventCount}</strong>
       </div>
-      <p>{familySummary.length === 0 ? "No event kinds available yet." : `In view: ${familySummary}`}</p>
+      <p>{familySummary}</p>
     </div>
   );
+}
+
+function familyOverviewLine(state: CanonicalEventState): string {
+  const families = Object.entries(state.familyCounts)
+    .filter(([, count]) => count > 0)
+    .sort(([leftFamily, leftCount], [rightFamily, rightCount]) =>
+      rightCount - leftCount ||
+      familySortIndex(leftFamily as CanonicalEventFamily) - familySortIndex(rightFamily as CanonicalEventFamily))
+    .slice(0, 3)
+    .map(([family]) => publicFamilyLabel(family as CanonicalEventFamily).toLowerCase());
+
+  if (families.length === 0) {
+    return "No event kinds are visible yet.";
+  }
+  return `Most of the visible record concerns ${joinHumanList(families)}.`;
+}
+
+function familySortIndex(family: CanonicalEventFamily): number {
+  return EVENT_FILTERS.indexOf(family);
+}
+
+function joinHumanList(items: readonly string[]): string {
+  if (items.length <= 1) {
+    return items[0] ?? "";
+  }
+  if (items.length === 2) {
+    return `${items[0]} and ${items[1]}`;
+  }
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
 }
 
 function EventCard({
@@ -198,10 +223,10 @@ function EventCard({
         <div className="canonical-event-meta">
           <span>{publicFamilyLabel(event.family)}</span>
           <span>{provenanceLabel(event.provenance)}</span>
-          {event.grouped ? <span>{event.groupedCount} similar records folded</span> : null}
-          {event.actualCause === undefined ? null : <span>Grounded from {event.actualCause}</span>}
+          {event.grouped ? <span>{event.groupedCount} similar traces folded</span> : null}
+          {event.actualCause === undefined ? null : <span>Why it appears: {event.actualCause}</span>}
         </div>
-        <p>{event.consequence}</p>
+        <p>{publicEventConsequence(event)}</p>
         {related.length === 0 ? null : <p className="canonical-event-related">{related}</p>}
         {event.evidenceChips.length === 0 ? null : (
           <div className="chronicle-evidence-chips" aria-label="event evidence">
@@ -276,6 +301,37 @@ function isFeaturedEvent(event: CanonicalEvent): boolean {
     event.grouped ||
     event.significance >= 0.62 ||
     event.severity >= 0.7;
+}
+
+function publicEventConsequence(event: CanonicalEvent): string {
+  if (event.livedStatus === "inherited_not_personally_lived") {
+    return "This is parent history carried forward, not something this band personally lived.";
+  }
+  switch (event.type) {
+    case "founding":
+      return "This is the first dated point in this band's own record.";
+    case "daughter_fission":
+    case "fission_split":
+      return "A new branch changes the family line without copying the whole parent story.";
+    case "residential_move":
+      return "This belongs to the remembered movement record, not a new movement decision.";
+    case "durable_era_closed":
+      return "This period survived as part of the band's older history.";
+    case "durable_episode":
+      return event.memoryScope === "durable"
+        ? "This happened often or strongly enough to survive into long memory."
+        : "This is kept as a practical change in the recent record.";
+    case "recent_pattern":
+      return "Several similar changes were folded into one readable line.";
+    case "recent_event":
+      return "A recent change kept because it helps explain the band now.";
+    case "inherited_episode":
+    case "inherited_era_summary":
+      return "Parent history is kept apart from the band's own lived history.";
+    case "terminal_absorbed":
+    case "terminal_collapsed":
+      return "This preserves how the band ended.";
+  }
 }
 
 function relatedLine(event: CanonicalEvent): string {

@@ -3,6 +3,30 @@ import { deriveBandChronicle } from "../../sim/agents/bandChronicle";
 import { deriveBandIdentityProfile } from "../../sim/agents/bandIdentity";
 import { deriveCanonicalEvents, familyLabel } from "../../sim/agents/eventSystem";
 import { deriveKnowledgeEcologyProfile } from "../../sim/agents/knowledgeEcology";
+import {
+  deriveMaterialAffordanceProfile,
+  materialAffordanceFamilyLabel,
+  materialAffordanceStatusLabel,
+} from "../../sim/agents/materialAffordance";
+import {
+  candidateFamilyLabel,
+  deriveProblemPracticeProfile,
+  practiceExperimentStatusLabel,
+  practiceFeedbackTypeLabel,
+  problemFrameFamilyLabel,
+} from "../../sim/agents/problemPractice";
+import {
+  campFootholdFactorFamilyLabel,
+  campFootholdStatusLabel,
+  deriveCampFootholdProfile,
+} from "../../sim/agents/campFoothold";
+import {
+  derivePracticeFeedbackReadinessProfile,
+  practiceFeedbackQualityLabel,
+  practiceFeedbackReadinessFamilyLabel,
+  practiceFeedbackReadinessFeedbackTypeLabel,
+  practiceFeedbackReadinessStatusLabel,
+} from "../../sim/agents/practiceFeedbackReadiness";
 import { deriveMemoryReferents } from "../../sim/agents/memoryReferents";
 import type { Decision } from "../../sim/rules/types";
 import type { Tile, WorldState } from "../../sim/world/types";
@@ -527,6 +551,346 @@ function KnowledgeEcologyDetails({ band, world }: { readonly band: Band; readonl
   );
 }
 
+function MaterialAffordanceDetails({ band, world }: { readonly band: Band; readonly world: WorldState | null }) {
+  if (world === null) {
+    return <Detail label="material affordance" value="world unavailable" />;
+  }
+
+  const profile = deriveMaterialAffordanceProfile(world, band);
+  const familyCounts = Object.entries(profile.familyCounts)
+    .filter(([, count]) => count > 0)
+    .map(([family, count]) => `${materialAffordanceFamilyLabel(family as Parameters<typeof materialAffordanceFamilyLabel>[0])} ${count}`)
+    .join(" · ");
+  const statusCounts = Object.entries(profile.statusCounts)
+    .filter(([, count]) => count > 0)
+    .map(([status, count]) => `${materialAffordanceStatusLabel(status as Parameters<typeof materialAffordanceStatusLabel>[0])} ${count}`)
+    .join(" · ");
+  const strengthCounts = Object.entries(profile.strengthCounts)
+    .filter(([, count]) => count > 0)
+    .map(([strength, count]) => `${strength} ${count}`)
+    .join(" · ");
+  const sourceCounts = Object.entries(profile.sourceSystemCounts)
+    .filter(([, count]) => count > 0)
+    .map(([source, count]) => `${source.replace(/_/g, " ")} ${count}`)
+    .join(" · ");
+  const hookCounts = Object.entries(profile.futureHookCounts)
+    .slice(0, 8)
+    .map(([hook, count]) => `${hook} ${count}`)
+    .join(" · ");
+  const itemSummary = profile.items
+    .slice(0, 8)
+    .map((item) => `${item.family}:${item.status}:${formatCompactNumber(item.confidence)} e${item.evidence.length} c${item.constraints.length}`)
+    .join(" | ");
+
+  return (
+    <>
+      <Detail label="affordance projection" value={`${profile.items.length}/${profile.caps.itemCap} items · ${profile.familiesRepresented.length} families`} />
+      <Detail label="overview" value={`${profile.overviewTitle} · ${profile.overviewLines.join(" ")}`} />
+      <Detail label="families" value={familyCounts || "none"} />
+      <Detail label="statuses" value={statusCounts || "none"} />
+      <Detail label="strengths" value={strengthCounts || "none"} />
+      <Detail
+        label="basis counts"
+        value={`material ${profile.materialBasisCount} · knowledge ${profile.knowledgeBasisCount} · activity ${profile.activityEvidenceCount} · event ${profile.eventEvidenceCount} · memory ${profile.memoryEvidenceCount} · constraints ${profile.constraintCount}`}
+      />
+      <Detail
+        label="lived / inherited"
+        value={`lived ${profile.livedBasisCount} · inherited ${profile.inheritedBasisCount} · unsupported/deferred ${profile.unsupportedOrDeferredCount}`}
+      />
+      <Detail label="source systems" value={sourceCounts || "none"} />
+      <Detail label="future hook counts" value={hookCounts || "none"} />
+      <Detail
+        label="caps"
+        value={`items ${profile.caps.itemCap} · evidence/item ${profile.caps.evidencePerItemCap} · basis/item ${profile.caps.basisPerItemCap} · constraints/item ${profile.caps.constraintPerItemCap} · hooks/item ${profile.caps.futureHookPerItemCap} · known tiles ${profile.technicalProof.knownTileContextCount}/${profile.caps.knownTileContextCap} · resources ${profile.technicalProof.resourceMemoryContextCount}/${profile.caps.resourceMemoryContextCap} · held ${String(profile.caps.capsHeld)}`}
+      />
+      <Detail
+        label="integrity"
+        value={`selectedBandOnly=${profile.integrity.selectedBandOnly} · projectionOnly=${profile.integrity.projectionOnly} · noBehaviorInfluence=${profile.integrity.noBehaviorInfluence} · noDecisionInfluence=${profile.integrity.noDecisionInfluence} · noPracticeDiscovery=${profile.integrity.noPracticeDiscovery} · noProblemFraming=${profile.integrity.noProblemFraming} · noSkillOrAdaptation=${profile.integrity.noSkillOrAdaptationSystem} · ignoresStartingSkills=${profile.integrity.ignoresLegacyStartingSkills} · inheritedSeparated=${profile.integrity.inheritedSeparated}`}
+      />
+      <Detail
+        label="deferred systems"
+        value={`culture ${String(profile.integrity.noCultureSystem)} · agriculture/settlement/territory/war ${String(profile.integrity.noAgricultureSettlementTerritoryWar)} · legacy skill proof ${profile.technicalProof.legacyStartingSkillProofCount} · decision isolation ${String(profile.technicalProof.decisionPathIsolation)}`}
+      />
+      <Detail label="chronicle integration" value={`${profile.chronicleIntegration.mode} · broken links ${profile.chronicleIntegration.brokenRenderedLinks} · ${profile.chronicleIntegration.reason}`} />
+      <Detail
+        label="payload estimate"
+        value={`${formatBytes(profile.technicalProof.payloadBytesEstimate)} selected-band projection · max item ${formatBytes(profile.technicalProof.maxItemPayloadBytes)}`}
+      />
+      <Detail label="item sample" value={itemSummary || "none"} />
+      <Detail label="source id samples" value={profile.technicalProof.sourceIdSamples.join(" | ") || "none"} />
+      <Detail label="event id samples" value={profile.technicalProof.eventIdSamples.join(" | ") || "none"} />
+      <Detail label="activity samples" value={profile.technicalProof.activityTripSamples.join(" | ") || "none"} />
+    </>
+  );
+}
+
+function ProblemPracticeDetails({ band, world }: { readonly band: Band; readonly world: WorldState | null }) {
+  if (world === null) {
+    return <Detail label="problem / practice" value="world unavailable" />;
+  }
+
+  const profile = deriveProblemPracticeProfile(world, band);
+  const frameFamilies = Object.entries(profile.problemFamilyCounts)
+    .filter(([, count]) => count > 0)
+    .map(([family, count]) => `${problemFrameFamilyLabel(family as Parameters<typeof problemFrameFamilyLabel>[0])} ${count}`)
+    .join(" · ");
+  const candidateFamilies = Object.entries(profile.candidateFamilyCounts)
+    .filter(([, count]) => count > 0)
+    .map(([family, count]) => `${candidateFamilyLabel(family as Parameters<typeof candidateFamilyLabel>[0])} ${count}`)
+    .join(" · ");
+  const statuses = Object.entries(profile.statusCounts)
+    .filter(([, count]) => count > 0)
+    .map(([status, count]) => `${practiceExperimentStatusLabel(status as Parameters<typeof practiceExperimentStatusLabel>[0])} ${count}`)
+    .join(" · ");
+  const feedback = Object.entries(profile.feedbackTypeCounts)
+    .filter(([, count]) => count > 0)
+    .map(([type, count]) => `${practiceFeedbackTypeLabel(type as Parameters<typeof practiceFeedbackTypeLabel>[0])} ${count}`)
+    .join(" · ");
+  const sources = Object.entries(profile.sourceSystemCounts)
+    .filter(([, count]) => count > 0)
+    .map(([source, count]) => `${source.replace(/_/g, " ")} ${count}`)
+    .join(" · ");
+  const perceivedCauses = Object.entries(profile.perceivedCauseCounts)
+    .slice(0, 6)
+    .map(([cause, count]) => `${cause} ${count}`)
+    .join(" · ");
+  const frameSummary = profile.problemFrames
+    .slice(0, 7)
+    .map((frame) => `${frame.family}:${formatCompactNumber(frame.confidence)} e${frame.evidence.length}`)
+    .join(" | ");
+  const candidateSummary = profile.practiceCandidates
+    .slice(0, 7)
+    .map((candidate) => `${candidate.family}:${candidate.status}:${candidate.expectedFeedbackType}:${formatCompactNumber(candidate.confidence)}`)
+    .join(" | ");
+
+  return (
+    <>
+      <Detail label="projection" value={`${profile.problemFrames.length}/${profile.caps.problemFrameCap} frames · ${profile.practiceCandidates.length}/${profile.caps.practiceCandidateCap} candidates`} />
+      <Detail label="overview" value={`${profile.overviewTitle} · ${profile.overviewLines.join(" ")}`} />
+      <Detail label="frame families" value={frameFamilies || "none"} />
+      <Detail label="candidate families" value={candidateFamilies || "none"} />
+      <Detail label="candidate statuses" value={statuses || "none"} />
+      <Detail label="feedback types" value={feedback || "none"} />
+      <Detail label="perceived causes" value={perceivedCauses || "none"} />
+      <Detail
+        label="source refs"
+        value={`affordance ${profile.affordanceRefCount} · knowledge ${profile.knowledgeRefCount} · event ${profile.eventRefCount} · activity ${profile.activityRefCount} · repetition ${profile.repetitionRefCount}`}
+      />
+      <Detail label="source systems" value={sources || "none"} />
+      <Detail
+        label="risks"
+        value={`uncertainty/misread ${profile.uncertaintyMisreadCount} · dead-end ${profile.deadEndRiskCount} · false-confidence ${profile.falseConfidenceRiskCount} · low-feedback ${profile.lowFeedbackRiskCount} · local-only ${profile.localOnlyRiskCount}`}
+      />
+      <Detail label="lived / inherited" value={`lived ${profile.livedBasisCount} · inherited ${profile.inheritedBasisCount}`} />
+      <Detail label="constraints" value={profile.constraints.join(" | ") || "none"} />
+      <Detail
+        label="caps"
+        value={`frames ${profile.caps.problemFrameCap} · candidates ${profile.caps.practiceCandidateCap} · evidence/frame ${profile.caps.evidencePerFrameCap} · evidence/candidate ${profile.caps.evidencePerCandidateCap} · basis/candidate ${profile.caps.basisPerCandidateCap} · links ${profile.caps.relatedLinkCap} · context ${profile.caps.contextRecordCap} · held ${String(profile.caps.capsHeld)}`}
+      />
+      <Detail
+        label="integrity"
+        value={`selectedBandOnly=${profile.integrity.selectedBandOnly} · projectionOnly=${profile.integrity.projectionOnly} · noBehaviorInfluence=${profile.integrity.noBehaviorInfluence} · noDecisionInfluence=${profile.integrity.noDecisionInfluence} · noSkillOrAdaptationState=${profile.integrity.noSkillOrAdaptationState} · noAutomaticImprovement=${profile.integrity.noAutomaticImprovement} · ignoresStartingSkills=${profile.integrity.ignoresLegacyStartingSkills}`}
+      />
+      <Detail
+        label="bounded interpretation"
+        value={`inheritedSeparated=${profile.integrity.inheritedSeparated} · daughterLocalTesting=${profile.integrity.daughterParentKnowledgeNotTreatedAsTestedHere} · repetitionIsNotMastery=${profile.integrity.repetitionIsNotMastery} · candidatesRequireProblemBasis=${profile.integrity.candidatesRequireProblemBasis}`}
+      />
+      <Detail
+        label="deferred systems"
+        value={`culture/taboo/myth/worldview/language=${profile.integrity.noCultureTabooMythWorldviewLanguage} · agriculture/settlement/territory/war=${profile.integrity.noAgricultureSettlementTerritoryWar} · fakeSkillState ${profile.technicalProof.fakeSkillStateCount} · legacySkillProof ${profile.technicalProof.legacyStartingSkillProofCount} · decision isolation ${String(profile.technicalProof.decisionPathIsolation)}`}
+      />
+      <Detail label="chronicle integration" value={`${profile.chronicleIntegration.mode} · broken links ${profile.chronicleIntegration.brokenRenderedLinks} · ${profile.chronicleIntegration.reason}`} />
+      <Detail
+        label="payload estimate"
+        value={`${formatBytes(profile.technicalProof.payloadBytesEstimate)} selected-band projection · max frame ${formatBytes(profile.technicalProof.maxFramePayloadBytes)} · max candidate ${formatBytes(profile.technicalProof.maxCandidatePayloadBytes)}`}
+      />
+      <Detail label="frame sample" value={frameSummary || "none"} />
+      <Detail label="candidate sample" value={candidateSummary || "none"} />
+      <Detail label="affordance samples" value={profile.technicalProof.affordanceIdSamples.join(" | ") || "none"} />
+      <Detail label="knowledge samples" value={profile.technicalProof.knowledgeIdSamples.join(" | ") || "none"} />
+      <Detail label="event samples" value={profile.technicalProof.eventIdSamples.join(" | ") || "none"} />
+      <Detail label="activity samples" value={profile.technicalProof.activityIdSamples.join(" | ") || "none"} />
+      <Detail label="repetition samples" value={profile.technicalProof.repetitionIdSamples.join(" | ") || "none"} />
+    </>
+  );
+}
+
+function CampFootholdDetails({ band, world }: { readonly band: Band; readonly world: WorldState | null }) {
+  if (world === null) {
+    return <Detail label="camp foothold" value="world unavailable" />;
+  }
+
+  const profile = deriveCampFootholdProfile(world, band);
+  const familyCounts = Object.entries(profile.factorFamilyCounts)
+    .filter(([, count]) => count > 0)
+    .map(([family, count]) => `${campFootholdFactorFamilyLabel(family as Parameters<typeof campFootholdFactorFamilyLabel>[0])} ${count}`)
+    .join(" · ");
+  const statuses = Object.entries(profile.statusCounts)
+    .filter(([, count]) => count > 0)
+    .map(([status, count]) => `${campFootholdStatusLabel(status as Parameters<typeof campFootholdStatusLabel>[0])} ${count}`)
+    .join(" · ");
+  const sources = Object.entries(profile.sourceSystemCounts)
+    .filter(([, count]) => count > 0)
+    .map(([source, count]) => `${source.replace(/_/g, " ")} ${count}`)
+    .join(" · ");
+  const placeSummary = profile.places
+    .slice(0, 6)
+    .map((place) => `${place.role}:${place.status}:${formatCompactNumber(place.confidence)} e${place.evidence.length}`)
+    .join(" | ");
+  const factorSummary = profile.factors
+    .slice(0, 6)
+    .map((factor) => `${factor.family}:${factor.status}:${formatCompactNumber(factor.confidence)} e${factor.evidence.length}`)
+    .join(" | ");
+
+  return (
+    <>
+      <Detail label="projection" value={`${profile.places.length}/${profile.caps.placeCap} places · ${profile.factors.length}/${profile.caps.factorCap} factors · storage ${profile.temporaryCacheSignals.length}/${profile.caps.storageSignalCap} · fire ${profile.fireHearthFuelSignals.length}/${profile.caps.fireSignalCap} · care ${profile.careCampSignals.length}/${profile.caps.careSignalCap}`} />
+      <Detail label="overview" value={`${profile.overviewTitle} · ${profile.overviewLines.join(" ")}`} />
+      <Detail label="factor families" value={familyCounts || "none"} />
+      <Detail label="statuses" value={statuses || "none"} />
+      <Detail
+        label="source refs"
+        value={`places ${profile.placeRefCount} · activity ${profile.activityRefCount} · affordance ${profile.materialAffordanceRefCount} · problem/practice ${profile.problemPracticeRefCount} · knowledge ${profile.knowledgeRefCount} · event ${profile.eventRefCount} · body camp ${profile.bodyCampRefCount} · proto camp ${profile.protoCampRefCount}`}
+      />
+      <Detail label="source systems" value={sources || "none"} />
+      <Detail label="lived / inherited" value={`lived ${profile.livedBasisCount} · inherited ${profile.inheritedBasisCount}`} />
+      <Detail
+        label="storage / fire / care"
+        value={`temporary storage ${profile.temporaryStorageCount} · weak storage ${profile.weakStorageCount} · fire context ${profile.fireContextCount} · care burden ${profile.careBurdenCount}`}
+      />
+      <Detail label="constraints" value={profile.constraints.join(" | ")} />
+      <Detail
+        label="caps"
+        value={`places ${profile.caps.placeCap} · factors ${profile.caps.factorCap} · evidence/item ${profile.caps.evidencePerItemCap} · basis/signal ${profile.caps.basisPerSignalCap} · context ${profile.caps.contextRecordCap} · held ${String(profile.caps.capsHeld)}`}
+      />
+      <Detail
+        label="integrity"
+        value={`selectedBandOnly=${profile.integrity.selectedBandOnly} · projectionOnly=${profile.integrity.projectionOnly} · noNewBehaviorInfluence=${profile.integrity.noNewBehaviorInfluence} · noDecisionInfluence=${profile.integrity.noDecisionInfluence} · usesExistingCampStateOnly=${profile.integrity.usesExistingCampStateOnly}`}
+      />
+      <Detail
+        label="deferred systems"
+        value={`settlement=${profile.integrity.noSettlementSystem} · agriculture/domestication=${profile.integrity.noAgricultureDomestication} · inventory/surplus/property=${profile.integrity.noInventorySurplusProperty} · culture/taboo/myth/worldview/language=${profile.integrity.noCultureTabooMythWorldviewLanguage} · skill/tech unlock=${profile.integrity.noSkillOrTechUnlock}`}
+      />
+      <Detail
+        label="bounded interpretation"
+        value={`temporaryStorage=${profile.integrity.storageIsTemporaryWeak} · fireContextOnly=${profile.integrity.fireIsCampContextOnly} · careAggregateOnly=${profile.integrity.careIsAggregateOnly} · inheritedSeparated=${profile.integrity.inheritedSeparated} · daughterLocalTesting=${profile.integrity.daughterParentMemoryNotLocalTesting}`}
+      />
+      <Detail label="chronicle integration" value={`${profile.chronicleIntegration.mode} · broken links ${profile.chronicleIntegration.brokenRenderedLinks} · ${profile.chronicleIntegration.reason}`} />
+      <Detail
+        label="payload estimate"
+        value={`${formatBytes(profile.technicalProof.payloadBytesEstimate)} selected-band projection · max place ${formatBytes(profile.technicalProof.maxPlacePayloadBytes)} · max factor ${formatBytes(profile.technicalProof.maxFactorPayloadBytes)} · max signal ${formatBytes(profile.technicalProof.maxSignalPayloadBytes)}`}
+      />
+      <Detail
+        label="claim guards"
+        value={`legacy skill proof ${profile.technicalProof.legacyStartingSkillProofCount} · fake settlement ${profile.technicalProof.fakeSettlementClaimCount} · fake inventory ${profile.technicalProof.fakeInventoryClaimCount} · fake skill ${profile.technicalProof.fakeSkillClaimCount} · fake culture ${profile.technicalProof.fakeCultureClaimCount} · decision isolation ${String(profile.technicalProof.decisionPathIsolation)}`}
+      />
+      <Detail label="place sample" value={placeSummary || "none"} />
+      <Detail label="factor sample" value={factorSummary || "none"} />
+      <Detail label="source id samples" value={profile.technicalProof.sourceIdSamples.join(" | ") || "none"} />
+      <Detail label="place samples" value={profile.technicalProof.placeIdSamples.join(" | ") || "none"} />
+      <Detail label="activity samples" value={profile.technicalProof.activityIdSamples.join(" | ") || "none"} />
+      <Detail label="affordance samples" value={profile.technicalProof.affordanceIdSamples.join(" | ") || "none"} />
+      <Detail label="problem/practice samples" value={profile.technicalProof.problemPracticeIdSamples.join(" | ") || "none"} />
+      <Detail label="knowledge samples" value={profile.technicalProof.knowledgeIdSamples.join(" | ") || "none"} />
+      <Detail label="event samples" value={profile.technicalProof.eventIdSamples.join(" | ") || "none"} />
+    </>
+  );
+}
+
+function PracticeFeedbackReadinessDetails({ band, world }: { readonly band: Band; readonly world: WorldState | null }) {
+  if (world === null) {
+    return <Detail label="practice feedback" value="world unavailable" />;
+  }
+
+  const profile = derivePracticeFeedbackReadinessProfile(world, band);
+  const families = Object.entries(profile.familyCounts)
+    .filter(([, count]) => count > 0)
+    .map(([family, count]) => `${practiceFeedbackReadinessFamilyLabel(family as Parameters<typeof practiceFeedbackReadinessFamilyLabel>[0])} ${count}`)
+    .join(" · ");
+  const feedbackTypes = Object.entries(profile.feedbackTypeCounts)
+    .filter(([, count]) => count > 0)
+    .map(([feedback, count]) => `${practiceFeedbackReadinessFeedbackTypeLabel(feedback as Parameters<typeof practiceFeedbackReadinessFeedbackTypeLabel>[0])} ${count}`)
+    .join(" · ");
+  const feedbackQualities = Object.entries(profile.feedbackQualityCounts)
+    .filter(([, count]) => count > 0)
+    .map(([quality, count]) => `${practiceFeedbackQualityLabel(quality as Parameters<typeof practiceFeedbackQualityLabel>[0])} ${count}`)
+    .join(" · ");
+  const statuses = Object.entries(profile.readinessStatusCounts)
+    .filter(([, count]) => count > 0)
+    .map(([status, count]) => `${practiceFeedbackReadinessStatusLabel(status as Parameters<typeof practiceFeedbackReadinessStatusLabel>[0])} ${count}`)
+    .join(" · ");
+  const blockers = Object.entries(profile.blockerCounts)
+    .filter(([, count]) => count > 0)
+    .map(([blocker, count]) => `${blocker.replace(/_/g, " ")} ${count}`)
+    .join(" · ");
+  const sources = Object.entries(profile.sourceSystemCounts)
+    .filter(([, count]) => count > 0)
+    .map(([source, count]) => `${source.replace(/_/g, " ")} ${count}`)
+    .join(" · ");
+  const itemSummary = profile.items
+    .slice(0, 8)
+    .map((item) => `${item.family}:${item.readinessStatus}:${item.feedbackType}:${formatCompactNumber(item.confidence)} e${item.evidence.length}`)
+    .join(" | ");
+
+  return (
+    <>
+      <Detail label="projection" value={`${profile.items.length}/${profile.caps.itemCap} readiness items · repeated ${profile.repeatedExposureCount} · max per family ${profile.caps.itemsPerFamilyCap}`} />
+      <Detail label="overview" value={`${profile.overviewTitle} · ${profile.overviewLines.join(" ")}`} />
+      <Detail label="families" value={families || "none"} />
+      <Detail label="feedback types" value={feedbackTypes || "none"} />
+      <Detail label="feedback quality" value={feedbackQualities || "none"} />
+      <Detail label="readiness status" value={statuses || "none"} />
+      <Detail
+        label="risk counts"
+        value={`dead-end ${profile.deadEndRiskCount} · false-confidence ${profile.falseConfidenceRiskCount} · local-only ${profile.localOnlyRiskCount} · low-feedback ${profile.lowFeedbackRiskCount}`}
+      />
+      <Detail label="blockers" value={blockers || "none"} />
+      <Detail
+        label="source refs"
+        value={`problem ${profile.problemRefCount} · candidate ${profile.candidateRefCount} · affordance ${profile.affordanceRefCount} · knowledge ${profile.knowledgeRefCount} · activity ${profile.activityRefCount} · event ${profile.eventRefCount} · foothold ${profile.footholdRefCount} · repetition ${profile.repetitionRefCount}`}
+      />
+      <Detail label="source systems" value={sources || "none"} />
+      <Detail label="lived / inherited" value={`lived ${profile.livedBasisCount} · inherited ${profile.inheritedBasisCount}`} />
+      <Detail label="constraints" value={profile.constraints.join(" | ")} />
+      <Detail
+        label="caps"
+        value={`items ${profile.caps.itemCap} · per family ${profile.caps.itemsPerFamilyCap} · evidence ${profile.caps.evidencePerItemCap} · blockers ${profile.caps.blockersPerItemCap} · risks ${profile.caps.risksPerItemCap} · basis ${profile.caps.basisPerItemCap} · links ${profile.caps.linkPerItemCap} · context ${profile.caps.contextRecordCap} · held ${String(profile.caps.capsHeld)}`}
+      />
+      <Detail
+        label="integrity"
+        value={`selectedBandOnly=${profile.integrity.selectedBandOnly} · projectionOnly=${profile.integrity.projectionOnly} · noBehaviorInfluence=${profile.integrity.noBehaviorInfluence} · noDecisionInfluence=${profile.integrity.noDecisionInfluence} · noSkillOrAdaptationState=${profile.integrity.noSkillOrAdaptationState} · noAutomaticImprovement=${profile.integrity.noAutomaticImprovement}`}
+      />
+      <Detail
+        label="bounded interpretation"
+        value={`learningReadyIsNotSkill=${profile.integrity.learningReadyLaterIsNotSkill} · inheritedSeparated=${profile.integrity.inheritedSeparated} · daughterLocalTesting=${profile.integrity.daughterParentRoutineNotLocalTesting} · badRepetitionRepresented=${profile.integrity.badRepetitionRepresented} · candidateOrRepeatedBasis=${profile.integrity.itemsRequireCandidateOrRepeatedAffordanceBasis}`}
+      />
+      <Detail
+        label="deferred systems"
+        value={`culture/taboo/myth/worldview/language=${profile.integrity.noCultureTabooMythWorldviewLanguage} · settlement/inventory/property/storage=${profile.integrity.noSettlementInventoryPropertyStorageEconomy} · agriculture/domestication/war=${profile.integrity.noAgricultureDomesticationWar} · ignoresStartingSkills=${profile.integrity.ignoresLegacyStartingSkills}`}
+      />
+      <Detail label="chronicle integration" value={`${profile.chronicleIntegration.mode} · broken links ${profile.chronicleIntegration.brokenRenderedLinks} · ${profile.chronicleIntegration.reason}`} />
+      <Detail
+        label="payload estimate"
+        value={`${formatBytes(profile.technicalProof.payloadBytesEstimate)} selected-band projection · max item ${formatBytes(profile.technicalProof.maxItemPayloadBytes)}`}
+      />
+      <Detail
+        label="claim guards"
+        value={`legacy skill proof ${profile.technicalProof.legacyStartingSkillProofCount} · fake skill ${profile.technicalProof.fakeSkillClaimCount} · fake culture ${profile.technicalProof.fakeCultureClaimCount} · fake settlement/inventory ${profile.technicalProof.fakeSettlementInventoryClaimCount} · decision isolation ${String(profile.technicalProof.decisionPathIsolation)}`}
+      />
+      <Detail label="item sample" value={itemSummary || "none"} />
+      <Detail label="source samples" value={profile.technicalProof.sourceIdSamples.join(" | ") || "none"} />
+      <Detail label="problem samples" value={profile.technicalProof.problemFrameIdSamples.join(" | ") || "none"} />
+      <Detail label="candidate samples" value={profile.technicalProof.practiceCandidateIdSamples.join(" | ") || "none"} />
+      <Detail label="affordance samples" value={profile.technicalProof.affordanceIdSamples.join(" | ") || "none"} />
+      <Detail label="knowledge samples" value={profile.technicalProof.knowledgeIdSamples.join(" | ") || "none"} />
+      <Detail label="activity samples" value={profile.technicalProof.activityIdSamples.join(" | ") || "none"} />
+      <Detail label="event samples" value={profile.technicalProof.eventIdSamples.join(" | ") || "none"} />
+      <Detail label="foothold samples" value={profile.technicalProof.footholdIdSamples.join(" | ") || "none"} />
+      <Detail label="repetition samples" value={profile.technicalProof.repetitionIdSamples.join(" | ") || "none"} />
+    </>
+  );
+}
+
 function estimateJsonBytes(value: unknown): number {
   return new TextEncoder().encode(JSON.stringify(value)).length;
 }
@@ -654,6 +1018,9 @@ export function Technical({
       <CollapsibleGroup title="Camp &amp; place memory">
         <ProtoCampDetails band={band} />
       </CollapsibleGroup>
+      <CollapsibleGroup title="Camp foothold / ecology / care substrate">
+        <CampFootholdDetails band={band} world={world} />
+      </CollapsibleGroup>
       <CollapsibleGroup title="Carrying capacity &amp; seasonal support">
         <CarryingCapacityDetails band={band} world={world} />
         <SeasonalSupportDetails band={band} />
@@ -688,6 +1055,15 @@ export function Technical({
       </CollapsibleGroup>
       <CollapsibleGroup title="Knowledge ecology substrate">
         <KnowledgeEcologyDetails band={band} world={world} />
+      </CollapsibleGroup>
+      <CollapsibleGroup title="Material affordance substrate">
+        <MaterialAffordanceDetails band={band} world={world} />
+      </CollapsibleGroup>
+      <CollapsibleGroup title="Problem framing / practice experiment substrate">
+        <ProblemPracticeDetails band={band} world={world} />
+      </CollapsibleGroup>
+      <CollapsibleGroup title="Practice feedback / routine readiness substrate">
+        <PracticeFeedbackReadinessDetails band={band} world={world} />
       </CollapsibleGroup>
       <CollapsibleGroup title="History chronicle projection">
         <BandChronicleDetails band={band} world={world} />

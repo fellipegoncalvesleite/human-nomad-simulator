@@ -1,4 +1,4 @@
-import type { BandId, ReasonId, TickNumber, TileId } from "../core/types";
+import type { BandId, ReasonId, RouteId, TickNumber, TileId } from "../core/types";
 import type { NormalizedIntensity } from "../rules/types";
 import { getTile } from "../world/generate";
 import { isBandPassableDestination } from "../world/passability";
@@ -22,6 +22,12 @@ import type {
   IntraSeasonTripActivityResult,
   IntraSeasonTripRecord,
   NearbyForagingOpportunityProbe,
+  RepetitionAffordanceDomain,
+  RepetitionAffordanceItem,
+  RepetitionDeadEndRisk,
+  RepetitionFamiliarityStatus,
+  RepetitionFeedbackQuality,
+  RepetitionImprovementPotential,
   TripAdaptationAction,
 } from "./types";
 
@@ -29,6 +35,7 @@ const LEARNING_RECORD_CAP = 10;
 const FALLBACK_CANDIDATE_CAP = 6;
 const TRIP_FAILURE_CAP = 6;
 const NEARBY_PROBE_CAP = 5;
+const REPETITION_AFFORDANCE_CAP = 8;
 const CANDIDATE_TILE_CAP = 18;
 const EMPIRICAL_LOCAL_DISTANCE = 4;
 const PEACEFUL_FISSION_POPULATION_THRESHOLD = 46;
@@ -44,6 +51,10 @@ interface TripFailureAccumulator {
   readonly resourceClassId?: ResourceClassId;
   readonly taskGroupType: IntraSeasonTripRecord["taskGroupType"];
   readonly trips: readonly IntraSeasonTripRecord[];
+}
+
+interface RepetitionAffordanceDraft extends RepetitionAffordanceItem {
+  readonly score: number;
 }
 
 export function applyForagingLearningAdaptationContext(world: WorldState): WorldState {
@@ -82,6 +93,7 @@ export function deriveForagingLearningAdaptation(
   const fallbackCandidates = deriveFallbackCandidates(world, band, hungerSeverity, learningRecords);
   const tripFailureMemories = deriveTripFailureMemories(band);
   const nearbyOpportunityProbes = deriveNearbyOpportunityProbes(world, band);
+  const repetitionAffordances = deriveRepetitionAffordances(world, band, learningRecords, tripFailureMemories);
   const mode = deriveAdaptationMode({
     hungerSeverity,
     hungerStreak,
@@ -116,12 +128,14 @@ export function deriveForagingLearningAdaptation(
     learningRecords.length <= LEARNING_RECORD_CAP &&
     fallbackCandidates.length <= FALLBACK_CANDIDATE_CAP &&
     tripFailureMemories.length <= TRIP_FAILURE_CAP &&
-    nearbyOpportunityProbes.length <= NEARBY_PROBE_CAP;
+    nearbyOpportunityProbes.length <= NEARBY_PROBE_CAP &&
+    repetitionAffordances.length <= REPETITION_AFFORDANCE_CAP;
   const reasonIds = uniqueReasonIds([
     ...learningRecords.flatMap((record) => record.reasonIds),
     ...fallbackCandidates.flatMap((candidate) => candidate.reasonIds),
     ...tripFailureMemories.flatMap((memory) => memory.reasonIds),
     ...nearbyOpportunityProbes.flatMap((probe) => probe.reasonIds),
+    ...repetitionAffordances.flatMap((affordance) => affordance.reasonIds),
     ...crisisBreakaway.reasonIds,
   ]).slice(0, 20);
 
@@ -137,6 +151,7 @@ export function deriveForagingLearningAdaptation(
       fallbackCandidates,
       tripFailureMemories,
       nearbyOpportunityProbes,
+      repetitionAffordances,
       behavior,
       crisisBreakaway,
       knowledgeUpdatedTileIds,
@@ -144,6 +159,7 @@ export function deriveForagingLearningAdaptation(
       fallbackCandidateCap: FALLBACK_CANDIDATE_CAP,
       tripFailureCap: TRIP_FAILURE_CAP,
       nearbyProbeCap: NEARBY_PROBE_CAP,
+      repetitionAffordanceCap: REPETITION_AFFORDANCE_CAP,
       candidateTileCap: CANDIDATE_TILE_CAP,
       antiOmniscience: {
         fromBandKnownTilesOnly: true,
@@ -518,6 +534,679 @@ function deriveNearbyOpportunityProbes(
   return [...dedupeNearbyProbes(gradientProbe === undefined ? candidates : [gradientProbe, ...candidates])]
     .sort(compareNearbyProbes)
     .slice(0, NEARBY_PROBE_CAP);
+}
+
+function deriveRepetitionAffordances(
+  world: WorldState,
+  band: Band,
+  learningRecords: readonly EmpiricalResourceLearningRecord[],
+  tripFailureMemories: readonly ForagingTripFailureMemory[],
+): readonly RepetitionAffordanceItem[] {
+  const recordByResource = new Map<string, EmpiricalResourceLearningRecord>();
+  for (const record of learningRecords) {
+    recordByResource.set(`${String(record.tileId)}:${record.resourceClassId}`, record);
+  }
+
+  const resourceDrafts = (band.resourceKnowledgeState?.patchMemories ?? [])
+    .map((memory) => deriveResourceRepetitionAffordance(world, band, memory, recordByResource.get(`${String(memory.approximateTile)}:${memory.resourceClassId}`)))
+    .filter((draft): draft is RepetitionAffordanceDraft => draft !== undefined);
+  const tripDrafts = tripFailureMemories
+    .map((memory) => deriveTripRepetitionAffordance(world, band, memory))
+    .filter((draft): draft is RepetitionAffordanceDraft => draft !== undefined);
+  const crossingDrafts = Object.values(band.crossingMemories)
+    .map((crossing) => deriveCrossingRepetitionAffordance(world, band, crossing))
+    .filter((draft): draft is RepetitionAffordanceDraft => draft !== undefined);
+  const routeDrafts = Object.values(band.travelCorridors)
+    .map((route) => deriveRouteRepetitionAffordance(world, band, route))
+    .filter((draft): draft is RepetitionAffordanceDraft => draft !== undefined);
+  const campDraft = deriveCampSetupRepetitionAffordance(world, band);
+
+  return capRepetitionAffordances([
+    ...resourceDrafts,
+    ...tripDrafts,
+    ...crossingDrafts,
+    ...routeDrafts,
+    ...(campDraft === undefined ? [] : [campDraft]),
+  ]);
+}
+
+function deriveResourceRepetitionAffordance(
+  world: WorldState,
+  band: Band,
+  memory: ResourcePatchMemory,
+  record: EmpiricalResourceLearningRecord | undefined,
+): RepetitionAffordanceDraft | undefined {
+  const domain = repetitionDomainForResource(memory);
+
+  if (domain === undefined) {
+    return undefined;
+  }
+
+  const learning = memory.learning;
+  const exposure = Math.max(
+    record?.proximityCount ?? 0,
+    memory.useHistory.visits +
+      memory.transmission.practiceReinforced +
+      (memory.plantObservation?.observationCount ?? 0) +
+      (band.placeMemory[memory.approximateTile]?.visitCount ?? 0),
+  );
+  const attempts = Math.max(
+    record?.testCount ?? 0,
+    memory.useHistory.visits +
+      (learning?.confirmationCount ?? 0) +
+      (learning?.partialConfirmationCount ?? 0) +
+      (learning?.contradictionCount ?? 0) +
+      (learning?.noInfoCount ?? 0) +
+      (memory.plantObservation?.observationCount ?? 0),
+  );
+
+  if (exposure < 2 && attempts < 2) {
+    return undefined;
+  }
+
+  const positiveFeedback =
+    memory.useHistory.successfulUses +
+    (learning?.confirmationCount ?? 0) +
+    (learning?.partialConfirmationCount ?? 0);
+  const poorFeedback =
+    memory.useHistory.failedUses +
+    (learning?.contradictionCount ?? 0) +
+    (learning?.falseInferenceCount ?? 0) +
+    (learning?.seasonalMismatchCount ?? 0) +
+    (memory.risk.poisoningOrBadReaction || memory.risk.badWater || memory.plantObservation?.suspectedSafetyRisk === true ? 1 : 0);
+  const feedbackQuality = deriveRepetitionFeedbackQuality(positiveFeedback, poorFeedback, attempts, memory.seasonality.bestSeasons.length + memory.seasonality.badSeasons.length);
+  const deadEndRisk = deriveRepetitionDeadEndRisk({
+    positiveFeedback,
+    poorFeedback,
+    attempts,
+    exposure,
+    source: memory.source,
+    contextBound: memory.seasonality.bestSeasons.length + memory.seasonality.badSeasons.length <= 1 && positiveFeedback > 0,
+  });
+  const improvementPotential = deriveRepetitionPotential(domain, exposure, attempts, positiveFeedback, poorFeedback);
+  const familiarityStatus = deriveRepetitionStatus(deadEndRisk, improvementPotential, attempts, positiveFeedback);
+  const title = resourceRepetitionTitle(domain, deadEndRisk);
+  const summary = resourceRepetitionSummary(domain, deadEndRisk);
+
+  return makeRepetitionAffordanceDraft({
+    band,
+    tick: world.time.tick,
+    domain,
+    sourceKey: `${String(memory.approximateTile)}:${memory.resourceClassId}`,
+    title,
+    summary,
+    repeatedExposureCount: exposure,
+    repeatedAttemptSignal: attempts,
+    feedbackQuality,
+    improvementPotential,
+    deadEndRisk,
+    familiarityStatus,
+    evidenceLabels: [
+      `${resourceClassLabel(memory.resourceClassId)} remembered`,
+      countLabel(exposure, "exposure", "exposures"),
+      countLabel(attempts, "attempt", "attempts"),
+    ],
+    reasonIds: [
+      makeAdaptationReasonId(band.id, world.time.tick, "repetition-affordance", memory.approximateTile, memory.resourceClassId),
+      ...memory.reasonIds.slice(0, 3),
+    ],
+    score: exposure * 0.08 + attempts * 0.1 + potentialRank(improvementPotential) * 0.08 + deadEndRiskRank(deadEndRisk) * 0.08,
+  });
+}
+
+function deriveTripRepetitionAffordance(
+  world: WorldState,
+  band: Band,
+  memory: ForagingTripFailureMemory,
+): RepetitionAffordanceDraft | undefined {
+  if (memory.recentTripCount < 2) {
+    return undefined;
+  }
+
+  const domain = repetitionDomainForTrip(memory.taskGroupType);
+  const poorFeedback = memory.failureCount + memory.lowReturnCount;
+  const positiveFeedback = memory.successCount;
+  const deadEndRisk: RepetitionDeadEndRisk = memory.action === "abandon_temporarily"
+    ? "dead_end_attempt"
+    : memory.action === "reduce_confidence"
+      ? "reinforced_bad_habit"
+      : memory.action === "recovering_after_success"
+        ? "local_context_only"
+        : "low_feedback_risk";
+  const feedbackQuality = deriveRepetitionFeedbackQuality(positiveFeedback, poorFeedback, memory.recentTripCount, 1);
+  const improvementPotential = deadEndRisk === "dead_end_attempt" || deadEndRisk === "reinforced_bad_habit"
+    ? "weak"
+    : "possible";
+  const task = taskGroupLabel(memory.taskGroupType);
+
+  return makeRepetitionAffordanceDraft({
+    band,
+    tick: world.time.tick,
+    domain,
+    sourceKey: `${String(memory.tileId)}:${memory.taskGroupType}`,
+    title: `${task} repeats without proof of mastery`,
+    summary: "Repeated attempts are preserved as familiarity and possible future practice evidence, but poor returns can also be a marginal routine or dead end.",
+    repeatedExposureCount: memory.recentTripCount,
+    repeatedAttemptSignal: memory.failureCount + memory.lowReturnCount + memory.successCount,
+    feedbackQuality,
+    improvementPotential,
+    deadEndRisk,
+    familiarityStatus: deriveRepetitionStatus(deadEndRisk, improvementPotential, memory.recentTripCount, positiveFeedback),
+    evidenceLabels: [
+      countLabel(memory.recentTripCount, "recent trip", "recent trips"),
+      countLabel(memory.failureCount, "failure", "failures"),
+      countLabel(memory.lowReturnCount, "low return", "low returns"),
+    ],
+    reasonIds: [
+      makeAdaptationReasonId(band.id, world.time.tick, "repetition-affordance", memory.tileId, memory.taskGroupType),
+      ...memory.reasonIds.slice(0, 3),
+    ],
+    score: memory.confidencePenalty + memory.recentTripCount * 0.09 + deadEndRiskRank(deadEndRisk) * 0.1,
+  });
+}
+
+function deriveCrossingRepetitionAffordance(
+  world: WorldState,
+  band: Band,
+  crossing: NonNullable<Band["crossingMemories"][string]>,
+): RepetitionAffordanceDraft | undefined {
+  if (crossing.useCount < 2 && crossing.riskMemory < 0.45) {
+    return undefined;
+  }
+
+  const hardCrossing = crossing.riskMemory >= 0.5 || crossing.successConfidence < 0.45;
+  const deadEndRisk: RepetitionDeadEndRisk = hardCrossing && crossing.useCount >= 3
+    ? "reinforced_bad_habit"
+    : crossing.seasonalReliability < 0.42
+      ? "local_context_only"
+      : hardCrossing
+        ? "dead_end_attempt"
+        : "low_feedback_risk";
+  const feedbackQuality: RepetitionFeedbackQuality = hardCrossing
+    ? "negative_feedback"
+    : crossing.seasonalReliability < 0.5
+      ? "context_bound_feedback"
+      : "mixed_feedback";
+
+  return makeRepetitionAffordanceDraft({
+    band,
+    tick: world.time.tick,
+    domain: "crossing",
+    sourceKey: `${String(crossing.crossingTileA)}:${String(crossing.crossingTileB)}`,
+    title: "Crossing pressure repeats, not mastery",
+    summary: hardCrossing
+      ? "Repeated crossing pressure creates future crossing-aid potential, but past repetitions mostly show difficulty, not mastery."
+      : "Repeated crossing use creates familiarity, but no crossing aid or engineering practice is known.",
+    repeatedExposureCount: crossing.useCount,
+    repeatedAttemptSignal: crossing.useCount,
+    feedbackQuality,
+    improvementPotential: crossing.useCount >= 4 ? "possible" : "weak",
+    deadEndRisk,
+    familiarityStatus: deriveRepetitionStatus(deadEndRisk, crossing.useCount >= 4 ? "possible" : "weak", crossing.useCount, hardCrossing ? 0 : 1),
+    evidenceLabels: [
+      countLabel(crossing.useCount, "crossing attempt", "crossing attempts"),
+      `risk ${round2(crossing.riskMemory)}`,
+      `success confidence ${round2(crossing.successConfidence)}`,
+    ],
+    reasonIds: [
+      makeAdaptationReasonId(band.id, world.time.tick, "repetition-affordance", crossing.crossingTileA, "crossing"),
+      ...crossing.reasonIds.slice(0, 3),
+    ],
+    score: crossing.useCount * 0.1 + crossing.riskMemory * 0.24 + deadEndRiskRank(deadEndRisk) * 0.08,
+  });
+}
+
+function deriveRouteRepetitionAffordance(
+  world: WorldState,
+  band: Band,
+  route: NonNullable<Band["travelCorridors"][RouteId]>,
+): RepetitionAffordanceDraft | undefined {
+  if (route.useCount < 3) {
+    return undefined;
+  }
+
+  const deadEndRisk: RepetitionDeadEndRisk = route.confidence < 0.42 && route.useCount >= 5
+    ? "false_confidence_risk"
+    : route.intentKinds.length <= 1
+      ? "local_context_only"
+      : "low";
+
+  return makeRepetitionAffordanceDraft({
+    band,
+    tick: world.time.tick,
+    domain: "route_use",
+    sourceKey: String(route.id),
+    title: "Route repetition creates familiarity only",
+    summary: "Route use is repeated enough to preserve familiarity, but route familiarity is not a travel skill by itself.",
+    repeatedExposureCount: route.useCount,
+    repeatedAttemptSignal: route.useCount,
+    feedbackQuality: route.confidence >= 0.58 ? "useful_feedback" : "context_bound_feedback",
+    improvementPotential: route.useCount >= 6 ? "possible" : "weak",
+    deadEndRisk,
+    familiarityStatus: deriveRepetitionStatus(deadEndRisk, route.useCount >= 6 ? "possible" : "weak", route.useCount, route.confidence >= 0.58 ? 1 : 0),
+    evidenceLabels: [
+      countLabel(route.useCount, "route use", "route uses"),
+      `confidence ${round2(route.confidence)}`,
+    ],
+    reasonIds: [makeAdaptationReasonId(band.id, world.time.tick, "repetition-affordance", route.toTileId, "route-use")],
+    score: route.useCount * 0.08 + route.confidence * 0.18 + deadEndRiskRank(deadEndRisk) * 0.06,
+  });
+}
+
+function deriveCampSetupRepetitionAffordance(
+  world: WorldState,
+  band: Band,
+): RepetitionAffordanceDraft | undefined {
+  const protoPlace = band.protoCampMemory?.currentPlace ?? band.protoCampMemory?.topPlaces[0];
+  const fallbackPlace = Object.values(band.placeMemory)
+    .sort((left, right) =>
+      right.repeatedReturnCount - left.repeatedReturnCount ||
+      right.visitCount - left.visitCount ||
+      String(left.tileId).localeCompare(String(right.tileId)))[0];
+  const exposure = Math.max(
+    protoPlace?.visitCount ?? 0,
+    fallbackPlace?.repeatedReturnCount ?? 0,
+    fallbackPlace?.visitCount ?? 0,
+  );
+
+  if (exposure < 4) {
+    return undefined;
+  }
+
+  const tileId = protoPlace?.tileId ?? fallbackPlace?.tileId ?? band.position;
+  const contextBound = (protoPlace?.seasonalIdentity ?? "general_return_place") !== "general_return_place" ||
+    (fallbackPlace?.seasonalReturnPattern?.length ?? 0) > 0;
+  const deadEndRisk: RepetitionDeadEndRisk = contextBound ? "local_context_only" : "low_feedback_risk";
+
+  return makeRepetitionAffordanceDraft({
+    band,
+    tick: world.time.tick,
+    domain: "camp_setup",
+    sourceKey: String(tileId),
+    title: "Camp setup repeats often",
+    summary: "Camp setup is repeated often; this may later support shelter routines if useful feedback accumulates.",
+    repeatedExposureCount: exposure,
+    repeatedAttemptSignal: Math.max(protoPlace?.residentialAnchorUseCount ?? 0, fallbackPlace?.repeatedReturnCount ?? 0),
+    feedbackQuality: contextBound ? "context_bound_feedback" : "low_feedback",
+    improvementPotential: exposure >= 8 ? "possible" : "weak",
+    deadEndRisk,
+    familiarityStatus: contextBound ? "local_context_only" : "familiarity_without_proven_skill",
+    evidenceLabels: [
+      countLabel(exposure, "camp return", "camp returns"),
+      contextBound ? "seasonal or local context" : "repeated setup context",
+    ],
+    reasonIds: [
+      makeAdaptationReasonId(band.id, world.time.tick, "repetition-affordance", tileId, "camp-setup"),
+      ...(protoPlace?.reasonIds ?? fallbackPlace?.reasonIds ?? []).slice(0, 3),
+    ],
+    score: exposure * 0.07 + (contextBound ? 0.08 : 0),
+  });
+}
+
+function capRepetitionAffordances(drafts: readonly RepetitionAffordanceDraft[]): readonly RepetitionAffordanceItem[] {
+  const seen = new Set<string>();
+  const result: RepetitionAffordanceItem[] = [];
+
+  for (const draft of [...drafts].sort(compareRepetitionAffordanceDrafts)) {
+    const key = `${draft.domain}:${draft.id}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    result.push({
+      id: draft.id,
+      domain: draft.domain,
+      title: draft.title,
+      summary: draft.summary,
+      repeatedExposureCount: draft.repeatedExposureCount,
+      repeatedAttemptSignal: draft.repeatedAttemptSignal,
+      feedbackQuality: draft.feedbackQuality,
+      improvementPotential: draft.improvementPotential,
+      deadEndRisk: draft.deadEndRisk,
+      familiarityStatus: draft.familiarityStatus,
+      evidenceLabels: draft.evidenceLabels,
+      futureHook: draft.futureHook,
+      noSkillUnlocked: draft.noSkillUnlocked,
+      noAutomaticImprovement: draft.noAutomaticImprovement,
+      reasonIds: draft.reasonIds,
+    });
+    if (result.length >= REPETITION_AFFORDANCE_CAP) {
+      break;
+    }
+  }
+
+  return result;
+}
+
+function makeRepetitionAffordanceDraft(input: {
+  readonly band: Band;
+  readonly tick: TickNumber;
+  readonly domain: RepetitionAffordanceDomain;
+  readonly sourceKey: string;
+  readonly title: string;
+  readonly summary: string;
+  readonly repeatedExposureCount: number;
+  readonly repeatedAttemptSignal: number;
+  readonly feedbackQuality: RepetitionFeedbackQuality;
+  readonly improvementPotential: RepetitionImprovementPotential;
+  readonly deadEndRisk: RepetitionDeadEndRisk;
+  readonly familiarityStatus: RepetitionFamiliarityStatus;
+  readonly evidenceLabels: readonly string[];
+  readonly reasonIds: readonly ReasonId[];
+  readonly score: number;
+}): RepetitionAffordanceDraft {
+  return {
+    id: `repetition:${String(input.band.id)}:${input.domain}:${input.sourceKey.replace(/[^a-zA-Z0-9:_-]+/g, "-")}`,
+    domain: input.domain,
+    title: input.title,
+    summary: input.summary,
+    repeatedExposureCount: Math.max(0, Math.floor(input.repeatedExposureCount)),
+    repeatedAttemptSignal: Math.max(0, Math.floor(input.repeatedAttemptSignal)),
+    feedbackQuality: input.feedbackQuality,
+    improvementPotential: input.improvementPotential,
+    deadEndRisk: input.deadEndRisk,
+    familiarityStatus: input.familiarityStatus,
+    evidenceLabels: input.evidenceLabels.filter((label) => label.length > 0).slice(0, 4),
+    futureHook: "practice_experimentation",
+    noSkillUnlocked: true,
+    noAutomaticImprovement: true,
+    reasonIds: uniqueReasonIds(input.reasonIds).slice(0, 6),
+    score: input.score,
+  };
+}
+
+function repetitionDomainForResource(memory: ResourcePatchMemory): RepetitionAffordanceDomain | undefined {
+  switch (memory.resourceClassId) {
+    case "fiber_material":
+      return "fiber_handling";
+    case "fuel_material":
+      return "material_handling";
+    case "generic_plant_food":
+    case "fallback_food":
+      return memory.plantObservation?.suspectedProcessingNeed === true ||
+        memory.confidence.processingConfidence >= 0.16 ||
+        memory.useHistory.lastYieldEstimate < 0.18
+        ? "food_processing"
+        : "food_work";
+    case "aquatic_food":
+    case "animal_food":
+      return "food_work";
+    case "medicinal_or_toxic":
+      return memory.plantObservation?.suspectedProcessingNeed === true || memory.useHistory.visits > 0
+        ? "food_processing"
+        : undefined;
+    case "water_resource":
+      return undefined;
+  }
+}
+
+function repetitionDomainForTrip(taskGroupType: IntraSeasonTripRecord["taskGroupType"]): RepetitionAffordanceDomain {
+  switch (taskGroupType) {
+    case "memory_refresh_group":
+      return "route_use";
+    case "water_group":
+      return "crossing";
+    case "plant_followup_group":
+    case "plant_gathering_group":
+    case "local_foraging_group":
+      return "food_processing";
+    case "fishing_group":
+    case "hunting_group":
+      return "food_work";
+  }
+}
+
+function deriveRepetitionFeedbackQuality(
+  positiveFeedback: number,
+  poorFeedback: number,
+  attempts: number,
+  contextCount: number,
+): RepetitionFeedbackQuality {
+  if (poorFeedback > positiveFeedback && poorFeedback > 0) {
+    return "negative_feedback";
+  }
+  if (positiveFeedback > 0 && poorFeedback > 0) {
+    return "mixed_feedback";
+  }
+  if (positiveFeedback > 0 && contextCount <= 1) {
+    return "context_bound_feedback";
+  }
+  if (positiveFeedback > 0) {
+    return "useful_feedback";
+  }
+  return "low_feedback";
+}
+
+function deriveRepetitionDeadEndRisk(input: {
+  readonly positiveFeedback: number;
+  readonly poorFeedback: number;
+  readonly attempts: number;
+  readonly exposure: number;
+  readonly source: string;
+  readonly contextBound: boolean;
+}): RepetitionDeadEndRisk {
+  if (input.poorFeedback >= 2 && input.positiveFeedback === 0) {
+    return "reinforced_bad_habit";
+  }
+  if (input.attempts >= 2 && input.positiveFeedback === 0) {
+    return "dead_end_attempt";
+  }
+  if (input.source === "inferred" && input.exposure >= 4 && input.positiveFeedback === 0) {
+    return "false_confidence_risk";
+  }
+  if (input.contextBound) {
+    return "local_context_only";
+  }
+  if (input.attempts === 0 || input.positiveFeedback === 0) {
+    return "low_feedback_risk";
+  }
+  return "low";
+}
+
+function deriveRepetitionPotential(
+  domain: RepetitionAffordanceDomain,
+  exposure: number,
+  attempts: number,
+  positiveFeedback: number,
+  poorFeedback: number,
+): RepetitionImprovementPotential {
+  if (poorFeedback >= 2 && positiveFeedback === 0) {
+    return "none_yet";
+  }
+  if (positiveFeedback > 0 && attempts + exposure >= 7) {
+    return "strong_if_feedback_improves";
+  }
+  if (
+    domain === "fiber_handling" ||
+    domain === "food_processing" ||
+    domain === "crossing" ||
+    domain === "camp_setup"
+  ) {
+    return exposure + attempts >= 4 ? "possible" : "weak";
+  }
+  return exposure + attempts >= 6 ? "possible" : "weak";
+}
+
+function deriveRepetitionStatus(
+  deadEndRisk: RepetitionDeadEndRisk,
+  improvementPotential: RepetitionImprovementPotential,
+  attempts: number,
+  positiveFeedback: number,
+): RepetitionFamiliarityStatus {
+  switch (deadEndRisk) {
+    case "reinforced_bad_habit":
+    case "dead_end_attempt":
+      return "dead_end_attempt";
+    case "false_confidence_risk":
+      return "false_confidence_risk";
+    case "local_context_only":
+      return "local_context_only";
+    case "low":
+    case "low_feedback_risk":
+      break;
+  }
+
+  if (improvementPotential === "possible" || improvementPotential === "strong_if_feedback_improves") {
+    return "future_practice_potential";
+  }
+  if (attempts > 0 && positiveFeedback === 0) {
+    return "marginal_routine";
+  }
+  return "familiarity_without_proven_skill";
+}
+
+function resourceRepetitionTitle(
+  domain: RepetitionAffordanceDomain,
+  deadEndRisk: RepetitionDeadEndRisk,
+): string {
+  if (deadEndRisk === "reinforced_bad_habit" || deadEndRisk === "dead_end_attempt") {
+    return "Repeated work may be a dead end";
+  }
+  switch (domain) {
+    case "fiber_handling":
+      return "Fiber handling is familiar, not proven";
+    case "food_processing":
+      return "Food processing questions are recurring";
+    case "material_handling":
+      return "Material handling is familiar, not a skill";
+    case "food_work":
+      return "Food work repeats without guaranteed improvement";
+    case "crossing":
+      return "Crossing repetition creates familiarity only";
+    case "camp_setup":
+      return "Camp setup repeats often";
+    case "route_use":
+      return "Route repetition creates familiarity only";
+  }
+}
+
+function resourceRepetitionSummary(
+  domain: RepetitionAffordanceDomain,
+  deadEndRisk: RepetitionDeadEndRisk,
+): string {
+  if (deadEndRisk === "reinforced_bad_habit") {
+    return "Repeated attempts may be reinforcing a bad habit or false confidence; future systems must be able to correct it.";
+  }
+  if (deadEndRisk === "dead_end_attempt") {
+    return "Repeated attempts are visible, but the feedback is too weak or poor to treat as improvement.";
+  }
+  switch (domain) {
+    case "fiber_handling":
+      return "Fiber handling is repeatedly encountered, but no successful container practice exists yet.";
+    case "food_processing":
+      return "Plant or seed food-work is repeated enough to create processing questions, but no reliable processing method is known.";
+    case "material_handling":
+      return "Repeated material encounters are preserved as handling familiarity, not tool skill.";
+    case "food_work":
+      return "Repeated food work may create practical confidence later, but this pass only records familiarity and feedback quality.";
+    case "crossing":
+      return "Repeated crossing use creates familiarity, but no crossing aid practice is known.";
+    case "camp_setup":
+      return "Camp setup is repeated often; this may later support shelter routines if useful feedback accumulates.";
+    case "route_use":
+      return "Route use is repeated enough to preserve familiarity, but route familiarity is not a travel skill by itself.";
+  }
+}
+
+function compareRepetitionAffordanceDrafts(left: RepetitionAffordanceDraft, right: RepetitionAffordanceDraft): number {
+  return (
+    right.score - left.score ||
+    domainRank(left.domain) - domainRank(right.domain) ||
+    String(left.id).localeCompare(String(right.id))
+  );
+}
+
+function domainRank(domain: RepetitionAffordanceDomain): number {
+  switch (domain) {
+    case "fiber_handling":
+      return 1;
+    case "crossing":
+      return 2;
+    case "food_processing":
+      return 3;
+    case "camp_setup":
+      return 4;
+    case "route_use":
+      return 5;
+    case "material_handling":
+      return 6;
+    case "food_work":
+      return 7;
+  }
+}
+
+function potentialRank(potential: RepetitionImprovementPotential): number {
+  switch (potential) {
+    case "strong_if_feedback_improves":
+      return 4;
+    case "possible":
+      return 3;
+    case "weak":
+      return 2;
+    case "none_yet":
+      return 1;
+  }
+}
+
+function deadEndRiskRank(risk: RepetitionDeadEndRisk): number {
+  switch (risk) {
+    case "reinforced_bad_habit":
+      return 6;
+    case "false_confidence_risk":
+      return 5;
+    case "dead_end_attempt":
+      return 4;
+    case "local_context_only":
+      return 3;
+    case "low_feedback_risk":
+      return 2;
+    case "low":
+      return 1;
+  }
+}
+
+function resourceClassLabel(classId: ResourceClassId): string {
+  switch (classId) {
+    case "generic_plant_food":
+      return "plant food";
+    case "aquatic_food":
+      return "aquatic food";
+    case "animal_food":
+      return "animal food";
+    case "fallback_food":
+      return "fallback food";
+    case "fiber_material":
+      return "fiber material";
+    case "fuel_material":
+      return "fuel material";
+    case "medicinal_or_toxic":
+      return "risky plant material";
+    case "water_resource":
+      return "water resource";
+  }
+}
+
+function countLabel(count: number, singular: string, plural: string): string {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function taskGroupLabel(taskGroupType: IntraSeasonTripRecord["taskGroupType"]): string {
+  switch (taskGroupType) {
+    case "hunting_group":
+      return "hunting work";
+    case "fishing_group":
+      return "fishing work";
+    case "plant_gathering_group":
+      return "plant gathering";
+    case "water_group":
+      return "water work";
+    case "plant_followup_group":
+      return "plant follow-up";
+    case "memory_refresh_group":
+      return "route refresh";
+    case "local_foraging_group":
+      return "local foraging";
+  }
 }
 
 function deriveNearbyProbe(

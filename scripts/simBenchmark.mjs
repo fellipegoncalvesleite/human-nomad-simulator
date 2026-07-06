@@ -146,6 +146,10 @@ function parseArgs(argv) {
     targetedEventSystemUiAudit: false,
     targetedBandIdentityUiAudit: false,
     targetedKnowledgeEcologyActivityPartiesAudit: false,
+    targetedMaterialAffordanceForagerEngineeringAudit: false,
+    targetedProblemFramingPracticeExperimentationAudit: false,
+    targetedFootholdCampEcologyCareStorageFireAudit: false,
+    targetedPracticeFeedbackRoutineReadinessAudit: false,
     targetedBandChronicleFoundationAudit: false,
     targetedSpecificMemoryReferentsAudit: false,
     targetedResourceEcologyFoundationAudit: false,
@@ -344,6 +348,14 @@ function parseArgs(argv) {
       options.targetedBandIdentityUiAudit = true;
     } else if (arg === "--targeted-knowledge-ecology-activity-parties-audit") {
       options.targetedKnowledgeEcologyActivityPartiesAudit = true;
+    } else if (arg === "--targeted-material-affordance-forager-engineering-audit") {
+      options.targetedMaterialAffordanceForagerEngineeringAudit = true;
+    } else if (arg === "--targeted-problem-framing-practice-experimentation-audit") {
+      options.targetedProblemFramingPracticeExperimentationAudit = true;
+    } else if (arg === "--targeted-foothold-camp-ecology-care-storage-fire-audit") {
+      options.targetedFootholdCampEcologyCareStorageFireAudit = true;
+    } else if (arg === "--targeted-practice-feedback-routine-readiness-audit") {
+      options.targetedPracticeFeedbackRoutineReadinessAudit = true;
     } else if (arg === "--targeted-band-chronicle-foundation-audit") {
       options.targetedBandChronicleFoundationAudit = true;
     } else if (arg === "--targeted-specific-memory-referents-audit") {
@@ -766,6 +778,30 @@ Options:
                           existing activity-party evidence, provenance, inherited-vs-lived
                           and practical-vs-story distinctions, fading/uncertain items,
                           UI/Technical caps, determinism, and observe-only behavior guard.
+  --targeted-material-affordance-forager-engineering-audit
+                          Run MATERIAL AFFORDANCE + FORAGER ENGINEERING CATALOG-1
+                          audit: selected-band affordance projections, grounded material /
+                          knowledge / activity / event evidence, constraints, future hooks,
+                          repetition familiarity signal, UI/Technical proof, determinism,
+                          legacy-skill guard, and decision-path isolation.
+  --targeted-problem-framing-practice-experimentation-audit
+                          Run PROBLEM FRAMING + PRACTICE EXPERIMENTATION-1 audit:
+                          selected-band problem frames, perceived causes, objective basis,
+                          uncertainty/misread risk, practice trial candidates, feedback and
+                          dead-end hooks, inherited-vs-lived separation, UI/Technical proof,
+                          determinism, legacy-skill guard, and decision-path isolation.
+  --targeted-foothold-camp-ecology-care-storage-fire-audit
+                          Run FOOTHOLD / CAMP ECOLOGY / CARE / STORAGE / FIRE-1 audit:
+                          selected-band camp foothold profiles, weak camp traces, fire/fuel,
+                          care burden, temporary holding/cache cues, inherited-vs-lived
+                          separation, UI/Technical proof, bounded payload, and no new
+                          decision influence or early settlement/skill/culture claims.
+  --targeted-practice-feedback-routine-readiness-audit
+                          Run PRACTICE FEEDBACK / ROUTINE LEARNING-READINESS-1 audit:
+                          Part A closure checks plus selected-band feedback readiness,
+                          repeated trial evidence, feedback quality/status, bad repetition
+                          risks, inherited-vs-lived separation, UI/Technical proof,
+                          bounded payload, and no skill/adaptation/decision influence.
   --targeted-band-chronicle-foundation-audit
                           Run BAND-CHRONICLE-FOUNDATION-1 audit: deterministic selected-band
                           chronicle projection, yearly summaries, multi-year arcs, relevance
@@ -1497,6 +1533,10 @@ async function main() {
       eventSystem: await server.ssrLoadModule("/sim/agents/eventSystem.ts"),
       bandIdentity: await server.ssrLoadModule("/sim/agents/bandIdentity.ts"),
       knowledgeEcology: await server.ssrLoadModule("/sim/agents/knowledgeEcology.ts"),
+      materialAffordance: await server.ssrLoadModule("/sim/agents/materialAffordance.ts"),
+      problemPractice: await server.ssrLoadModule("/sim/agents/problemPractice.ts"),
+      campFoothold: await server.ssrLoadModule("/sim/agents/campFoothold.ts"),
+      practiceFeedbackReadiness: await server.ssrLoadModule("/sim/agents/practiceFeedbackReadiness.ts"),
       bandChronicle: await server.ssrLoadModule("/sim/agents/bandChronicle.ts"),
       memoryReferents: await server.ssrLoadModule("/sim/agents/memoryReferents.ts"),
       seasonalVisuals: await server.ssrLoadModule("/render/seasonalVisuals.ts"),
@@ -2190,6 +2230,42 @@ async function main() {
 
     if (options.targetedKnowledgeEcologyActivityPartiesAudit) {
       const result = runTargetedKnowledgeEcologyActivityPartiesAudit(modules, options);
+      if (options.writeBaseline !== undefined) {
+        writeBaselineArtifact(options.writeBaseline, result);
+      }
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+
+    if (options.targetedMaterialAffordanceForagerEngineeringAudit) {
+      const result = runTargetedMaterialAffordanceForagerEngineeringAudit(modules, options);
+      if (options.writeBaseline !== undefined) {
+        writeBaselineArtifact(options.writeBaseline, result);
+      }
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+
+    if (options.targetedProblemFramingPracticeExperimentationAudit) {
+      const result = runTargetedProblemFramingPracticeExperimentationAudit(modules, options);
+      if (options.writeBaseline !== undefined) {
+        writeBaselineArtifact(options.writeBaseline, result);
+      }
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+
+    if (options.targetedFootholdCampEcologyCareStorageFireAudit) {
+      const result = runTargetedFootholdCampEcologyCareStorageFireAudit(modules, options);
+      if (options.writeBaseline !== undefined) {
+        writeBaselineArtifact(options.writeBaseline, result);
+      }
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+
+    if (options.targetedPracticeFeedbackRoutineReadinessAudit) {
+      const result = runTargetedPracticeFeedbackRoutineReadinessAudit(modules, options);
       if (options.writeBaseline !== undefined) {
         writeBaselineArtifact(options.writeBaseline, result);
       }
@@ -8843,6 +8919,10 @@ function runTargetedForagingLearningAdaptationAudit(modules, options) {
   const liveModeDistribution = countBy(states, (state) => state.mode);
   const liveMaxHook = Math.max(0, ...states.map((state) => state.behavior.maxBehaviorHook ?? 0));
   const liveCapsHeld = states.every((state) => state.capsHeld === true);
+  const allRepetitionAffordances = [
+    ...states.flatMap((state) => state.repetitionAffordances ?? []),
+    ...[fixtures.primary, fixtures.stable, fixtures.recovery, fixtures.crisis].flatMap((state) => state.repetitionAffordances ?? []),
+  ];
   const liveAntiOmniscience = states.every((state) =>
     state.antiOmniscience.fromBandKnownTilesOnly === true &&
     state.antiOmniscience.hiddenPatchTruthUsed === false &&
@@ -8881,6 +8961,29 @@ function runTargetedForagingLearningAdaptationAudit(modules, options) {
     nearbyNotOverPenalized:
       fixtures.primary.nearbyOpportunityProbes.some((probe) => probe.comparison === "nearby_probe") &&
       fixtures.primary.nearbyOpportunityProbes.some((probe) => probe.comparison === "distant_wait" || probe.distanceTiles >= 4),
+    repetitionAffordanceHookPresent:
+      fixtures.primary.repetitionAffordances.length > 0 &&
+      fixtures.primary.repetitionAffordances.some((item) =>
+        item.domain === "fiber_handling" ||
+        item.domain === "food_processing" ||
+        item.domain === "crossing" ||
+        item.domain === "camp_setup" ||
+        item.domain === "route_use"),
+    repetitionDoesNotAutoImproveOrUnlock:
+      allRepetitionAffordances.length > 0 &&
+      allRepetitionAffordances.every((item) =>
+        item.noSkillUnlocked === true &&
+        item.noAutomaticImprovement === true &&
+        item.futureHook === "practice_experimentation" &&
+        !/\b(?:unlocked|became engineers|basketry unlocked|became .*engineers|improved anyway)\b/i.test(`${item.title} ${item.summary}`)),
+    repetitionCanRepresentBadOrLowFeedback:
+      allRepetitionAffordances.some((item) =>
+        item.deadEndRisk === "reinforced_bad_habit" ||
+        item.deadEndRisk === "dead_end_attempt" ||
+        item.deadEndRisk === "false_confidence_risk" ||
+        item.deadEndRisk === "local_context_only" ||
+        item.feedbackQuality === "negative_feedback" ||
+        item.feedbackQuality === "low_feedback"),
     dynamicRiskTolerance:
       fixtures.primary.behavior.riskToleranceModifier > fixtures.stable.behavior.riskToleranceModifier,
     desperationPartialOverride:
@@ -8946,6 +9049,8 @@ function runTargetedForagingLearningAdaptationAudit(modules, options) {
       totalFallbackCandidates: sumNumbers(states.map((state) => state.fallbackCandidates.length)),
       totalTripFailureRecords: sumNumbers(states.map((state) => state.tripFailureMemories.length)),
       totalNearbyProbeRecords: sumNumbers(states.map((state) => state.nearbyOpportunityProbes.length)),
+      totalRepetitionAffordances: sumNumbers(states.map((state) => (state.repetitionAffordances ?? []).length)),
+      repetitionAffordancesByDomain: countBy(allRepetitionAffordances, (item) => item.domain),
       crisisBreakawayPressureCount: states.filter((state) => state.crisisBreakaway.pressure >= 0.35).length,
       adaptationTalkCount: allTalk.length,
       adaptationEventCount: allEvents.length,
@@ -8972,6 +9077,7 @@ function runTargetedForagingLearningAdaptationAudit(modules, options) {
       tripAbandonment: fixtures.primary.tripFailureMemories.slice(0, 4),
       routeRecovery: fixtures.recovery.tripFailureMemories.slice(0, 4),
       nearbyOpportunity: fixtures.primary.nearbyOpportunityProbes.slice(0, 5),
+      repetitionAffordances: fixtures.primary.repetitionAffordances.slice(0, 6),
       riskModifier: {
         stable: fixtures.stable.behavior.riskToleranceModifier,
         desperate: fixtures.primary.behavior.riskToleranceModifier,
@@ -14253,6 +14359,2809 @@ function runKnowledgeEcologyStaticGuards() {
 }
 
 // ---------------------------------------------------------------------------
+// MATERIAL AFFORDANCE + FORAGER ENGINEERING CATALOG-1 targeted audit.
+// Verifies a bounded selected-band projection of practical material
+// possibilities before problem framing, experimentation, skills, or culture.
+// ---------------------------------------------------------------------------
+
+function runTargetedMaterialAffordanceForagerEngineeringAudit(modules, options) {
+  const years = 100;
+  const command = "node scripts/simBenchmark.mjs --targeted-material-affordance-forager-engineering-audit --json";
+  const runOptions = {
+    ...options,
+    reportBand: false,
+    probeAudit: false,
+    returnWorld: true,
+    fast: true,
+    deterministic: false,
+  };
+  const baseRun = runBenchmark(
+    modules,
+    { scenario: "baseline", years, ticks: undefined },
+    runOptions,
+  );
+  const repeatRun = runBenchmark(
+    modules,
+    { scenario: "baseline", years, ticks: undefined },
+    runOptions,
+  );
+  const projectedWorld = projectPerformancePlayabilityWorld(modules, baseRun.world);
+  const repeatProjectedWorld = projectPerformancePlayabilityWorld(modules, repeatRun.world);
+  const activeBands = Object.values(projectedWorld.bands).filter(isActiveBand).sort(compareBands);
+  const selectedBands = selectMaterialAffordanceBands(modules, projectedWorld, activeBands);
+  const preDerivationSnapshot = JSON.stringify(selectedBands);
+  const liveEntries = selectedBands.map((band) => ({
+    kind: "live",
+    band,
+    profile: modules.materialAffordance.deriveMaterialAffordanceProfile(projectedWorld, band),
+    knowledge: modules.knowledgeEcology.deriveKnowledgeEcologyProfile(projectedWorld, band),
+    events: modules.eventSystem.deriveCanonicalEvents(projectedWorld, band),
+  }));
+  const projectionMutatedBands = preDerivationSnapshot !== JSON.stringify(selectedBands);
+  const repeatEntries = selectedBands
+    .map((band) => repeatProjectedWorld.bands[band.id])
+    .filter((band) => band !== undefined)
+    .map((band) => ({
+      kind: "repeat",
+      band,
+      profile: modules.materialAffordance.deriveMaterialAffordanceProfile(repeatProjectedWorld, band),
+      knowledge: modules.knowledgeEcology.deriveKnowledgeEcologyProfile(repeatProjectedWorld, band),
+      events: modules.eventSystem.deriveCanonicalEvents(repeatProjectedWorld, band),
+    }));
+  const fixtures = buildMaterialAffordanceFixtures(modules, projectedWorld, selectedBands[0]);
+  const allEntries = [...liveEntries, ...fixtures];
+  const items = allEntries.flatMap((entry) => entry.profile.items.map((item) => ({ entry, item })));
+  const evidenceRows = items.flatMap(({ entry, item }) =>
+    item.evidence.map((evidence) => ({ entry, item, evidence })));
+  const normalTextSamples = allEntries.flatMap((entry) => collectMaterialAffordanceNormalText(entry.profile));
+  const rawDebugHits = findMaterialAffordanceRawDebugHits(normalTextSamples);
+  const forbiddenLanguageHits = normalTextSamples
+    .filter((sample) => /\b(?:unlock|unlocked|tech tree|technology|researched|level|bonus|civilization advancement|tribal tech|invented)\b/i.test(sample))
+    .slice(0, 8);
+  const fakeSkillHits = normalTextSamples
+    .filter((sample) => /\b(?:learned basketry|learned shelter|invented|became engineers|mastery|acquired skill|practice discovered|skill granted|automatic improvement)\b/i.test(sample))
+    .slice(0, 8);
+  const legacySkillHits = normalTextSamples
+    .filter((sample) => /\b(?:basketry|wild grain|plant tending|basic foraging|foraging skill)\b/i.test(sample))
+    .slice(0, 8);
+  const sourceChecks = materialAffordanceSourceChecks();
+  const staticGuards = runMaterialAffordanceStaticGuards();
+  const linkAudit = auditMaterialAffordanceLinks(allEntries);
+  const familyNames = [
+    "carrying_containers_cordage",
+    "shelter_camp_structure",
+    "fire_hearth_fuel",
+    "food_processing",
+    "water_edge_trapping",
+    "route_crossing_engineering",
+    "tool_cutting_scraping_digging",
+    "visual_mineral_adhesive",
+    "camp_organization_care",
+  ];
+  const familiesSeen = [...new Set(items.map(({ item }) => item.family))].sort();
+  const statusesSeen = [...new Set(items.map(({ item }) => item.status))].sort();
+  const strengthsSeen = [...new Set(items.map(({ item }) => item.strength))].sort();
+  const materialBasisRefs = evidenceRows.filter(({ evidence }) =>
+    evidence.kind === "material" || evidence.kind === "terrain_hydrography");
+  const knowledgeRefs = evidenceRows.filter(({ evidence }) => evidence.sourceSystem === "knowledge_ecology");
+  const activityRefs = evidenceRows.filter(({ evidence }) =>
+    evidence.sourceSystem === "activity_party" || evidence.sourceSystem === "activity_summary");
+  const eventRefs = evidenceRows.filter(({ evidence }) => evidence.sourceSystem === "canonical_event");
+  const memoryRefs = evidenceRows.filter(({ evidence }) =>
+    evidence.sourceSystem === "place_memory" ||
+    evidence.sourceSystem === "route_memory" ||
+    evidence.sourceSystem === "crossing_memory" ||
+    evidence.sourceSystem === "residential_move" ||
+    evidence.sourceSystem === "body_camp_logistics" ||
+    evidence.sourceSystem === "foraging_adaptation");
+  const repetitionRefs = evidenceRows.filter(({ evidence }) => evidence.sourceSystem === "foraging_adaptation");
+  const daughterEntries = allEntries.filter((entry) =>
+    entry.band.parentBandId !== undefined || entry.band.deepHistory?.founding?.kind === "fission_daughter");
+  const inheritedEvidenceRows = evidenceRows.filter(({ evidence }) => evidence.livedBasis === "inherited_not_lived");
+  const livedEvidenceRows = evidenceRows.filter(({ evidence }) => evidence.livedBasis === "lived" || evidence.livedBasis === "mixed");
+  const constraints = items.flatMap(({ entry, item }) => item.constraints.map((constraint) => ({ entry, item, constraint })));
+  const futureHooks = items.flatMap(({ entry, item }) => item.futureHooks.map((hook) => ({ entry, item, hook })));
+  const maxProfilePayload = Math.max(0, ...allEntries.map((entry) => entry.profile.technicalProof.payloadBytesEstimate));
+  const maxItemsPerProfile = Math.max(0, ...allEntries.map((entry) => entry.profile.items.length));
+  const maxEvidencePerItem = Math.max(0, ...items.map(({ item }) => item.evidence.length));
+  const maxHooksPerItem = Math.max(0, ...items.map(({ item }) => item.futureHooks.length));
+  const maxConstraintsPerItem = Math.max(0, ...items.map(({ item }) => item.constraints.length));
+  const maxMaterialBasisPerItem = Math.max(0, ...items.map(({ item }) => item.materialBasis.length));
+  const maxKnowledgeBasisPerItem = Math.max(0, ...items.map(({ item }) => item.knowledgeBasis.length));
+  const maxActivityEventBasisPerItem = Math.max(0, ...items.map(({ item }) => item.activityEventBasis.length));
+
+  const requiredChecks = {
+    affordanceProfilesExistForSampledBands:
+      liveEntries.length > 0 &&
+      liveEntries.every((entry) => entry.profile.projectionMode === "selected_band_projection" && entry.profile.items.length > 0),
+    affordanceItemsStructuredNotProseOnly:
+      items.length > 0 &&
+      items.every(({ item }) =>
+        item.id.startsWith("material-affordance:") &&
+        item.family.length > 0 &&
+        item.publicLabel.length > 0 &&
+        item.meaning.length > 0 &&
+        item.possibleOnly === true &&
+        item.noPracticeDiscovery === true &&
+        item.noSkillGranted === true &&
+        item.noDecisionInfluence === true &&
+        Array.isArray(item.evidence) &&
+        Array.isArray(item.futureHooks) &&
+        Array.isArray(item.constraints)),
+    requiredFamiliesRepresented:
+      familyNames.every((family) => familiesSeen.includes(family)),
+    statusStrengthConfidencePresent:
+      statusesSeen.length >= 3 &&
+      strengthsSeen.includes("weak") &&
+      items.every(({ item }) => item.status.length > 0 && item.strength.length > 0 && Number.isFinite(item.confidence)),
+    materialBasisWhereSupported:
+      materialBasisRefs.length > 0 &&
+      liveEntries.some((entry) => entry.profile.materialBasisCount > 0),
+    knowledgeActivityEventBasisRepresented:
+      knowledgeRefs.length > 0 &&
+      activityRefs.length > 0 &&
+      eventRefs.length > 0 &&
+      liveEntries.every((entry) => entry.profile.activityEvidenceCount >= 0),
+    constraintsRepresented:
+      constraints.length > 0 &&
+      liveEntries.some((entry) => entry.profile.constraintCount > 0),
+    futureHooksWithoutPractices:
+      futureHooks.length > 0 &&
+      items.every(({ item }) => item.futureHooks.every((hook) => /question|later/i.test(hook))) &&
+      items.every(({ item }) => item.noPracticeDiscovery === true && item.noSkillGranted === true),
+    publicUiSaysPossibleNotLearned:
+      sourceChecks.affordanceTabExists &&
+      sourceChecks.publicNotLearnedWarning &&
+      sourceChecks.publicCardsExist,
+    noTechTreeUnlockLanguage:
+      forbiddenLanguageHits.length === 0 &&
+      sourceChecks.publicUiNoForbiddenLanguage,
+    legacyStartingSkillsNotPrimaryProof:
+      legacySkillHits.length === 0 &&
+      sourceChecks.legacyStartingSkillsIgnored &&
+      liveEntries.every((entry) => entry.profile.integrity.ignoresLegacyStartingSkills === true) &&
+      liveEntries.every((entry) => entry.profile.technicalProof.legacyStartingSkillProofCount === 0),
+    knowledgeEcologyUsedAsSafeSource:
+      knowledgeRefs.length > 0 &&
+      sourceChecks.knowledgeEcologyImported,
+    activityPartyEvidenceUsedOrExplicitlyCounted:
+      activityRefs.length > 0 &&
+      liveEntries.every((entry) => entry.profile.technicalProof.activityPartyEvidenceCount >= 0),
+    eventEvidenceUsedWhereApplicable:
+      eventRefs.length > 0 &&
+      linkAudit.brokenEventEvidence.length === 0,
+    inheritedVsLivedBasisSeparated:
+      liveEntries.every((entry) => entry.profile.integrity.inheritedSeparated === true) &&
+      livedEvidenceRows.length > 0 &&
+      (inheritedEvidenceRows.length > 0 || sourceChecks.inheritedGuardExists),
+    daughterBandsDoNotInheritPracticedAffordance:
+      liveEntries.every((entry) => entry.profile.integrity.daughterAffordanceIsNotPracticedInheritance === true) &&
+      (daughterEntries.length > 0 || sourceChecks.daughterGuardExists),
+    publicUiNoRawIdsJsonDebug:
+      rawDebugHits.length === 0 &&
+      sourceChecks.publicUiNoRawDump,
+    technicalUiExposesCountsCapsProvenancePayload:
+      sourceChecks.technicalProofExists &&
+      liveEntries.every((entry) => entry.profile.caps.capsHeld === true && entry.profile.technicalProof.payloadBytesEstimate > 0),
+    chronicleIntegrationInspectedOrIntentionallySkipped:
+      liveEntries.every((entry) =>
+        entry.profile.chronicleIntegration.mode === "inspected_skipped" &&
+        entry.profile.chronicleIntegration.brokenRenderedLinks === 0),
+    eventKnowledgeChronicleLinksNotBroken:
+      linkAudit.brokenEventEvidence.length === 0 &&
+      linkAudit.brokenKnowledgeEvidence.length === 0 &&
+      linkAudit.brokenChronicleLinks === 0,
+    affordanceDoesNotEnterDecisionPaths:
+      staticGuards.materialAffordanceRefsInDecisionPaths === 0 &&
+      liveEntries.every((entry) => entry.profile.integrity.noDecisionInfluence === true),
+    noEarlyPracticeSkillProblemCultureSystems:
+      fakeSkillHits.length === 0 &&
+      sourceChecks.noEarlySystemsImplemented &&
+      liveEntries.every((entry) =>
+        entry.profile.integrity.noPracticeDiscovery === true &&
+        entry.profile.integrity.noProblemFraming === true &&
+        entry.profile.integrity.noSkillOrAdaptationSystem === true &&
+        entry.profile.integrity.noCultureSystem === true),
+    deterministicOutput:
+      makeMaterialAffordanceFingerprint(liveEntries) === makeMaterialAffordanceFingerprint(repeatEntries),
+    payloadsAndListsBounded:
+      maxProfilePayload > 0 &&
+      maxProfilePayload < 45_000 &&
+      maxItemsPerProfile <= 9 &&
+      maxEvidencePerItem <= 5 &&
+      maxHooksPerItem <= 4 &&
+      maxConstraintsPerItem <= 4 &&
+      maxMaterialBasisPerItem <= 4 &&
+      maxKnowledgeBasisPerItem <= 4 &&
+      maxActivityEventBasisPerItem <= 4,
+    regressionAuditFlagsPresent:
+      sourceChecks.regressionAuditFlagsPresent,
+    observeOnlyBehaviorEconomyUnchanged:
+      makeDeterminismFingerprint(baseRun.summary) === makeDeterminismFingerprint(repeatRun.summary) &&
+      projectionMutatedBands === false &&
+      staticGuards.materialAffordanceRefsInDecisionPaths === 0,
+  };
+  const passedCount = Object.values(requiredChecks).filter(Boolean).length;
+  const failedChecks = Object.entries(requiredChecks)
+    .filter(([, passed]) => passed !== true)
+    .map(([name]) => name);
+  const verdict = failedChecks.length === 0 ? "pass" : "review";
+
+  return {
+    check: "MATERIAL AFFORDANCE + FORAGER ENGINEERING CATALOG-1 targeted audit",
+    verdict,
+    command,
+    methodology: {
+      scenario: "baseline",
+      years,
+      selectedBandRule: "active bands scored for material/terrain evidence, resource memories, activity parties, canonical events, route/crossing/place memory, body/camp logistics, and repetition signals",
+      fixtureNote: "One projection-only fixture exercises existing activity-party and activity-summary evidence when the sampled live snapshot has no current activity-party records.",
+      projectionMode: "pure selected-band projection; not stored on Band and not imported by decision paths",
+      uiLayer: "src/ui/band/Affordances.tsx selected-band tab plus Technical Material affordance substrate group",
+      chronicleIntegration: "Chronicle was inspected and intentionally skipped for new prose; no rendered Chronicle affordance links are created in this pass.",
+      regressionNote: "Existing accepted audits are not recursively run inside this audit; run the documented verification battery separately.",
+    },
+    checkSummary: {
+      passed: passedCount,
+      failed: failedChecks.length,
+      total: Object.keys(requiredChecks).length,
+      failedChecks,
+    },
+    metrics: {
+      bandsSampled: selectedBands.length,
+      fixtureProfiles: fixtures.length,
+      liveAffordanceProfiles: liveEntries.length,
+      affordanceProfiles: allEntries.length,
+      affordanceItems: items.length,
+      itemsByFamily: countRowsBy(items, ({ item }) => item.family),
+      itemsByStatus: countRowsBy(items, ({ item }) => item.status),
+      itemsByStrength: countRowsBy(items, ({ item }) => item.strength),
+      materialBasisRefs: materialBasisRefs.length,
+      knowledgeRefs: knowledgeRefs.length,
+      activityRefs: activityRefs.length,
+      eventRefs: eventRefs.length,
+      memoryRefs: memoryRefs.length,
+      repetitionRefs: repetitionRefs.length,
+      inheritedBasisRefs: inheritedEvidenceRows.length,
+      livedBasisRefs: livedEvidenceRows.length,
+      daughterProfiles: daughterEntries.length,
+      constraints: constraints.length,
+      futureHooks: futureHooks.length,
+      brokenLinks: linkAudit.brokenEventEvidence.length + linkAudit.brokenKnowledgeEvidence.length + linkAudit.brokenChronicleLinks,
+      brokenEventEvidence: linkAudit.brokenEventEvidence.length,
+      brokenKnowledgeEvidence: linkAudit.brokenKnowledgeEvidence.length,
+      brokenChronicleLinks: linkAudit.brokenChronicleLinks,
+      rawDebugHits: rawDebugHits.length,
+      fakeSkillHits: fakeSkillHits.length,
+      techTreeLanguageHits: forbiddenLanguageHits.length,
+      legacySkillHits: legacySkillHits.length,
+      maxProfilePayload,
+      maxProfilePayloadKb: round2(maxProfilePayload / 1024),
+      maxItemsPerProfile,
+      maxEvidencePerItem,
+      maxHooksPerItem,
+      maxConstraintsPerItem,
+      maxMaterialBasisPerItem,
+      maxKnowledgeBasisPerItem,
+      maxActivityEventBasisPerItem,
+      decisionPathRefs: staticGuards.materialAffordanceRefsInDecisionPaths,
+      projectionMutatedBands,
+    },
+    samples: {
+      profiles: allEntries.slice(0, 5).map((entry) => ({
+        kind: entry.kind,
+        bandId: String(entry.band.id),
+        title: entry.profile.overviewTitle,
+        summary: entry.profile.overviewLines,
+        items: entry.profile.items.map((item) => ({
+          family: item.family,
+          label: item.publicLabel,
+          status: item.status,
+          strength: item.strength,
+          evidence: item.evidence.map((evidence) => evidence.label),
+          futureHooks: item.futureHooks,
+          constraints: item.constraints.map((constraint) => constraint.label),
+        })),
+      })),
+      rawDebugHits,
+      forbiddenLanguageHits,
+      fakeSkillHits,
+      legacySkillHits,
+      brokenEventEvidence: linkAudit.brokenEventEvidence,
+      brokenKnowledgeEvidence: linkAudit.brokenKnowledgeEvidence,
+      materialAffordanceRefsInDecisionPathFiles: staticGuards.materialAffordanceRefsInDecisionPathFiles,
+    },
+    sourceChecks,
+    staticGuards,
+    requiredChecks,
+  };
+}
+
+function buildMaterialAffordanceFixtures(modules, world, sourceBand) {
+  if (sourceBand === undefined) {
+    return [];
+  }
+
+  const fixtureBandId = `${String(sourceBand.id)}:material-affordance-fixture`;
+  const fixtureBase = {
+    ...sourceBand,
+    id: fixtureBandId,
+  };
+  const targetTileId = sourceBand.currentCampTileId ?? sourceBand.position;
+  const trip = makeKnowledgeFixtureTrip(
+    fixtureBase,
+    world,
+    targetTileId,
+    "plant_gathering_group",
+    "gathered_food_placeholder",
+    "successful_observation",
+    "confidence_refreshed",
+  );
+  const fixtureBand = {
+    ...fixtureBase,
+    recentIntraSeasonTrips: [trip],
+    activityOutcomeSummary: {
+      bandId: fixtureBandId,
+      day: 10,
+      tick: world.time.tick,
+      season: world.time.season,
+      outcomesByType: [{ outcome: "successful_observation", count: 1 }],
+      outcomesByTaskType: [{ taskGroupType: "plant_gathering_group", outcome: "successful_observation", count: 1 }],
+      returnsByResourceKind: [{ returnedResourceKind: "gathered_food_placeholder", count: 1, estimatedReturnValueTotal: 0.24 }],
+      successCount: 1,
+      partialCount: 0,
+      failedCount: 0,
+      informationCount: 1,
+      noEffectCount: 0,
+      maxEstimatedReturnValue: 0.24,
+      consumedByEconomy: false,
+      noYieldCoupling: true,
+      noCarryingCapacityCoupling: true,
+      noPopulationChange: true,
+      noStressChange: true,
+      noSupportChange: true,
+    },
+    activityLaborSummary: {
+      ...(sourceBand.activityLaborSummary ?? {}),
+      bandId: fixtureBandId,
+      day: 10,
+      tick: world.time.tick,
+      season: world.time.season,
+      totalPeople: sourceBand.size,
+      workingAdults: sourceBand.demography.workingAdults,
+      activeActivityGroupCount: Math.max(1, sourceBand.activityLaborSummary?.activeActivityGroupCount ?? 0),
+      peopleAssignedToActivityGroups: Math.max(2, sourceBand.activityLaborSummary?.peopleAssignedToActivityGroups ?? 0),
+      peopleAwayInActivityGroups: Math.max(2, sourceBand.activityLaborSummary?.peopleAwayInActivityGroups ?? 0),
+      peopleAtResidentialCenterEstimate: Math.max(1, sourceBand.size - 2),
+      peopleByActivityType: [{ taskGroupType: "plant_gathering_group", groupCount: 1, assignedPeopleEstimate: 2 }],
+      recentActivityGroupSummaries: [],
+      cappedAllocation: false,
+      impossibleOverAllocationCount: 0,
+      allocationConfidence: "estimated_only",
+      noFoodCoupling: true,
+      noYieldCoupling: true,
+      noCarryingCapacityCoupling: true,
+      noPopulationChange: true,
+      noStressChange: true,
+    },
+  };
+  const fixtureWorld = {
+    ...world,
+    bands: {
+      ...world.bands,
+      [fixtureBandId]: fixtureBand,
+    },
+  };
+
+  return [{
+    kind: "fixture:activity-evidence",
+    band: fixtureBand,
+    profile: modules.materialAffordance.deriveMaterialAffordanceProfile(fixtureWorld, fixtureBand),
+    knowledge: modules.knowledgeEcology.deriveKnowledgeEcologyProfile(fixtureWorld, fixtureBand),
+    events: modules.eventSystem.deriveCanonicalEvents(fixtureWorld, fixtureBand),
+  }];
+}
+
+function selectMaterialAffordanceBands(modules, world, bands) {
+  const selected = [];
+  const add = (band) => {
+    if (band !== undefined && !selected.some((entry) => entry.id === band.id)) {
+      selected.push(band);
+    }
+  };
+  const scored = [...bands].sort((left, right) =>
+    scoreMaterialAffordanceBand(modules, world, right) - scoreMaterialAffordanceBand(modules, world, left) || compareBands(left, right));
+
+  for (const band of scored.filter((entry) => (entry.recentIntraSeasonTrips?.length ?? 0) > 0).slice(0, 3)) add(band);
+  for (const band of scored.filter((entry) => Object.keys(entry.crossingMemories).length > 0 || Object.keys(entry.travelCorridors).length > 0).slice(0, 3)) add(band);
+  for (const band of scored.filter((entry) => entry.bodyCampLogistics !== undefined || entry.seasonalSupport !== undefined).slice(0, 2)) add(band);
+  for (const band of scored.filter((entry) => entry.parentBandId !== undefined || entry.deepHistory?.founding?.kind === "fission_daughter").slice(0, 2)) add(band);
+  for (const band of scored) {
+    add(band);
+    if (selected.length >= 8) {
+      break;
+    }
+  }
+
+  return selected;
+}
+
+function scoreMaterialAffordanceBand(modules, world, band) {
+  const events = modules.eventSystem.deriveCanonicalEvents(world, band);
+  const resourceMemoryCount = Object.keys(band.resourceMemory?.patches ?? {}).length;
+  const observedTileCount = Object.keys(band.knowledge.observedTiles ?? {}).length;
+  return (
+    resourceMemoryCount * 4 +
+    Math.min(observedTileCount, 40) * 0.3 +
+    (band.recentIntraSeasonTrips?.length ?? 0) * 4 +
+    (band.activityOutcomeSummary?.informationCount ?? 0) * 2 +
+    Object.keys(band.placeMemory).length * 1.5 +
+    Object.keys(band.travelCorridors).length * 3 +
+    Object.keys(band.crossingMemories).length * 4 +
+    (band.recentResidentialMoveEvents?.length ?? 0) * 3 +
+    events.events.length * 2 +
+    (band.bodyCampLogistics === undefined ? 0 : 8) +
+    (band.foragingAdaptation?.repetitionAffordances.length ?? 0) * 3 +
+    (band.seasonalSupport === undefined ? 0 : 4) +
+    (band.parentBandId === undefined ? 0 : 5)
+  );
+}
+
+function collectMaterialAffordanceNormalText(profile) {
+  return [
+    profile.overviewTitle,
+    ...profile.overviewLines,
+    ...profile.items.flatMap((item) => [
+      item.publicLabel,
+      item.meaning,
+      item.status.replace(/_/g, " "),
+      item.strength,
+      ...item.materialBasis,
+      ...item.knowledgeBasis,
+      ...item.activityEventBasis,
+      ...item.futureHooks,
+      ...item.constraints.map((constraint) => constraint.label),
+      ...item.evidence.map((evidence) => evidence.label),
+    ]),
+  ].filter((entry) => typeof entry === "string" && entry.length > 0);
+}
+
+function findMaterialAffordanceRawDebugHits(samples) {
+  const rawPattern = /\b(?:material-affordance|knowledge:|canonical-event|band|tile|reason|patch|route|event):[a-z0-9]/i;
+  const jsonPattern = /(?:^\s*[\[{]|["'][a-zA-Z0-9_]+["']\s*:)/;
+  return samples
+    .filter((sample) => rawPattern.test(sample) || jsonPattern.test(sample))
+    .slice(0, 8);
+}
+
+function auditMaterialAffordanceLinks(entries) {
+  const brokenEventEvidence = [];
+  const brokenKnowledgeEvidence = [];
+  let brokenChronicleLinks = 0;
+
+  for (const entry of entries) {
+    const eventIds = new Set(entry.events.events.map((event) => event.id));
+    const knowledgeIds = new Set(entry.knowledge.items.map((item) => item.id));
+
+    for (const item of entry.profile.items) {
+      for (const evidence of item.evidence) {
+        if (evidence.sourceSystem === "canonical_event" && !eventIds.has(evidence.sourceId)) {
+          brokenEventEvidence.push({ bandId: String(entry.band.id), itemId: item.id, eventId: evidence.sourceId });
+        }
+        if (evidence.sourceSystem === "knowledge_ecology" && !knowledgeIds.has(evidence.sourceId)) {
+          brokenKnowledgeEvidence.push({ bandId: String(entry.band.id), itemId: item.id, knowledgeId: evidence.sourceId });
+        }
+      }
+    }
+    brokenChronicleLinks += entry.profile.chronicleIntegration.brokenRenderedLinks;
+  }
+
+  return {
+    brokenEventEvidence: brokenEventEvidence.slice(0, 8),
+    brokenKnowledgeEvidence: brokenKnowledgeEvidence.slice(0, 8),
+    brokenChronicleLinks,
+  };
+}
+
+function makeMaterialAffordanceFingerprint(entries) {
+  return JSON.stringify(entries
+    .slice()
+    .sort((left, right) => String(left.band.id).localeCompare(String(right.band.id)))
+    .map((entry) => ({
+      bandId: String(entry.band.id),
+      title: entry.profile.overviewTitle,
+      lines: entry.profile.overviewLines,
+      items: entry.profile.items.map((item) => ({
+        id: item.id,
+        family: item.family,
+        label: item.publicLabel,
+        status: item.status,
+        strength: item.strength,
+        confidence: item.confidence,
+        materialBasis: item.materialBasis,
+        knowledgeBasis: item.knowledgeBasis,
+        activityEventBasis: item.activityEventBasis,
+        futureHooks: item.futureHooks,
+        constraints: item.constraints.map((constraint) => constraint.label),
+        evidence: item.evidence.map((evidence) => ({
+          kind: evidence.kind,
+          sourceSystem: evidence.sourceSystem,
+          label: evidence.label,
+          livedBasis: evidence.livedBasis,
+        })),
+      })),
+    })));
+}
+
+function materialAffordanceSourceChecks() {
+  const material = readFileSync(join(process.cwd(), "src/sim/agents/materialAffordance.ts"), "utf8");
+  const affordancesUi = readFileSync(join(process.cwd(), "src/ui/band/Affordances.tsx"), "utf8");
+  const bandPanel = readFileSync(join(process.cwd(), "src/ui/BandPanel.tsx"), "utf8");
+  const technical = readFileSync(join(process.cwd(), "src/ui/band/Technical.tsx"), "utf8");
+  const graph = readFileSync(join(process.cwd(), "src/architecture/graphData.ts"), "utf8");
+  const benchmark = readFileSync(join(process.cwd(), "scripts/simBenchmark.mjs"), "utf8");
+
+  return {
+    projectionExists:
+      material.includes("export function deriveMaterialAffordanceProfile") &&
+      material.includes("MaterialAffordanceProfile") &&
+      material.includes("MaterialAffordanceItem"),
+    projectionPure:
+      material.includes('projectionMode: "selected_band_projection"') &&
+      !material.includes("applyMaterialAffordance") &&
+      !material.includes("advanceMaterialAffordance") &&
+      !material.includes("band.materialAffordance") &&
+      !material.includes("world.bands =") &&
+      !material.includes("Math.random"),
+    knowledgeEcologyImported:
+      material.includes("deriveKnowledgeEcologyProfile") &&
+      material.includes('sourceSystem: "knowledge_ecology"'),
+    eventSystemImported:
+      material.includes("deriveCanonicalEvents") &&
+      material.includes('sourceSystem: "canonical_event"'),
+    activityEvidencePresent:
+      material.includes("recentIntraSeasonTrips") &&
+      material.includes('sourceSystem: "activity_party"') &&
+      material.includes('sourceSystem: "activity_summary"'),
+    repetitionHookPresent:
+      material.includes("repetitionAffordances") &&
+      material.includes('sourceSystem: "foraging_adaptation"') &&
+      material.includes("repetition makes handling visible without proving skill") &&
+      material.includes("repeated route use remains familiarity"),
+    legacyStartingSkillsIgnored:
+      !/\b(?:technologies|subsistenceModes|basketry|wild grain|plant tending|basic foraging)\b/i.test(material),
+    noEarlySystemsImplemented:
+      !/function\s+(?:derivePractice|applyPractice|advancePractice|deriveProblemFraming|applySkill|advanceSkill)/.test(material) &&
+      !/from\s+["'][^"']*(?:practice|problemFraming|culture|skillAdaptation)/.test(material) &&
+      !material.includes("world.culture") &&
+      !material.includes("band.learnedPractices"),
+    inheritedGuardExists:
+      material.includes("inherited_not_lived") &&
+      material.includes("inheritedSeparated"),
+    daughterGuardExists:
+      material.includes("daughterAffordanceIsNotPracticedInheritance"),
+    affordanceTabExists:
+      bandPanel.includes('id: "affordances"') &&
+      bandPanel.includes('label: "Affordances"') &&
+      bandPanel.includes("<Affordances"),
+    publicCardsExist:
+      affordancesUi.includes("What their known world makes possible later") &&
+      affordancesUi.includes("affordance-card-grid") &&
+      affordancesUi.includes("Material basis") &&
+      affordancesUi.includes("Future hook"),
+    publicNotLearnedWarning:
+      affordancesUi.includes("possible future practices, not acquired methods") &&
+      affordancesUi.includes("No method has been discovered here"),
+    publicUiNoRawDump:
+      !affordancesUi.includes("JSON.stringify") &&
+      !affordancesUi.includes("Object.entries(item)") &&
+      !affordancesUi.includes("sourceId") &&
+      !affordancesUi.includes("reasonIds"),
+    publicUiNoForbiddenLanguage:
+      !/\b(?:unlock|unlocked|tech tree|technology|researched|level|bonus|civilization advancement|tribal tech|invented|basketry|wild grain|plant tending|basic foraging)\b/i.test(affordancesUi),
+    technicalProofExists:
+      technical.includes("Material affordance substrate") &&
+      technical.includes("deriveMaterialAffordanceProfile") &&
+      technical.includes("payload estimate") &&
+      technical.includes("decision isolation") &&
+      technical.includes("source systems"),
+    graphNodeExists:
+      graph.includes('id: "materialAffordance"') &&
+      graph.includes("MATERIAL AFFORDANCE + FORAGER ENGINEERING CATALOG-1") &&
+      graph.includes("never read by decisions"),
+    auditFlagWired:
+      benchmark.includes("targetedMaterialAffordanceForagerEngineeringAudit") &&
+      benchmark.includes("--targeted-material-affordance-forager-engineering-audit") &&
+      benchmark.includes("runTargetedMaterialAffordanceForagerEngineeringAudit"),
+    regressionAuditFlagsPresent:
+      benchmark.includes("--targeted-knowledge-ecology-activity-parties-audit") &&
+      benchmark.includes("--targeted-band-identity-ui-audit") &&
+      benchmark.includes("--targeted-event-system-ui-audit") &&
+      benchmark.includes("--targeted-deep-time-history-audit") &&
+      benchmark.includes("--targeted-deep-time-chronicle-ui-audit") &&
+      benchmark.includes("--targeted-ui-readability-polish-1c-audit") &&
+      benchmark.includes("--targeted-whole-ui-readability-history-fun-audit") &&
+      benchmark.includes("--targeted-band-chronicle-foundation-audit") &&
+      benchmark.includes("--targeted-band-chronicle-wiki-expansion-audit") &&
+      benchmark.includes("--targeted-specific-memory-referents-audit"),
+  };
+}
+
+function runMaterialAffordanceStaticGuards() {
+  const storageGuards = runStorageSuitabilityStaticGuards();
+  const simRoot = join(process.cwd(), "src/sim");
+  const decisionFiles = [
+    ...collectSourceFiles(join(simRoot, "rules")),
+    ...collectSourceFiles(join(simRoot, "tick")),
+    ...collectSourceFiles(join(simRoot, "runner")),
+  ];
+  const materialAffordanceRefsInDecisionPathFiles = decisionFiles
+    .filter((file) => /deriveMaterialAffordanceProfile|materialAffordance|MaterialAffordance/.test(readFileSync(file, "utf8")))
+    .map((file) => file.replace(`${process.cwd()}/`, ""));
+  const knowledgeGuards = runKnowledgeEcologyStaticGuards();
+
+  return {
+    ...storageGuards,
+    materialAffordanceRefsInDecisionPaths: materialAffordanceRefsInDecisionPathFiles.length,
+    materialAffordanceRefsInDecisionPathFiles,
+    knowledgeEcologyRefsInDecisionPaths: knowledgeGuards.knowledgeEcologyRefsInDecisionPaths,
+    knowledgeEcologyRefsInDecisionPathFiles: knowledgeGuards.knowledgeEcologyRefsInDecisionPathFiles,
+    bandIdentityRefsInDecisionPaths: knowledgeGuards.bandIdentityRefsInDecisionPaths,
+    bandIdentityRefsInDecisionPathFiles: knowledgeGuards.bandIdentityRefsInDecisionPathFiles,
+    eventSystemRefsInDecisionPaths: knowledgeGuards.eventSystemRefsInDecisionPaths,
+    eventSystemRefsInDecisionPathFiles: knowledgeGuards.eventSystemRefsInDecisionPathFiles,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// PROBLEM FRAMING + PRACTICE EXPERIMENTATION-1 targeted audit.
+// Verifies bounded selected-band problem frames and trial candidates between
+// Knowledge Ecology / Material Affordance and future Practice Learning.
+// ---------------------------------------------------------------------------
+
+function runTargetedProblemFramingPracticeExperimentationAudit(modules, options) {
+  const years = 100;
+  const command = "node scripts/simBenchmark.mjs --targeted-problem-framing-practice-experimentation-audit --json";
+  const runOptions = {
+    ...options,
+    reportBand: false,
+    probeAudit: false,
+    returnWorld: true,
+    fast: true,
+    deterministic: false,
+  };
+  const baseRun = runBenchmark(
+    modules,
+    { scenario: "baseline", years, ticks: undefined },
+    runOptions,
+  );
+  const repeatRun = runBenchmark(
+    modules,
+    { scenario: "baseline", years, ticks: undefined },
+    runOptions,
+  );
+  const projectedWorld = projectPerformancePlayabilityWorld(modules, baseRun.world);
+  const repeatProjectedWorld = projectPerformancePlayabilityWorld(modules, repeatRun.world);
+  const activeBands = Object.values(projectedWorld.bands).filter(isActiveBand).sort(compareBands);
+  const selectedBands = selectProblemPracticeBands(modules, projectedWorld, activeBands);
+  const preDerivationSnapshot = JSON.stringify(selectedBands);
+  const liveEntries = selectedBands.map((band) => makeProblemPracticeAuditEntry(modules, projectedWorld, band, "live"));
+  const projectionMutatedBands = preDerivationSnapshot !== JSON.stringify(selectedBands);
+  const repeatEntries = selectedBands
+    .map((band) => repeatProjectedWorld.bands[band.id])
+    .filter((band) => band !== undefined)
+    .map((band) => makeProblemPracticeAuditEntry(modules, repeatProjectedWorld, band, "repeat"));
+  const fixtures = buildProblemPracticeFixtures(modules, projectedWorld, selectedBands[0]);
+  const repeatFixtures = buildProblemPracticeFixtures(
+    modules,
+    repeatProjectedWorld,
+    selectedBands[0] === undefined ? undefined : repeatProjectedWorld.bands[selectedBands[0].id],
+  );
+  const allEntries = [...liveEntries, ...fixtures];
+  const allRepeatEntries = [...repeatEntries, ...repeatFixtures];
+  const frames = allEntries.flatMap((entry) => entry.profile.problemFrames.map((frame) => ({ entry, frame })));
+  const candidates = allEntries.flatMap((entry) => entry.profile.practiceCandidates.map((candidate) => ({ entry, candidate })));
+  const frameEvidenceRows = frames.flatMap(({ entry, frame }) =>
+    frame.evidence.map((evidence) => ({ entry, frame, evidence })));
+  const candidateEvidenceRows = candidates.flatMap(({ entry, candidate }) =>
+    candidate.evidence.map((evidence) => ({ entry, candidate, evidence })));
+  const allEvidenceRows = [...frameEvidenceRows, ...candidateEvidenceRows];
+  const normalTextSamples = allEntries.flatMap((entry) => collectProblemPracticeNormalText(entry.profile));
+  const rawDebugHits = findProblemPracticeRawDebugHits(normalTextSamples);
+  const techTreeLanguageHits = normalTextSamples
+    .filter((sample) => /\b(?:unlock|unlocked|tech tree|researched|bonus|civilization advancement|tribal tech|invented)\b/i.test(sample))
+    .slice(0, 8);
+  const fakeSkillHits = normalTextSamples
+    .filter((sample) => /\b(?:skill gained|skill unlocked|method discovered|reliable method acquired|learned basketry|learned shelter|became engineers|automatic improvement|repeating .* improved|repeated .* improved)\b/i.test(sample))
+    .slice(0, 8);
+  const fakeCultureHits = normalTextSamples
+    .filter((sample) => /\b(?:taboo|myth|religion|worldview|language system|sacred law|ritual system|culture system)\b/i.test(sample))
+    .slice(0, 8);
+  const legacySkillHits = normalTextSamples
+    .filter((sample) => /\b(?:basketry|wild grain|plant tending|basic foraging|duplicate foraging|foraging skill)\b/i.test(sample))
+    .slice(0, 8);
+  const sourceChecks = problemPracticeSourceChecks();
+  const staticGuards = runProblemPracticeStaticGuards();
+  const linkAudit = auditProblemPracticeLinks(allEntries);
+  const frameFamilyNames = [
+    "food_return_subsistence",
+    "carrying_logistical_burden",
+    "crossing_blocked_path",
+    "route_new_country_uncertainty",
+    "camp_setup_care_burden",
+    "water_refuge_pressure",
+  ];
+  const candidateFamilyNames = [
+    "carrying_container_cordage",
+    "food_processing_trial",
+    "crossing_route_trial",
+    "camp_shelter_care_trial",
+    "fire_hearth_fuel_trial",
+    "water_edge_capture_trial",
+    "tool_digging_cutting_trial",
+  ];
+  const familiesSeen = [...new Set(frames.map(({ frame }) => frame.family))].sort();
+  const candidateFamiliesSeen = [...new Set(candidates.map(({ candidate }) => candidate.family))].sort();
+  const knowledgeRefs = allEvidenceRows.filter(({ evidence }) => evidence.sourceSystem === "knowledge_ecology");
+  const eventRefs = allEvidenceRows.filter(({ evidence }) => evidence.sourceSystem === "canonical_event");
+  const activityRefs = allEvidenceRows.filter(({ evidence }) =>
+    evidence.sourceSystem === "activity_party" ||
+    evidence.sourceSystem === "activity_summary" ||
+    evidence.sourceSystem === "residential_move");
+  const repetitionRefs = allEvidenceRows.filter(({ evidence }) => evidence.sourceSystem === "foraging_adaptation");
+  const affordanceRefs = allEvidenceRows.filter(({ evidence }) => evidence.sourceSystem === "material_affordance");
+  const inheritedEvidenceRows = allEvidenceRows.filter(({ evidence }) => evidence.livedBasis === "inherited_not_lived");
+  const livedEvidenceRows = allEvidenceRows.filter(({ evidence }) => evidence.livedBasis === "lived" || evidence.livedBasis === "mixed");
+  const daughterEntries = allEntries.filter((entry) =>
+    entry.band.parentBandId !== undefined || entry.band.deepHistory?.founding?.kind === "fission_daughter");
+  const maxPayload = Math.max(0, ...allEntries.map((entry) => entry.profile.technicalProof.payloadBytesEstimate));
+  const maxFramesPerProfile = Math.max(0, ...allEntries.map((entry) => entry.profile.problemFrames.length));
+  const maxCandidatesPerProfile = Math.max(0, ...allEntries.map((entry) => entry.profile.practiceCandidates.length));
+  const maxEvidencePerFrame = Math.max(0, ...frames.map(({ frame }) => frame.evidence.length));
+  const maxEvidencePerCandidate = Math.max(0, ...candidates.map(({ candidate }) => candidate.evidence.length));
+  const maxEvidencePerItem = Math.max(maxEvidencePerFrame, maxEvidencePerCandidate);
+  const statusesSeen = [...new Set(candidates.map(({ candidate }) => candidate.status))].sort();
+  const feedbackTypesSeen = [...new Set(candidates.map(({ candidate }) => candidate.expectedFeedbackType))].sort();
+
+  const requiredChecks = {
+    problemExperimentProfilesExistForSampledBands:
+      liveEntries.length > 0 &&
+      liveEntries.every((entry) => entry.profile.projectionMode === "selected_band_projection" && entry.profile.problemFrames.length > 0),
+    problemFramesStructuredNotProseOnly:
+      frames.length > 0 &&
+      frames.every(({ frame }) =>
+        frame.id.startsWith("problem-frame:") &&
+        frame.family.length > 0 &&
+        frame.publicLabel.length > 0 &&
+        frame.meaning.length > 0 &&
+        frame.objectiveBasis.length > 0 &&
+        frame.perceivedCause.length > 0 &&
+        frame.uncertainty.length > 0 &&
+        frame.possibleMisread.length > 0 &&
+        frame.noDecisionInfluence === true &&
+        Array.isArray(frame.evidence)),
+    experimentCandidatesStructuredNotProseOnly:
+      candidates.length > 0 &&
+      candidates.every(({ candidate }) =>
+        candidate.id.startsWith("practice-candidate:") &&
+        candidate.family.length > 0 &&
+        candidate.problemFrameId.length > 0 &&
+        candidate.publicLabel.length > 0 &&
+        candidate.meaning.length > 0 &&
+        candidate.expectedFeedbackType.length > 0 &&
+        candidate.status.length > 0 &&
+        candidate.noSkillUnlocked === true &&
+        candidate.noAutomaticImprovement === true &&
+        candidate.futureHook === "practice_learning_candidate"),
+    problemFamiliesIncludeCoreSet:
+      frameFamilyNames.every((family) => familiesSeen.includes(family)),
+    perceivedCauseAndObjectiveBasisPresent:
+      frames.every(({ frame }) => frame.perceivedCause.length > 0 && frame.objectiveBasis.length > 0) &&
+      allEntries.some((entry) => Object.keys(entry.profile.perceivedCauseCounts).length > 0),
+    uncertaintyMisreadWrongFrameRepresented:
+      frames.every(({ frame }) => frame.uncertainty.length > 0 && frame.possibleMisread.length > 0) &&
+      allEntries.some((entry) => entry.profile.uncertaintyMisreadCount > 0),
+    candidatesLinkToProblemFrames:
+      candidates.length > 0 &&
+      candidates.every(({ entry, candidate }) =>
+        entry.profile.problemFrames.some((frame) => frame.id === candidate.problemFrameId)),
+    candidatesLinkToAffordancesWherePossible:
+      sumNumbers(allEntries.map((entry) => entry.profile.affordanceRefCount)) > 0 &&
+      candidates.every(({ candidate }) => candidate.relatedAffordanceIds.length > 0),
+    evidenceSystemsLinkedWhereApplicable:
+      knowledgeRefs.length > 0 &&
+      eventRefs.length > 0 &&
+      activityRefs.length > 0 &&
+      repetitionRefs.length > 0,
+    feedbackTypeRepresented:
+      feedbackTypesSeen.length >= 4 &&
+      candidates.every(({ candidate }) => candidate.expectedFeedbackType.length > 0),
+    deadEndFalseConfidenceLowFeedbackLocalOnlyRepresented:
+      candidates.some(({ candidate }) => candidate.deadEndRisk !== "low") &&
+      candidates.some(({ candidate }) => candidate.falseConfidenceRisk !== "low") &&
+      candidates.some(({ candidate }) => candidate.lowFeedbackRisk !== "low") &&
+      candidates.some(({ candidate }) => candidate.localOnlyRisk !== "low"),
+    repetitionDoesNotAutoImproveOrUnlock:
+      candidates.every(({ candidate }) => candidate.noAutomaticImprovement === true && candidate.noSkillUnlocked === true) &&
+      sourceChecks.repetitionNotMasteryPublicNote &&
+      sourceChecks.noAutomaticImprovementFlag,
+    everyCandidateNotSkillOrAdaptationYet:
+      candidates.every(({ candidate }) => candidate.noSkillUnlocked === true) &&
+      sourceChecks.publicSaysNotSkill &&
+      sourceChecks.noSkillAdaptationStateCreated,
+    inheritedVsLivedSeparated:
+      livedEvidenceRows.length > 0 &&
+      inheritedEvidenceRows.length > 0 &&
+      allEntries.every((entry) => entry.profile.integrity.inheritedSeparated === true),
+    daughtersDoNotPersonallyTestParentOnlyKnowledge:
+      (daughterEntries.length > 0 || sourceChecks.daughterFixturePresent) &&
+      allEntries.every((entry) => entry.profile.integrity.daughterParentKnowledgeNotTreatedAsTestedHere === true),
+    legacyStartingSkillsIgnored:
+      legacySkillHits.length === 0 &&
+      sourceChecks.legacyStartingSkillsIgnored &&
+      allEntries.every((entry) => entry.profile.integrity.ignoresLegacyStartingSkills === true && entry.profile.technicalProof.legacyStartingSkillProofCount === 0),
+    publicUiCautiousNotSkillsAdaptations:
+      sourceChecks.problemsTabExists &&
+      sourceChecks.publicCardsExist &&
+      sourceChecks.publicSaysCandidateTrial &&
+      sourceChecks.publicSaysNotSkill,
+    noTechTreeUnlockBonusResearchedInventedLanguage:
+      techTreeLanguageHits.length === 0 &&
+      sourceChecks.publicUiNoForbiddenLanguage,
+    noCultureTabooMythWorldviewReligionLanguageSystem:
+      fakeCultureHits.length === 0 &&
+      sourceChecks.noEarlyCultureSystemsImplemented &&
+      allEntries.every((entry) => entry.profile.integrity.noCultureTabooMythWorldviewLanguage === true),
+    noPracticeSkillAdaptationStateCreatedEarly:
+      fakeSkillHits.length === 0 &&
+      sourceChecks.noSkillAdaptationStateCreated &&
+      allEntries.every((entry) => entry.profile.integrity.noSkillOrAdaptationState === true),
+    publicUiNoRawIdsJsonDebugArrays:
+      rawDebugHits.length === 0 &&
+      sourceChecks.publicUiNoRawDump,
+    technicalUiExposesCountsCapsProvenancePayload:
+      sourceChecks.technicalProofExists &&
+      allEntries.every((entry) => entry.profile.caps.capsHeld === true && entry.profile.technicalProof.payloadBytesEstimate > 0),
+    chronicleIntegrationPresentOrIntentionallySkipped:
+      allEntries.every((entry) =>
+        entry.profile.chronicleIntegration.mode === "inspected_skipped" &&
+        entry.profile.chronicleIntegration.brokenRenderedLinks === 0),
+    eventKnowledgeAffordanceChronicleLinksNotBroken:
+      linkAudit.brokenLinks === 0,
+    substrateDoesNotEnterDecisionPaths:
+      staticGuards.problemPracticeRefsInDecisionPaths === 0 &&
+      allEntries.every((entry) => entry.profile.integrity.noDecisionInfluence === true),
+    deterministicOutput:
+      makeProblemPracticeFingerprint(allEntries) === makeProblemPracticeFingerprint(allRepeatEntries),
+    payloadsAndListsBounded:
+      maxPayload > 0 &&
+      maxPayload < 45_000 &&
+      maxFramesPerProfile <= 7 &&
+      maxCandidatesPerProfile <= 9 &&
+      maxEvidencePerFrame <= 4 &&
+      maxEvidencePerCandidate <= 5,
+    regressionAuditFlagsPresent:
+      sourceChecks.regressionAuditFlagsPresent,
+    behaviorEconomyOutputUnchanged:
+      makeDeterminismFingerprint(baseRun.summary) === makeDeterminismFingerprint(repeatRun.summary) &&
+      projectionMutatedBands === false &&
+      staticGuards.problemPracticeRefsInDecisionPaths === 0,
+    candidateFamiliesImplemented:
+      candidateFamilyNames.every((family) => candidateFamiliesSeen.includes(family)),
+  };
+  const passedCount = Object.values(requiredChecks).filter(Boolean).length;
+  const failedChecks = Object.entries(requiredChecks)
+    .filter(([, passed]) => passed !== true)
+    .map(([name]) => name);
+  const verdict = failedChecks.length === 0 ? "pass" : "review";
+
+  return {
+    check: "PROBLEM FRAMING + PRACTICE EXPERIMENTATION-1 targeted audit",
+    verdict,
+    command,
+    methodology: {
+      scenario: "baseline",
+      years,
+      selectedBandRule: "active bands scored for events, knowledge, material affordances, activity, repetition, route/crossing/place memory, care burden, water/food stress, and daughter inheritance",
+      fixtureNote: "One projection-only fixture injects grounded crossing/route/camp/water/contact/repetition/inheritance pressure into a temporary audit world.",
+      projectionMode: "pure selected-band projection; not stored on Band and not imported by decision paths",
+      uiLayer: "src/ui/band/ProblemsAndTrials.tsx selected-band tab plus Technical Problem framing / practice experiment substrate group",
+      chronicleIntegration: "Chronicle was inspected and intentionally skipped for new prose; no rendered Chronicle problem/trial links are created in this pass.",
+      regressionNote: "Existing accepted audits are not recursively run inside this audit; run the documented verification battery separately.",
+    },
+    checkSummary: {
+      passed: passedCount,
+      failed: failedChecks.length,
+      total: Object.keys(requiredChecks).length,
+      failedChecks,
+    },
+    metrics: {
+      bandsSampled: selectedBands.length,
+      fixtureProfiles: fixtures.length,
+      profilesGenerated: allEntries.length,
+      liveProfilesGenerated: liveEntries.length,
+      problemFrames: frames.length,
+      candidates: candidates.length,
+      framesByFamily: countRowsBy(frames, ({ frame }) => frame.family),
+      candidatesByFamily: countRowsBy(candidates, ({ candidate }) => candidate.family),
+      perceivedCauseCount: sumNumbers(allEntries.map((entry) => Object.keys(entry.profile.perceivedCauseCounts).length)),
+      uncertaintyMisreadCount: sumNumbers(allEntries.map((entry) => entry.profile.uncertaintyMisreadCount)),
+      feedbackTypeCounts: countRowsBy(candidates, ({ candidate }) => candidate.expectedFeedbackType),
+      statusCounts: countRowsBy(candidates, ({ candidate }) => candidate.status),
+      deadEndRiskCount: candidates.filter(({ candidate }) => candidate.deadEndRisk !== "low").length,
+      falseConfidenceRiskCount: candidates.filter(({ candidate }) => candidate.falseConfidenceRisk !== "low").length,
+      lowFeedbackRiskCount: candidates.filter(({ candidate }) => candidate.lowFeedbackRisk !== "low").length,
+      localOnlyRiskCount: candidates.filter(({ candidate }) => candidate.localOnlyRisk !== "low").length,
+      affordanceRefs: affordanceRefs.length + sumNumbers(allEntries.map((entry) => entry.profile.affordanceRefCount)),
+      knowledgeRefs: knowledgeRefs.length,
+      eventRefs: eventRefs.length,
+      activityRefs: activityRefs.length,
+      repetitionRefs: repetitionRefs.length,
+      inheritedBasisRefs: inheritedEvidenceRows.length,
+      livedBasisRefs: livedEvidenceRows.length,
+      daughterProfiles: daughterEntries.length,
+      legacySkillHits: legacySkillHits.length,
+      fakeSkillHits: fakeSkillHits.length,
+      techTreeHits: techTreeLanguageHits.length,
+      fakeCultureHits: fakeCultureHits.length,
+      brokenLinks: linkAudit.brokenLinks,
+      brokenProblemFrameLinks: linkAudit.brokenProblemFrameLinks.length,
+      brokenCandidateLinks: linkAudit.brokenCandidateLinks.length,
+      rawDebugHits: rawDebugHits.length,
+      maxPayload,
+      maxPayloadKb: round2(maxPayload / 1024),
+      maxFramesPerProfile,
+      maxCandidatesPerProfile,
+      maxEvidencePerItem,
+      maxEvidencePerFrame,
+      maxEvidencePerCandidate,
+      decisionPathRefs: staticGuards.problemPracticeRefsInDecisionPaths,
+      projectionMutatedBands,
+    },
+    samples: {
+      profiles: allEntries.slice(0, 5).map((entry) => ({
+        kind: entry.kind,
+        bandId: String(entry.band.id),
+        title: entry.profile.overviewTitle,
+        summary: entry.profile.overviewLines,
+        frames: entry.profile.problemFrames.map((frame) => ({
+          family: frame.family,
+          label: frame.publicLabel,
+          perceivedCause: frame.perceivedCause,
+          uncertainty: frame.uncertainty,
+          evidence: frame.evidence.map((evidence) => evidence.label),
+        })),
+        candidates: entry.profile.practiceCandidates.map((candidate) => ({
+          family: candidate.family,
+          label: candidate.publicLabel,
+          status: candidate.status,
+          feedback: candidate.expectedFeedbackType,
+          materialBasis: candidate.materialBasis,
+          noSkillUnlocked: candidate.noSkillUnlocked,
+          noAutomaticImprovement: candidate.noAutomaticImprovement,
+        })),
+      })),
+      rawDebugHits,
+      techTreeLanguageHits,
+      fakeSkillHits,
+      fakeCultureHits,
+      legacySkillHits,
+      brokenProblemFrameLinks: linkAudit.brokenProblemFrameLinks,
+      brokenCandidateLinks: linkAudit.brokenCandidateLinks,
+      problemPracticeRefsInDecisionPathFiles: staticGuards.problemPracticeRefsInDecisionPathFiles,
+    },
+    sourceChecks,
+    staticGuards,
+    requiredChecks,
+  };
+}
+
+function makeProblemPracticeAuditEntry(modules, world, band, kind) {
+  return {
+    kind,
+    band,
+    profile: modules.problemPractice.deriveProblemPracticeProfile(world, band),
+    material: modules.materialAffordance.deriveMaterialAffordanceProfile(world, band),
+    knowledge: modules.knowledgeEcology.deriveKnowledgeEcologyProfile(world, band),
+    events: modules.eventSystem.deriveCanonicalEvents(world, band),
+  };
+}
+
+function buildProblemPracticeFixtures(modules, world, sourceBand) {
+  if (sourceBand === undefined) {
+    return [];
+  }
+  const fixtureBandId = `${String(sourceBand.id)}:problem-practice-fixture`;
+  const parentBandId = sourceBand.parentBandId ?? sourceBand.id;
+  const now = world.time;
+  const targetTileId = sourceBand.currentCampTileId ?? sourceBand.position;
+  const trip = makeKnowledgeFixtureTrip(
+    { ...sourceBand, id: fixtureBandId },
+    world,
+    targetTileId,
+    "plant_gathering_group",
+    "gathered_food_placeholder",
+    "failed_due_to_distance",
+    "confidence_lowered",
+  );
+  const routeId = `route:problem-practice:${String(sourceBand.id)}`;
+  const crossingKey = `crossing:problem-practice:${String(sourceBand.id)}`;
+  const fixtureBand = {
+    ...sourceBand,
+    id: fixtureBandId,
+    parentBandId,
+    inheritanceProfile: {
+      ...(sourceBand.inheritanceProfile ?? {}),
+      inheritedKnownTileCount: 8,
+      physicallySeenOnSpawnCount: 2,
+      inheritedRumorCount: 2,
+      inheritedMemoryCount: 4,
+      inheritedCrossingCount: 1,
+      inheritedCorridorHintCount: 1,
+      inheritedRouteHintTileCount: 2,
+      personallyObservedTileCount: 2,
+      inheritedKnowledgeShare: 0.48,
+      averageInheritedConfidence: 0.42,
+      parentKnownTileCount: 20,
+      parentMemoryCount: 8,
+      parentCorridorCount: 2,
+    },
+    recentIntraSeasonTrips: [trip, ...(sourceBand.recentIntraSeasonTrips ?? []).slice(0, 2)],
+    activityOutcomeSummary: {
+      bandId: fixtureBandId,
+      day: 10,
+      tick: now.tick,
+      season: now.season,
+      outcomesByType: [{ outcome: "failed_due_to_distance", count: 1 }],
+      outcomesByTaskType: [{ taskGroupType: "plant_gathering_group", outcome: "failed_due_to_distance", count: 1 }],
+      returnsByResourceKind: [{ returnedResourceKind: "gathered_food_placeholder", count: 1, estimatedReturnValueTotal: 0.08 }],
+      successCount: 0,
+      partialCount: 1,
+      failedCount: 1,
+      informationCount: 1,
+      noEffectCount: 0,
+      maxEstimatedReturnValue: 0.08,
+      consumedByEconomy: false,
+      noYieldCoupling: true,
+      noCarryingCapacityCoupling: true,
+      noPopulationChange: true,
+      noStressChange: true,
+      noSupportChange: true,
+    },
+    activityLaborSummary: {
+      ...(sourceBand.activityLaborSummary ?? {}),
+      bandId: fixtureBandId,
+      day: 10,
+      tick: now.tick,
+      season: now.season,
+      totalPeople: sourceBand.size,
+      workingAdults: Math.max(1, sourceBand.demography.workingAdults),
+      activeActivityGroupCount: 2,
+      peopleAssignedToActivityGroups: Math.max(3, Math.min(sourceBand.size, sourceBand.demography.workingAdults)),
+      peopleAwayInActivityGroups: Math.max(3, Math.min(sourceBand.size, sourceBand.demography.workingAdults)),
+      peopleAtResidentialCenterEstimate: Math.max(1, sourceBand.size - 3),
+      peopleByActivityType: [{ taskGroupType: "plant_gathering_group", groupCount: 1, assignedPeopleEstimate: 3 }],
+      latestActivityGroupSummary: {
+        taskGroupType: "plant_gathering_group",
+        targetTileId,
+        sourceTripReasonIds: [`problem-practice-fixture:activity:${String(sourceBand.id)}`],
+      },
+      recentActivityGroupSummaries: [],
+      cappedAllocation: false,
+      impossibleOverAllocationCount: 0,
+      allocationConfidence: "estimated_only",
+      noFoodCoupling: true,
+      noYieldCoupling: true,
+      noCarryingCapacityCoupling: true,
+      noPopulationChange: true,
+      noStressChange: true,
+    },
+    seasonalSupport: {
+      ...(sourceBand.seasonalSupport ?? {}),
+      bandId: fixtureBandId,
+      lastUpdatedTick: now.tick,
+      currentSeasonSupport: {
+        tick: now.tick,
+        year: now.year,
+        season: now.season,
+        rawSupportRatio: 0.72,
+        clampedSupportRatio: 0.72,
+        perCapitaReturn: 0.38,
+        seasonalModifier: 0.85,
+        foodStress: 0.62,
+        waterStress: 0.58,
+        deficitRatio: 0.3,
+        mode: "lean",
+      },
+      rolling4SeasonSupport: 0.7,
+      rolling8SeasonSupport: 0.74,
+      rolling4SeasonReturn: 0.42,
+      rolling8SeasonReturn: 0.46,
+      returnTrend4Season: -0.08,
+      returnTrend8Season: -0.06,
+      recentSamples: [],
+      seasonalHungerStreak: 2,
+      chronicDeficitStreak: 1,
+      seasonalRecoveryStreak: 0,
+      deficitSeasonsLast4: 2,
+      deficitSeasonsLast8: 3,
+      waterStressSeasonsLast4: 2,
+      waterStressSeasonsLast8: 4,
+      hungerClassification: "seasonal_lean_stress",
+      chronicDeficitClassification: "seasonal_water_stress",
+      populationStableDespiteRecurringHunger: true,
+      topSeasonalSupportReasons: ["problem-practice fixture lean season"],
+      reasonIds: [`problem-practice-fixture:seasonal:${String(sourceBand.id)}`],
+    },
+    bodyCampLogistics: {
+      ...(sourceBand.bodyCampLogistics ?? {}),
+      bandId: fixtureBandId,
+      lastUpdatedTick: now.tick,
+      mode: "strained",
+      weatherMemories: [{ kind: "bad_crossing_season", strength: 0.62, reasonIds: [`problem-practice-fixture:weather:${String(sourceBand.id)}`] }],
+      materialWear: [{ category: "cordage_fiber", wear: 0.64, reasonIds: [`problem-practice-fixture:wear:${String(sourceBand.id)}`] }],
+      seasonalTasks: [{ kind: "camp_repair", pressure: 0.58, reasonIds: [`problem-practice-fixture:task:${String(sourceBand.id)}`] }],
+      fire: {
+        need: 0.46,
+        usefulness: 0.52,
+        fuelBasis: 0.34,
+        fuelPressure: 0.48,
+        laborCost: 0.42,
+        fireRisk: 0.2,
+        status: "useful_but_costly",
+        noPermanentHearth: true,
+      },
+      careTravelBurden: {
+        dependentCarryBurden: 0.62,
+        elderTravelCaution: 0.36,
+        pregnancyNursingBurden: 0.22,
+        sickCareBurden: 0.18,
+        wholeBandCrossingBurden: 0.58,
+        longMoveBurden: 0.46,
+        coldHeatVulnerability: 0.2,
+        adultLaborAvailable: 0.42,
+      },
+      campCleanliness: { pressure: 0.32 },
+      sharingPressure: { pressure: 0.38 },
+      reasonIds: [`problem-practice-fixture:body-camp:${String(sourceBand.id)}`],
+    },
+    placeMemory: {
+      ...sourceBand.placeMemory,
+      [targetTileId]: {
+        ...(sourceBand.placeMemory[targetTileId] ?? {}),
+        tileId: targetTileId,
+        firstObservedAt: now,
+        lastObservedAt: now,
+        visitCount: Math.max(6, sourceBand.placeMemory[targetTileId]?.visitCount ?? 0),
+        seasonsObserved: [now.season],
+        valences: ["return_place", "route_node"],
+        attachment: 0.48,
+        confidence: 0.62,
+        reasonIds: [`problem-practice-fixture:place:${String(sourceBand.id)}`],
+        repeatedReturnCount: Math.max(4, sourceBand.placeMemory[targetTileId]?.repeatedReturnCount ?? 0),
+        isReturnPlace: true,
+        lastReturnAt: now,
+        seasonalReturnPattern: [now.season],
+      },
+    },
+    travelCorridors: {
+      ...sourceBand.travelCorridors,
+      [routeId]: {
+        id: routeId,
+        fromTileId: sourceBand.position,
+        toTileId: targetTileId,
+        useCount: 6,
+        lastUsedAt: now,
+        intentKinds: ["follow_river_corridor", "return_to_known_good_area"],
+        confidence: 0.38,
+      },
+    },
+    crossingMemories: {
+      ...sourceBand.crossingMemories,
+      [crossingKey]: {
+        riverId: `river:problem-practice:${String(sourceBand.id)}`,
+        crossingTileA: sourceBand.position,
+        crossingTileB: targetTileId,
+        crossingClass: "ford",
+        firstUsedAt: now,
+        lastUsedAt: now,
+        useCount: 4,
+        successConfidence: 0.34,
+        seasonalReliability: 0.32,
+        riskMemory: 0.68,
+        reasonIds: [`problem-practice-fixture:crossing:${String(sourceBand.id)}`],
+      },
+    },
+    foragingAdaptation: {
+      ...(sourceBand.foragingAdaptation ?? {}),
+      repetitionAffordances: [
+        makeProblemPracticeFixtureRepetition(sourceBand, now.tick, "crossing", "false_confidence_risk", "context_bound_feedback"),
+        makeProblemPracticeFixtureRepetition(sourceBand, now.tick, "food_work", "reinforced_bad_habit", "low_feedback"),
+        makeProblemPracticeFixtureRepetition(sourceBand, now.tick, "camp_setup", "local_context_only", "context_bound_feedback"),
+        ...(sourceBand.foragingAdaptation?.repetitionAffordances ?? []),
+      ],
+    },
+    contactMemories: {
+      ...sourceBand.contactMemories,
+      [parentBandId]: {
+        otherBandId: parentBandId,
+        firstContactAt: now,
+        lastContactAt: now,
+        contactCount: 3,
+        peacefulContactCount: 1,
+        strainedContactCount: 1,
+        sharedUseCount: 1,
+        avoidanceCount: 1,
+        familiarity: 0.5,
+        tension: 0.36,
+        trustLikeTolerance: 0.42,
+        relation: "parent_daughter",
+        reasonIds: [`problem-practice-fixture:contact:${String(sourceBand.id)}`],
+      },
+    },
+    reportedKnowledge: {
+      ...(sourceBand.reportedKnowledge ?? {}),
+      reports: [
+        {
+          reportId: `problem-practice-fixture-report:${String(sourceBand.id)}`,
+          sourceBandId: parentBandId,
+          receiverBandId: fixtureBandId,
+          tickCreated: now.tick,
+          tickReceived: now.tick,
+          topic: "ford_or_crossing",
+          targetTileId,
+          confidence: 0.42,
+          freshness: 0.6,
+          hops: 1,
+          distortionLevel: "vague",
+          trustBasis: "parent",
+          receiverDisposition: "remembered_only",
+          confirmationStatus: "unconfirmed",
+          evidenceCount: 1,
+          contradictionCount: 0,
+          noHiddenTruth: true,
+          noDirectUnlock: true,
+          noGuaranteedTruth: true,
+          noLanguageSystem: true,
+          reasonIds: [`problem-practice-fixture:report:${String(sourceBand.id)}`],
+        },
+      ],
+      lastUpdatedTick: now.tick,
+      generatedCount: 1,
+      internalGeneratedCount: 0,
+      interBandGeneratedCount: 1,
+      receivedCount: 1,
+      checkedByProbeCount: 0,
+      actedOnCount: 0,
+      misleadingCount: 0,
+    },
+  };
+  const fixtureWorld = {
+    ...world,
+    bands: {
+      ...world.bands,
+      [fixtureBandId]: fixtureBand,
+    },
+  };
+
+  return [makeProblemPracticeAuditEntry(modules, fixtureWorld, fixtureBand, "fixture:problem-practice")];
+}
+
+function makeProblemPracticeFixtureRepetition(sourceBand, tick, domain, deadEndRisk, feedbackQuality) {
+  return {
+    id: `problem-practice-fixture:repetition:${String(sourceBand.id)}:${domain}:${deadEndRisk}`,
+    domain,
+    title: "Fixture repetition pressure",
+    summary: "Projection-only fixture; repetition is familiarity, not a reliable method.",
+    repeatedExposureCount: 5,
+    repeatedAttemptSignal: 4,
+    feedbackQuality,
+    improvementPotential: "weak",
+    deadEndRisk,
+    familiarityStatus: deadEndRisk === "false_confidence_risk" ? "false_confidence_risk" : deadEndRisk === "local_context_only" ? "local_context_only" : "dead_end_attempt",
+    evidenceLabels: ["fixture exposure", "fixture attempts"],
+    futureHook: "practice_experimentation",
+    noSkillUnlocked: true,
+    noAutomaticImprovement: true,
+    reasonIds: [`problem-practice-fixture:repetition:${String(sourceBand.id)}:${Number(tick)}`],
+  };
+}
+
+function selectProblemPracticeBands(modules, world, bands) {
+  const selected = [];
+  const add = (band) => {
+    if (band !== undefined && !selected.some((entry) => entry.id === band.id)) {
+      selected.push(band);
+    }
+  };
+  const scored = [...bands].sort((left, right) =>
+    scoreProblemPracticeBand(modules, world, right) - scoreProblemPracticeBand(modules, world, left) || compareBands(left, right));
+
+  for (const band of scored.filter((entry) => (entry.foragingAdaptation?.repetitionAffordances.length ?? 0) > 0).slice(0, 3)) add(band);
+  for (const band of scored.filter((entry) => Object.keys(entry.crossingMemories).length > 0 || Object.keys(entry.travelCorridors).length > 0).slice(0, 3)) add(band);
+  for (const band of scored.filter((entry) => entry.parentBandId !== undefined || entry.deepHistory?.founding?.kind === "fission_daughter").slice(0, 2)) add(band);
+  for (const band of scored.filter((entry) => entry.seasonalSupport !== undefined || entry.bodyCampLogistics !== undefined).slice(0, 2)) add(band);
+  for (const band of scored) {
+    add(band);
+    if (selected.length >= 8) {
+      break;
+    }
+  }
+
+  return selected;
+}
+
+function scoreProblemPracticeBand(modules, world, band) {
+  const events = modules.eventSystem.deriveCanonicalEvents(world, band);
+  const material = modules.materialAffordance.deriveMaterialAffordanceProfile(world, band);
+  const knowledge = modules.knowledgeEcology.deriveKnowledgeEcologyProfile(world, band);
+  return (
+    events.events.length * 2 +
+    knowledge.items.length * 2 +
+    material.items.filter((item) => item.status === "plausible" || item.status === "strong" || item.status === "weak").length * 2 +
+    (band.recentIntraSeasonTrips?.length ?? 0) * 4 +
+    (band.activityOutcomeSummary === undefined ? 0 : 4) +
+    Object.keys(band.placeMemory).length * 1.5 +
+    Object.keys(band.travelCorridors).length * 3 +
+    Object.keys(band.crossingMemories).length * 4 +
+    (band.recentResidentialMoveEvents?.length ?? 0) * 3 +
+    (band.seasonalSupport === undefined ? 0 : 4) +
+    (band.bodyCampLogistics === undefined ? 0 : 5) +
+    (band.foragingAdaptation?.repetitionAffordances.length ?? 0) * 4 +
+    (band.parentBandId === undefined ? 0 : 6) +
+    Object.keys(band.contactMemories).length
+  );
+}
+
+function collectProblemPracticeNormalText(profile) {
+  return [
+    profile.overviewTitle,
+    ...profile.overviewLines,
+    ...profile.problemFrames.flatMap((frame) => [
+      frame.publicLabel,
+      frame.meaning,
+      frame.perceivedCause,
+      frame.uncertainty,
+      frame.possibleMisread,
+      frame.livedBasis.replace(/_/g, " "),
+      ...frame.objectiveBasis,
+      ...frame.evidence.map((evidence) => evidence.label),
+    ]),
+    ...profile.practiceCandidates.flatMap((candidate) => [
+      candidate.publicLabel,
+      candidate.meaning,
+      candidate.status.replace(/_/g, " "),
+      candidate.expectedFeedbackType.replace(/_/g, " "),
+      candidate.likelyCostRisk,
+      candidate.laborBurden,
+      candidate.uncertainty,
+      ...candidate.materialBasis,
+      ...candidate.knowledgeBasis,
+      ...candidate.activityRepetitionBasis,
+      ...candidate.evidence.map((evidence) => evidence.label),
+    ]),
+    ...profile.constraints,
+  ].filter((entry) => typeof entry === "string" && entry.length > 0);
+}
+
+function findProblemPracticeRawDebugHits(samples) {
+  const rawPattern = /\b(?:problem-frame|practice-candidate|material-affordance|knowledge|canonical-event|band|tile|reason|decision|stock|patch|event|route|activity|repetition):[a-z0-9]/i;
+  const jsonPattern = /(?:^\s*[\[{]|["'][a-zA-Z0-9_]+["']\s*:)/;
+  return samples
+    .filter((sample) => rawPattern.test(sample) || jsonPattern.test(sample))
+    .slice(0, 8);
+}
+
+function auditProblemPracticeLinks(entries) {
+  const brokenProblemFrameLinks = [];
+  const brokenCandidateLinks = [];
+  let brokenChronicleLinks = 0;
+
+  for (const entry of entries) {
+    const frameIds = new Set(entry.profile.problemFrames.map((frame) => frame.id));
+    const affordanceIds = new Set(entry.material.items.map((item) => item.id));
+    const knowledgeIds = new Set(entry.knowledge.items.map((item) => item.id));
+    const eventIds = new Set(entry.events.events.map((event) => event.id));
+
+    for (const frame of entry.profile.problemFrames) {
+      for (const affordanceId of frame.relatedAffordanceIds) {
+        if (!affordanceIds.has(affordanceId)) {
+          brokenProblemFrameLinks.push({ bandId: String(entry.band.id), frameId: frame.id, affordanceId });
+        }
+      }
+      for (const knowledgeId of frame.relatedKnowledgeIds) {
+        if (!knowledgeIds.has(knowledgeId)) {
+          brokenProblemFrameLinks.push({ bandId: String(entry.band.id), frameId: frame.id, knowledgeId });
+        }
+      }
+      for (const eventId of frame.relatedEventIds) {
+        if (!eventIds.has(eventId)) {
+          brokenProblemFrameLinks.push({ bandId: String(entry.band.id), frameId: frame.id, eventId });
+        }
+      }
+    }
+
+    for (const candidate of entry.profile.practiceCandidates) {
+      if (!frameIds.has(candidate.problemFrameId)) {
+        brokenCandidateLinks.push({ bandId: String(entry.band.id), candidateId: candidate.id, frameId: candidate.problemFrameId });
+      }
+      for (const affordanceId of candidate.relatedAffordanceIds) {
+        if (!affordanceIds.has(affordanceId)) {
+          brokenCandidateLinks.push({ bandId: String(entry.band.id), candidateId: candidate.id, affordanceId });
+        }
+      }
+      for (const knowledgeId of candidate.relatedKnowledgeIds) {
+        if (!knowledgeIds.has(knowledgeId)) {
+          brokenCandidateLinks.push({ bandId: String(entry.band.id), candidateId: candidate.id, knowledgeId });
+        }
+      }
+      for (const eventId of candidate.relatedEventIds) {
+        if (!eventIds.has(eventId)) {
+          brokenCandidateLinks.push({ bandId: String(entry.band.id), candidateId: candidate.id, eventId });
+        }
+      }
+    }
+    brokenChronicleLinks += entry.profile.chronicleIntegration.brokenRenderedLinks;
+  }
+
+  return {
+    brokenProblemFrameLinks: brokenProblemFrameLinks.slice(0, 8),
+    brokenCandidateLinks: brokenCandidateLinks.slice(0, 8),
+    brokenChronicleLinks,
+    brokenLinks: brokenProblemFrameLinks.length + brokenCandidateLinks.length + brokenChronicleLinks,
+  };
+}
+
+function makeProblemPracticeFingerprint(entries) {
+  return JSON.stringify(entries
+    .slice()
+    .sort((left, right) => String(left.band.id).localeCompare(String(right.band.id)))
+    .map((entry) => ({
+      bandId: String(entry.band.id),
+      title: entry.profile.overviewTitle,
+      frames: entry.profile.problemFrames.map((frame) => ({
+        id: frame.id,
+        family: frame.family,
+        label: frame.publicLabel,
+        perceivedCause: frame.perceivedCause,
+        confidence: frame.confidence,
+        basis: frame.objectiveBasis,
+        evidence: frame.evidence.map((evidence) => ({
+          kind: evidence.kind,
+          sourceSystem: evidence.sourceSystem,
+          label: evidence.label,
+          livedBasis: evidence.livedBasis,
+        })),
+      })),
+      candidates: entry.profile.practiceCandidates.map((candidate) => ({
+        id: candidate.id,
+        family: candidate.family,
+        frame: candidate.problemFrameId,
+        status: candidate.status,
+        feedback: candidate.expectedFeedbackType,
+        confidence: candidate.confidence,
+        materialBasis: candidate.materialBasis,
+        knowledgeBasis: candidate.knowledgeBasis,
+        activityRepetitionBasis: candidate.activityRepetitionBasis,
+        risks: [candidate.deadEndRisk, candidate.falseConfidenceRisk, candidate.lowFeedbackRisk, candidate.localOnlyRisk],
+      })),
+    })));
+}
+
+function problemPracticeSourceChecks() {
+  const problem = readFileSync(join(process.cwd(), "src/sim/agents/problemPractice.ts"), "utf8");
+  const problemUi = readFileSync(join(process.cwd(), "src/ui/band/ProblemsAndTrials.tsx"), "utf8");
+  const bandPanel = readFileSync(join(process.cwd(), "src/ui/BandPanel.tsx"), "utf8");
+  const technical = readFileSync(join(process.cwd(), "src/ui/band/Technical.tsx"), "utf8");
+  const graph = readFileSync(join(process.cwd(), "src/architecture/graphData.ts"), "utf8");
+  const benchmark = readFileSync(join(process.cwd(), "scripts/simBenchmark.mjs"), "utf8");
+
+  return {
+    projectionExists:
+      problem.includes("export function deriveProblemPracticeProfile") &&
+      problem.includes("ProblemFrame") &&
+      problem.includes("PracticeExperimentCandidate"),
+    projectionPure:
+      !problem.includes("applyProblemPractice") &&
+      !problem.includes("advanceProblemPractice") &&
+      !problem.includes("band.problemPractice") &&
+      !problem.includes("world.bands =") &&
+      !problem.includes("Math.random"),
+    materialAffordanceImported:
+      problem.includes("deriveMaterialAffordanceProfile") &&
+      problem.includes("material_affordance"),
+    knowledgeEcologyImported:
+      problem.includes("deriveKnowledgeEcologyProfile") &&
+      problem.includes("knowledge_ecology"),
+    eventSystemImported:
+      problem.includes("deriveCanonicalEvents") &&
+      problem.includes("canonical_event"),
+    identityImported:
+      problem.includes("deriveBandIdentityProfile") &&
+      problem.includes("band_identity"),
+    repetitionHookPresent:
+      problem.includes("foragingAdaptation?.repetitionAffordances") &&
+      problem.includes("noAutomaticImprovement") &&
+      problem.includes("RepetitionAffordanceItem"),
+    noAutomaticImprovementFlag:
+      problem.includes("noAutomaticImprovement: true") &&
+      problem.includes("noSkillUnlocked: true"),
+    legacyStartingSkillsIgnored:
+      !/\b(?:technologies|subsistenceModes|basketry|wild grain|plant tending|basic foraging)\b/i.test(problem),
+    noSkillAdaptationStateCreated:
+      !/function\s+(?:applyPractice|advancePractice|applySkill|advanceSkill|deriveSkillAdaptation|advanceAdaptation)/.test(problem) &&
+      !problem.includes("band.learnedPractices") &&
+      !problem.includes("band.practice") &&
+      !problem.includes("world.practice"),
+    noEarlyCultureSystemsImplemented:
+      !/function\s+(?:deriveCulture|advanceCulture|deriveTaboo|advanceTaboo|deriveMyth|deriveWorldview|deriveLanguage)/.test(problem) &&
+      !problem.includes("world.culture") &&
+      !problem.includes("band.taboo") &&
+      !problem.includes("band.myth"),
+    daughterFixturePresent:
+      benchmark.includes("parentBandId") &&
+      benchmark.includes("inheritedKnowledgeShare"),
+    problemsTabExists:
+      bandPanel.includes('id: "problems"') &&
+      bandPanel.includes('label: "Problems & Trials"') &&
+      bandPanel.includes("<ProblemsAndTrials"),
+    publicCardsExist:
+      problemUi.includes("What they think the hard part is") &&
+      problemUi.includes("What they could try") &&
+      problemUi.includes("problem-frame-grid") &&
+      problemUi.includes("practice-candidate-grid"),
+    publicSaysCandidateTrial:
+      problemUi.includes("trial candidate") &&
+      problemUi.includes("what practical trials look plausible"),
+    publicSaysNotSkill:
+      problemUi.includes("These are not skills") &&
+      problemUi.includes("not a skill yet"),
+    repetitionNotMasteryPublicNote:
+      problemUi.includes("Repetition can build familiarity or reinforce a dead end") &&
+      problemUi.includes("No method is reliable yet"),
+    publicUiNoRawDump:
+      !problemUi.includes("JSON.stringify") &&
+      !problemUi.includes("Object.entries(") &&
+      !problemUi.includes("sourceId") &&
+      !problemUi.includes("reasonIds"),
+    publicUiNoForbiddenLanguage:
+      !/\b(?:unlock|unlocked|tech tree|researched|bonus|civilization advancement|tribal tech|invented|basketry|wild grain|plant tending|basic foraging)\b/i.test(problemUi),
+    technicalProofExists:
+      technical.includes("Problem framing / practice experiment substrate") &&
+      technical.includes("deriveProblemPracticeProfile") &&
+      technical.includes("feedback types") &&
+      technical.includes("payload estimate") &&
+      technical.includes("decision isolation"),
+    graphNodeExists:
+      graph.includes('id: "problemPractice"') &&
+      graph.includes("PROBLEM FRAMING + PRACTICE EXPERIMENTATION-1") &&
+      graph.includes("never read by decisions"),
+    auditFlagWired:
+      benchmark.includes("targetedProblemFramingPracticeExperimentationAudit") &&
+      benchmark.includes("--targeted-problem-framing-practice-experimentation-audit") &&
+      benchmark.includes("runTargetedProblemFramingPracticeExperimentationAudit"),
+    regressionAuditFlagsPresent:
+      benchmark.includes("--targeted-material-affordance-forager-engineering-audit") &&
+      benchmark.includes("--targeted-knowledge-ecology-activity-parties-audit") &&
+      benchmark.includes("--targeted-band-identity-ui-audit") &&
+      benchmark.includes("--targeted-event-system-ui-audit") &&
+      benchmark.includes("--targeted-deep-time-history-audit") &&
+      benchmark.includes("--targeted-deep-time-chronicle-ui-audit") &&
+      benchmark.includes("--targeted-ui-readability-polish-1c-audit") &&
+      benchmark.includes("--targeted-whole-ui-readability-history-fun-audit") &&
+      benchmark.includes("--targeted-band-chronicle-foundation-audit") &&
+      benchmark.includes("--targeted-band-chronicle-wiki-expansion-audit") &&
+      benchmark.includes("--targeted-specific-memory-referents-audit"),
+  };
+}
+
+function runProblemPracticeStaticGuards() {
+  const materialGuards = runMaterialAffordanceStaticGuards();
+  const simRoot = join(process.cwd(), "src/sim");
+  const decisionFiles = [
+    ...collectSourceFiles(join(simRoot, "rules")),
+    ...collectSourceFiles(join(simRoot, "tick")),
+    ...collectSourceFiles(join(simRoot, "runner")),
+  ];
+  const problemPracticeRefsInDecisionPathFiles = decisionFiles
+    .filter((file) => /deriveProblemPracticeProfile|problemPractice|ProblemPractice|practice-candidate|problem-frame/.test(readFileSync(file, "utf8")))
+    .map((file) => file.replace(`${process.cwd()}/`, ""));
+
+  return {
+    ...materialGuards,
+    problemPracticeRefsInDecisionPaths: problemPracticeRefsInDecisionPathFiles.length,
+    problemPracticeRefsInDecisionPathFiles,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// FOOTHOLD / CAMP ECOLOGY / CARE / STORAGE / FIRE-1 targeted audit.
+// Verifies bounded selected-band camp foothold projections over existing
+// proto-camp, body/camp logistics, knowledge, material, event, and activity
+// substrates without adding settlement, inventory, skill, culture, or decisions.
+// ---------------------------------------------------------------------------
+
+function runTargetedFootholdCampEcologyCareStorageFireAudit(modules, options) {
+  const years = 100;
+  const command = "node scripts/simBenchmark.mjs --targeted-foothold-camp-ecology-care-storage-fire-audit --json";
+  const runOptions = {
+    ...options,
+    reportBand: false,
+    probeAudit: false,
+    returnWorld: true,
+    fast: true,
+    deterministic: false,
+  };
+  const baseRun = runBenchmark(
+    modules,
+    { scenario: "baseline", years, ticks: undefined },
+    runOptions,
+  );
+  const repeatRun = runBenchmark(
+    modules,
+    { scenario: "baseline", years, ticks: undefined },
+    runOptions,
+  );
+  const projectedWorld = projectPerformancePlayabilityWorld(modules, baseRun.world);
+  const repeatProjectedWorld = projectPerformancePlayabilityWorld(modules, repeatRun.world);
+  const activeBands = Object.values(projectedWorld.bands).filter(isActiveBand).sort(compareBands);
+  const selectedBands = selectCampFootholdBands(projectedWorld, activeBands);
+  const preDerivationSnapshot = JSON.stringify(selectedBands);
+  const liveEntries = selectedBands.map((band) => makeCampFootholdAuditEntry(modules, projectedWorld, band, "live"));
+  const projectionMutatedBands = preDerivationSnapshot !== JSON.stringify(selectedBands);
+  const repeatEntries = selectedBands
+    .map((band) => repeatProjectedWorld.bands[band.id])
+    .filter((band) => band !== undefined)
+    .map((band) => makeCampFootholdAuditEntry(modules, repeatProjectedWorld, band, "live"));
+  const fixtureCases = [
+    buildPersistentCampFixtureCase(modules, "refuge_anchor"),
+    buildPersistentCampFixtureCase(modules, "storage_processing"),
+    buildPersistentCampFixtureCase(modules, "crossing_camp"),
+    buildPersistentCampFixtureCase(modules, "fragile_overuse"),
+  ];
+  const fixtureEntries = fixtureCases.flatMap((fixture) => {
+    const world = projectPerformancePlayabilityWorld(modules, fixture.world);
+    const band = world.bands["band:river-valley-foragers"] ?? Object.values(world.bands).filter(isActiveBand).sort(compareBands)[0];
+    return band === undefined ? [] : [makeCampFootholdAuditEntry(modules, world, band, `fixture:${fixture.name}`)];
+  });
+  const repeatFixtureEntries = fixtureCases.flatMap((fixture) => {
+    const world = projectPerformancePlayabilityWorld(modules, fixture.world);
+    const band = world.bands["band:river-valley-foragers"] ?? Object.values(world.bands).filter(isActiveBand).sort(compareBands)[0];
+    return band === undefined ? [] : [makeCampFootholdAuditEntry(modules, world, band, `fixture:${fixture.name}`)];
+  });
+  const allEntries = [...liveEntries, ...fixtureEntries];
+  const allRepeatEntries = [...repeatEntries, ...repeatFixtureEntries];
+  const places = allEntries.flatMap((entry) => entry.profile.places.map((place) => ({ entry, place })));
+  const factors = allEntries.flatMap((entry) => entry.profile.factors.map((factor) => ({ entry, factor })));
+  const storageSignals = allEntries.flatMap((entry) => entry.profile.temporaryCacheSignals.map((signal) => ({ entry, signal })));
+  const fireSignals = allEntries.flatMap((entry) => entry.profile.fireHearthFuelSignals.map((signal) => ({ entry, signal })));
+  const careSignals = allEntries.flatMap((entry) => entry.profile.careCampSignals.map((signal) => ({ entry, signal })));
+  const allEvidenceRows = [
+    ...places.flatMap(({ entry, place }) => place.evidence.map((evidence) => ({ entry, item: place, evidence }))),
+    ...factors.flatMap(({ entry, factor }) => factor.evidence.map((evidence) => ({ entry, item: factor, evidence }))),
+    ...storageSignals.flatMap(({ entry, signal }) => signal.evidence.map((evidence) => ({ entry, item: signal, evidence }))),
+    ...fireSignals.flatMap(({ entry, signal }) => signal.evidence.map((evidence) => ({ entry, item: signal, evidence }))),
+    ...careSignals.flatMap(({ entry, signal }) => signal.evidence.map((evidence) => ({ entry, item: signal, evidence }))),
+  ];
+  const normalTextSamples = allEntries.flatMap((entry) => collectCampFootholdNormalText(entry.profile));
+  const rawDebugHits = normalTextSamples
+    .filter((sample) => /\b(?:camp-foothold|camp-factor|temporary-cache|fire-hearth-fuel|care-camp|sourceId|reasonIds|JSON\.stringify|\{|\})\b/i.test(sample))
+    .slice(0, 8);
+  const fakeSettlementHits = positiveForbiddenCampHits(normalTextSamples, /\b(?:village|villages|sedentary|permanent building|house|houses|granary|granaries|warehouse|town)\b/i);
+  const fakeAgricultureHits = positiveForbiddenCampHits(normalTextSamples, /\b(?:agriculture|farm|farming|domestication|domesticated)\b/i);
+  const fakeInventoryHits = positiveForbiddenCampHits(normalTextSamples, /\b(?:inventory|stockpile|stockpiles|surplus economy|wealth|trade goods|property claim|owned store|stored food bank)\b/i);
+  const fakeSkillHits = positiveForbiddenCampHits(normalTextSamples, /\b(?:skill gained|skill unlocked|learned method|reliable method acquired|technique mastered|automatic improvement)\b/i);
+  const techTreeHits = positiveForbiddenCampHits(normalTextSamples, /\b(?:unlock|unlocked|tech tree|researched|bonus|invented)\b/i);
+  const fakeCultureHits = positiveForbiddenCampHits(normalTextSamples, /\b(?:taboo|myth|religion|worldview|language system|ritual law|culture system)\b/i);
+  const linkAudit = auditCampFootholdLinks(allEntries);
+  const sourceChecks = campFootholdSourceChecks();
+  const staticGuards = runCampFootholdStaticGuards();
+  const evidenceBySource = countRowsBy(allEvidenceRows, ({ evidence }) => evidence.sourceSystem);
+  const inheritedEvidenceRows = allEvidenceRows.filter(({ evidence }) => evidence.livedBasis === "inherited_not_lived");
+  const livedEvidenceRows = allEvidenceRows.filter(({ evidence }) => evidence.livedBasis === "lived" || evidence.livedBasis === "mixed");
+  const daughterEntries = allEntries.filter((entry) =>
+    entry.band.parentBandId !== undefined || entry.band.deepHistory?.founding?.kind === "fission_daughter" || entry.band.inheritanceProfile !== undefined);
+  const maxPayload = Math.max(0, ...allEntries.map((entry) => entry.profile.technicalProof.payloadBytesEstimate));
+  const maxPlacesPerProfile = Math.max(0, ...allEntries.map((entry) => entry.profile.places.length));
+  const maxFactorsPerProfile = Math.max(0, ...allEntries.map((entry) => entry.profile.factors.length));
+  const maxEvidencePerItem = Math.max(
+    0,
+    ...places.map(({ place }) => place.evidence.length),
+    ...factors.map(({ factor }) => factor.evidence.length),
+    ...storageSignals.map(({ signal }) => signal.evidence.length),
+    ...fireSignals.map(({ signal }) => signal.evidence.length),
+    ...careSignals.map(({ signal }) => signal.evidence.length),
+  );
+  const maxStorageBasis = Math.max(
+    0,
+    ...storageSignals.map(({ signal }) => Math.max(signal.materialBasis.length, signal.activityBasis.length)),
+  );
+  const familyNames = ["repeated_return", "water_refuge", "fire_hearth_fuel", "care_camp_organization", "temporary_storage_cache", "camp_ecology_wear"];
+  const familiesSeen = [...new Set(factors.map(({ factor }) => factor.family))].sort();
+
+  const requiredChecks = {
+    deterministicOutput:
+      makeCampFootholdFingerprint(allEntries) === makeCampFootholdFingerprint(allRepeatEntries),
+    profilesGeneratedForSelectedLiveBands:
+      liveEntries.length > 0 &&
+      liveEntries.every((entry) => entry.profile.projectionMode === "selected_band_projection" && (entry.profile.places.length > 0 || entry.profile.factors.length > 0)),
+    campFootholdProfilesStructured:
+      places.length > 0 &&
+      places.every(({ place }) =>
+        place.id.startsWith("camp-foothold-place:") &&
+        place.publicLabel.length > 0 &&
+        place.meaning.length > 0 &&
+        place.evidence.length > 0 &&
+        place.noDecisionInfluence === true),
+    campFactorsStructured:
+      factors.length > 0 &&
+      factors.every(({ factor }) =>
+        factor.id.startsWith("camp-factor:") &&
+        factor.publicLabel.length > 0 &&
+        factor.meaning.length > 0 &&
+        factor.uncertainty.length > 0 &&
+        factor.practicalLimit.length > 0 &&
+        factor.noDecisionInfluence === true),
+    coreCampFactorsRepresented:
+      familyNames.every((family) => familiesSeen.includes(family)),
+    storageSignalsWeakTemporary:
+      storageSignals.length > 0 &&
+      storageSignals.every(({ signal }) =>
+        signal.fragileLocalOnly === true &&
+        signal.noInventory === true &&
+        signal.noSurplusEconomy === true &&
+        signal.noPropertyClaim === true &&
+        signal.noPopulationBonus === true &&
+        signal.noSkillUnlocked === true &&
+        signal.noAutomaticImprovement === true &&
+        ["weak", "local_only", "fragile", "uncertain"].includes(signal.status)),
+    fireSignalsCampContextOnly:
+      fireSignals.length > 0 &&
+      fireSignals.every(({ signal }) =>
+        signal.noPermanentHearth === true &&
+        signal.noTechnologyTree === true &&
+        signal.noSkillUnlocked === true &&
+        signal.fireIsCampContextOnly === true),
+    careSignalsAggregateOnly:
+      careSignals.length > 0 &&
+      careSignals.every(({ signal }) =>
+        signal.aggregateOnly === true &&
+        signal.noKinshipNetwork === true &&
+        signal.noNamedPeople === true &&
+        signal.noDecisionInfluence === true),
+    sourceSystemsLinked:
+      (evidenceBySource.proto_camp_memory ?? 0) > 0 &&
+      (evidenceBySource.body_camp_logistics ?? 0) > 0 &&
+      (evidenceBySource.material_affordance ?? 0) > 0 &&
+      (evidenceBySource.problem_practice ?? 0) > 0 &&
+      (evidenceBySource.knowledge_ecology ?? 0) > 0 &&
+      (evidenceBySource.canonical_event ?? 0) > 0 &&
+      ((evidenceBySource.activity_party ?? 0) > 0 || (evidenceBySource.activity_labor ?? 0) > 0),
+    inheritedVsLivedSeparated:
+      livedEvidenceRows.length > 0 &&
+      allEntries.every((entry) => entry.profile.integrity.inheritedSeparated === true),
+    daughterFissionHonest:
+      (daughterEntries.length > 0 || sourceChecks.daughterHandlingPresent) &&
+      allEntries.every((entry) => entry.profile.integrity.daughterParentMemoryNotLocalTesting === true),
+    noBrokenEvidenceLinks:
+      linkAudit.brokenLinks === 0,
+    publicUiReadableNoRawDebug:
+      sourceChecks.publicTabExists &&
+      sourceChecks.publicCardsExist &&
+      sourceChecks.publicUiNoRawDump &&
+      rawDebugHits.length === 0,
+    publicUiCautiousNotSkills:
+      sourceChecks.publicSaysTemporary &&
+      sourceChecks.publicSaysNotReliableMethod &&
+      fakeSkillHits.length === 0 &&
+      techTreeHits.length === 0,
+    technicalUiExposesProof:
+      sourceChecks.technicalProofExists &&
+      allEntries.every((entry) => entry.profile.technicalProof.payloadBytesEstimate > 0),
+    noForbiddenSystemsOrClaims:
+      fakeSettlementHits.length === 0 &&
+      fakeAgricultureHits.length === 0 &&
+      fakeInventoryHits.length === 0 &&
+      fakeCultureHits.length === 0 &&
+      sourceChecks.noEarlySystemsImplemented,
+    noDecisionInfluence:
+      staticGuards.campFootholdRefsInDecisionPaths === 0 &&
+      allEntries.every((entry) => entry.profile.integrity.noDecisionInfluence === true && entry.profile.integrity.noNewBehaviorInfluence === true),
+    legacyStartingSkillsIgnored:
+      sourceChecks.legacyStartingSkillsIgnored &&
+      allEntries.every((entry) => entry.profile.integrity.ignoresLegacyStartingSkills === true && entry.profile.technicalProof.legacyStartingSkillProofCount === 0),
+    capsAndPayloadBounded:
+      maxPayload > 0 &&
+      maxPayload < 45_000 &&
+      maxPlacesPerProfile <= 4 &&
+      maxFactorsPerProfile <= 6 &&
+      maxEvidencePerItem <= 3 &&
+      maxStorageBasis <= 4 &&
+      allEntries.every((entry) => entry.profile.caps.capsHeld === true),
+    projectionDoesNotMutateBands:
+      projectionMutatedBands === false,
+    regressionAuditFlagsPresent:
+      sourceChecks.regressionAuditFlagsPresent,
+    staticGuardsClean:
+      staticGuards.mathRandomInSim === 0 &&
+      staticGuards.explicitAnyInSim === 0 &&
+      staticGuards.uiRenderStoreImportsInSim === 0 &&
+      staticGuards.problemPracticeRefsInDecisionPaths === 0 &&
+      staticGuards.materialAffordanceRefsInDecisionPaths === 0 &&
+      staticGuards.knowledgeEcologyRefsInDecisionPaths === 0 &&
+      staticGuards.bandIdentityRefsInDecisionPaths === 0 &&
+      staticGuards.eventSystemRefsInDecisionPaths === 0,
+  };
+  const passedCount = Object.values(requiredChecks).filter(Boolean).length;
+  const failedChecks = Object.entries(requiredChecks)
+    .filter(([, passed]) => passed !== true)
+    .map(([name]) => name);
+  const verdict = failedChecks.length === 0 ? "pass" : "review";
+
+  return {
+    check: "FOOTHOLD / CAMP ECOLOGY / CARE / STORAGE / FIRE-1 targeted audit",
+    verdict,
+    command,
+    methodology: {
+      scenario: "baseline",
+      years,
+      selectedBandRule: "active bands scored for proto-camp memory, body/camp logistics, activity, return places, daughters, storage/fire/care signals, and local use pressure",
+      fixtureCases: fixtureCases.map((fixture) => fixture.name),
+      projectionMode: "pure selected-band projection; not stored on Band and not imported by decision paths",
+      chronicleIntegration: "Inspected and intentionally kept to existing event/chronicle paths; this pass emits no new Chronicle prose.",
+    },
+    checkSummary: {
+      passed: passedCount,
+      failed: failedChecks.length,
+      total: Object.keys(requiredChecks).length,
+      failedChecks,
+    },
+    metrics: {
+      bandsSampled: selectedBands.length,
+      fixtureProfiles: fixtureEntries.length,
+      profilesGenerated: allEntries.length,
+      liveProfilesGenerated: liveEntries.length,
+      footholdPlaces: places.length,
+      campFactors: factors.length,
+      storageSignals: storageSignals.length,
+      fireSignals: fireSignals.length,
+      careSignals: careSignals.length,
+      framesByFamily: countRowsBy(factors, ({ factor }) => factor.family),
+      candidatesByFamily: {
+        temporary_cache: storageSignals.length,
+        fire_hearth_fuel: fireSignals.length,
+        care_camp_organization: careSignals.length,
+      },
+      factorsByFamily: countRowsBy(factors, ({ factor }) => factor.family),
+      statuses: countRowsBy([
+        ...places.map(({ place }) => place.status),
+        ...factors.map(({ factor }) => factor.status),
+        ...storageSignals.map(({ signal }) => signal.status),
+        ...fireSignals.map(({ signal }) => signal.status),
+        ...careSignals.map(({ signal }) => signal.status),
+      ], (status) => status),
+      sourceSystemCounts: evidenceBySource,
+      placeRefs: allEvidenceRows.filter(({ evidence }) => evidence.tileId !== undefined || evidence.sourceSystem === "place_memory").length,
+      activityRefs: allEvidenceRows.filter(({ evidence }) => evidence.sourceSystem === "activity_party" || evidence.sourceSystem === "activity_labor").length,
+      materialAffordanceRefs: allEvidenceRows.filter(({ evidence }) => evidence.sourceSystem === "material_affordance").length,
+      problemPracticeRefs: allEvidenceRows.filter(({ evidence }) => evidence.sourceSystem === "problem_practice").length,
+      knowledgeRefs: allEvidenceRows.filter(({ evidence }) => evidence.sourceSystem === "knowledge_ecology").length,
+      eventRefs: allEvidenceRows.filter(({ evidence }) => evidence.sourceSystem === "canonical_event").length,
+      bodyCampRefs: allEvidenceRows.filter(({ evidence }) => evidence.sourceSystem === "body_camp_logistics").length,
+      protoCampRefs: allEvidenceRows.filter(({ evidence }) => evidence.sourceSystem === "proto_camp_memory").length,
+      inheritedBasisRefs: inheritedEvidenceRows.length,
+      livedBasisRefs: livedEvidenceRows.length,
+      daughterProfiles: daughterEntries.length,
+      temporaryStorageCount: sumNumbers(allEntries.map((entry) => entry.profile.temporaryStorageCount)),
+      weakStorageCount: sumNumbers(allEntries.map((entry) => entry.profile.weakStorageCount)),
+      fireContextCount: sumNumbers(allEntries.map((entry) => entry.profile.fireContextCount)),
+      careBurdenCount: sumNumbers(allEntries.map((entry) => entry.profile.careBurdenCount)),
+      legacySkillHits: allEntries.filter((entry) => entry.profile.technicalProof.legacyStartingSkillProofCount > 0).length,
+      fakeSettlementHits: fakeSettlementHits.length,
+      fakeAgricultureHits: fakeAgricultureHits.length,
+      fakeInventoryHits: fakeInventoryHits.length,
+      fakeSkillHits: fakeSkillHits.length,
+      techTreeHits: techTreeHits.length,
+      fakeCultureHits: fakeCultureHits.length,
+      brokenLinks: linkAudit.brokenLinks,
+      rawDebugHits: rawDebugHits.length,
+      maxPayload,
+      maxPayloadKb: round2(maxPayload / 1024),
+      maxPlacesPerProfile,
+      maxFactorsPerProfile,
+      maxEvidencePerItem,
+      maxStorageBasis,
+      decisionPathRefs: staticGuards.campFootholdRefsInDecisionPaths,
+      projectionMutatedBands,
+    },
+    samples: {
+      profiles: allEntries.slice(0, 5).map((entry) => ({
+        kind: entry.kind,
+        bandId: String(entry.band.id),
+        title: entry.profile.overviewTitle,
+        places: entry.profile.places.map((place) => ({
+          role: place.role,
+          label: place.publicLabel,
+          status: place.status,
+          confidence: place.confidence,
+          evidence: place.evidence.map((evidence) => evidence.label),
+        })),
+        factors: entry.profile.factors.map((factor) => ({
+          family: factor.family,
+          label: factor.publicLabel,
+          status: factor.status,
+          confidence: factor.confidence,
+          uncertainty: factor.uncertainty,
+          evidence: factor.evidence.map((evidence) => evidence.label),
+        })),
+        storage: entry.profile.temporaryCacheSignals.map((signal) => ({
+          label: signal.publicLabel,
+          status: signal.status,
+          risk: signal.riskLine,
+        })),
+      })),
+      rawDebugHits,
+      fakeSettlementHits,
+      fakeAgricultureHits,
+      fakeInventoryHits,
+      fakeSkillHits,
+      techTreeHits,
+      fakeCultureHits,
+      brokenEvidenceLinks: linkAudit.brokenEvidenceLinks,
+      campFootholdRefsInDecisionPathFiles: staticGuards.campFootholdRefsInDecisionPathFiles,
+    },
+    sourceChecks,
+    staticGuards,
+    requiredChecks,
+  };
+}
+
+function makeCampFootholdAuditEntry(modules, world, band, kind) {
+  return {
+    kind,
+    band,
+    profile: modules.campFoothold.deriveCampFootholdProfile(world, band),
+    material: modules.materialAffordance.deriveMaterialAffordanceProfile(world, band),
+    problemPractice: modules.problemPractice.deriveProblemPracticeProfile(world, band),
+    knowledge: modules.knowledgeEcology.deriveKnowledgeEcologyProfile(world, band),
+    events: modules.eventSystem.deriveCanonicalEvents(world, band),
+  };
+}
+
+function selectCampFootholdBands(world, bands) {
+  const selected = [];
+  const add = (band) => {
+    if (band !== undefined && !selected.some((entry) => entry.id === band.id)) {
+      selected.push(band);
+    }
+  };
+  const scored = [...bands].sort((left, right) =>
+    scoreCampFootholdBand(right) - scoreCampFootholdBand(left) || compareBands(left, right));
+
+  for (const band of scored.filter((entry) => (entry.protoCampMemory?.topPlaces.length ?? 0) > 0).slice(0, 3)) add(band);
+  for (const band of scored.filter((entry) => entry.bodyCampLogistics !== undefined).slice(0, 3)) add(band);
+  for (const band of scored.filter((entry) => entry.parentBandId !== undefined || entry.inheritanceProfile !== undefined || entry.deepHistory?.founding?.kind === "fission_daughter").slice(0, 2)) add(band);
+  for (const band of scored.filter((entry) => (entry.recentIntraSeasonTrips?.length ?? 0) > 0 || entry.activityLaborSummary !== undefined).slice(0, 2)) add(band);
+  for (const band of scored) {
+    add(band);
+    if (selected.length >= 8) {
+      break;
+    }
+  }
+
+  return selected;
+}
+
+function scoreCampFootholdBand(band) {
+  return (
+    (band.protoCampMemory?.topPlaces.length ?? 0) * 8 +
+    (band.bodyCampLogistics === undefined ? 0 : 12) +
+    (band.activityLaborSummary === undefined ? 0 : 4) +
+    (band.recentIntraSeasonTrips?.length ?? 0) +
+    Object.values(band.placeMemory).filter((memory) => memory.isReturnPlace || memory.repeatedReturnCount > 0).length * 3 +
+    (band.parentBandId === undefined && band.inheritanceProfile === undefined ? 0 : 8) +
+    Object.values(band.usePressure).filter((pressure) => pressure.recentUseIntensity > 0.25).length
+  );
+}
+
+function collectCampFootholdNormalText(profile) {
+  return [
+    profile.overviewTitle,
+    ...profile.overviewLines,
+    ...profile.places.flatMap((place) => [
+      place.publicLabel,
+      place.meaning,
+      place.recencyLine,
+      place.ecologyLine,
+      ...place.topReasons,
+      ...place.evidence.map((evidence) => evidence.label),
+    ]),
+    ...profile.factors.flatMap((factor) => [
+      factor.publicLabel,
+      factor.meaning,
+      factor.uncertainty,
+      factor.practicalLimit,
+      ...factor.evidence.map((evidence) => evidence.label),
+    ]),
+    ...profile.temporaryCacheSignals.flatMap((signal) => [
+      signal.publicLabel,
+      signal.meaning,
+      signal.riskLine,
+      ...signal.materialBasis,
+      ...signal.activityBasis,
+      ...signal.evidence.map((evidence) => evidence.label),
+    ]),
+    ...profile.fireHearthFuelSignals.flatMap((signal) => [
+      signal.publicLabel,
+      signal.meaning,
+      signal.fuelLine,
+      signal.burdenLine,
+      ...signal.evidence.map((evidence) => evidence.label),
+    ]),
+    ...profile.careCampSignals.flatMap((signal) => [
+      signal.publicLabel,
+      signal.meaning,
+      signal.careLine,
+      signal.laborLine,
+      ...signal.evidence.map((evidence) => evidence.label),
+    ]),
+  ].filter((text) => typeof text === "string" && text.length > 0);
+}
+
+function positiveForbiddenCampHits(samples, pattern) {
+  return samples
+    .filter((sample) => pattern.test(sample) && !/\b(?:no|not|never|without|temporary|fragile|weak|deferred|future)\b/i.test(sample))
+    .slice(0, 8);
+}
+
+function auditCampFootholdLinks(entries) {
+  const brokenEvidenceLinks = [];
+  for (const entry of entries) {
+    const placeIds = new Set(entry.profile.places.map((place) => place.id));
+    const factorIds = new Set(entry.profile.factors.map((factor) => factor.id));
+    for (const factor of entry.profile.factors) {
+      for (const placeId of factor.relatedPlaceIds) {
+        if (!placeIds.has(placeId)) {
+          brokenEvidenceLinks.push(`${String(entry.band.id)}:${factor.id}:place:${placeId}`);
+        }
+      }
+    }
+    for (const signal of [
+      ...entry.profile.temporaryCacheSignals,
+      ...entry.profile.fireHearthFuelSignals,
+      ...entry.profile.careCampSignals,
+    ]) {
+      for (const placeId of signal.relatedPlaceIds ?? []) {
+        if (!placeIds.has(placeId)) {
+          brokenEvidenceLinks.push(`${String(entry.band.id)}:${signal.id}:place:${placeId}`);
+        }
+      }
+    }
+    for (const evidence of [
+      ...entry.profile.places.flatMap((place) => place.evidence),
+      ...entry.profile.factors.flatMap((factor) => factor.evidence),
+      ...entry.profile.temporaryCacheSignals.flatMap((signal) => signal.evidence),
+      ...entry.profile.fireHearthFuelSignals.flatMap((signal) => signal.evidence),
+      ...entry.profile.careCampSignals.flatMap((signal) => signal.evidence),
+    ]) {
+      if (evidence.sourceSystem === "material_affordance" && evidence.affordanceId === undefined) {
+        brokenEvidenceLinks.push(`${String(entry.band.id)}:${evidence.sourceId}:missing-affordance-id`);
+      }
+      if (evidence.sourceSystem === "problem_practice" && evidence.problemFrameId === undefined && evidence.practiceCandidateId === undefined) {
+        brokenEvidenceLinks.push(`${String(entry.band.id)}:${evidence.sourceId}:missing-problem-practice-id`);
+      }
+      if (evidence.sourceSystem === "knowledge_ecology" && evidence.knowledgeId === undefined) {
+        brokenEvidenceLinks.push(`${String(entry.band.id)}:${evidence.sourceId}:missing-knowledge-id`);
+      }
+      if (evidence.sourceSystem === "canonical_event" && evidence.eventId === undefined) {
+        brokenEvidenceLinks.push(`${String(entry.band.id)}:${evidence.sourceId}:missing-event-id`);
+      }
+      if ((evidence.sourceSystem === "activity_party" || evidence.sourceSystem === "activity_labor") && evidence.sourceId.length === 0) {
+        brokenEvidenceLinks.push(`${String(entry.band.id)}:${evidence.sourceId}:missing-activity-id`);
+      }
+    }
+    if (factorIds.size !== entry.profile.factors.length) {
+      brokenEvidenceLinks.push(`${String(entry.band.id)}:duplicate-factor-id`);
+    }
+  }
+
+  return {
+    brokenLinks: brokenEvidenceLinks.length,
+    brokenEvidenceLinks: brokenEvidenceLinks.slice(0, 12),
+  };
+}
+
+function makeCampFootholdFingerprint(entries) {
+  return JSON.stringify(entries
+    .sort((left, right) => `${left.kind}:${String(left.band.id)}`.localeCompare(`${right.kind}:${String(right.band.id)}`))
+    .map((entry) => ({
+      kind: entry.kind,
+      bandId: String(entry.band.id),
+      title: entry.profile.overviewTitle,
+      places: entry.profile.places.map((place) => ({
+        id: place.id,
+        role: place.role,
+        status: place.status,
+        confidence: place.confidence,
+        evidence: place.evidence.map((evidence) => [evidence.sourceSystem, evidence.sourceId, evidence.label, evidence.livedBasis]),
+      })),
+      factors: entry.profile.factors.map((factor) => ({
+        id: factor.id,
+        family: factor.family,
+        status: factor.status,
+        confidence: factor.confidence,
+        evidence: factor.evidence.map((evidence) => [evidence.sourceSystem, evidence.sourceId, evidence.label, evidence.livedBasis]),
+      })),
+      storage: entry.profile.temporaryCacheSignals.map((signal) => [signal.id, signal.status, signal.confidence]),
+      fire: entry.profile.fireHearthFuelSignals.map((signal) => [signal.id, signal.status, signal.confidence]),
+      care: entry.profile.careCampSignals.map((signal) => [signal.id, signal.status, signal.confidence]),
+    })));
+}
+
+function campFootholdSourceChecks() {
+  const camp = readFileSync(join(process.cwd(), "src/sim/agents/campFoothold.ts"), "utf8");
+  const campUi = readFileSync(join(process.cwd(), "src/ui/band/CampFootholds.tsx"), "utf8");
+  const bandPanel = readFileSync(join(process.cwd(), "src/ui/BandPanel.tsx"), "utf8");
+  const technical = readFileSync(join(process.cwd(), "src/ui/band/Technical.tsx"), "utf8");
+  const css = readFileSync(join(process.cwd(), "src/index.css"), "utf8");
+  const graph = readFileSync(join(process.cwd(), "src/architecture/graphData.ts"), "utf8");
+  const benchmark = readFileSync(join(process.cwd(), "scripts/simBenchmark.mjs"), "utf8");
+
+  return {
+    projectionExists:
+      camp.includes("export function deriveCampFootholdProfile") &&
+      camp.includes("CampFootholdProfile") &&
+      camp.includes("TemporaryCacheSignal") &&
+      camp.includes("CampFireHearthFuelSignal") &&
+      camp.includes("CareCampOrganizationSignal"),
+    projectionPure:
+      !camp.includes("applyCampFoothold") &&
+      !camp.includes("advanceCampFoothold") &&
+      !camp.includes("band.campFoothold") &&
+      !camp.includes("world.bands =") &&
+      !camp.includes("Math.random"),
+    existingInputsImported:
+      camp.includes("deriveMaterialAffordanceProfile") &&
+      camp.includes("deriveProblemPracticeProfile") &&
+      camp.includes("deriveKnowledgeEcologyProfile") &&
+      camp.includes("deriveCanonicalEvents") &&
+      camp.includes("deriveBandIdentityProfile") &&
+      camp.includes("protoCampMemory") &&
+      camp.includes("bodyCampLogistics"),
+    legacyStartingSkillsIgnored:
+      !/\b(?:technologies|subsistenceModes|basketry|wild grain|plant tending|basic foraging)\b/i.test(camp),
+    noEarlySystemsImplemented:
+      !/function\s+(?:applySettlement|advanceSettlement|applyAgriculture|advanceAgriculture|applyInventory|advanceInventory|deriveCulture|advanceCulture|deriveTaboo|advanceTaboo|deriveMyth|deriveWorldview|deriveLanguage|applySkill|advanceSkill)/.test(camp) &&
+      !camp.includes("band.settlement") &&
+      !camp.includes("band.inventory") &&
+      !camp.includes("world.culture"),
+    daughterHandlingPresent:
+      camp.includes("bandHasInheritedDaughterContext") &&
+      camp.includes("daughterParentMemoryNotLocalTesting"),
+    publicTabExists:
+      bandPanel.includes('id: "camp"') &&
+      bandPanel.includes('label: "Camp & Footholds"') &&
+      bandPanel.includes("<CampFootholds"),
+    publicCardsExist:
+      campUi.includes("Strongest foothold places") &&
+      campUi.includes("Camp factors") &&
+      campUi.includes("SignalStrip") &&
+      css.includes(".band-camp-footholds"),
+    publicSaysTemporary:
+      campUi.includes("temporary footholds") &&
+      campUi.includes("Weak traces and routines"),
+    publicSaysNotReliableMethod:
+      campUi.includes("not reliable stores or learned methods") &&
+      campUi.includes("It does not make a reliable method"),
+    publicUiNoRawDump:
+      !campUi.includes("JSON.stringify") &&
+      !campUi.includes("sourceId") &&
+      !campUi.includes("reasonIds"),
+    publicUiNoForbiddenLanguage:
+      !/\b(?:unlock|unlocked|tech tree|researched|bonus|invented|skill gained|village|granary|agriculture|domestication|property|territory|taboo|myth|religion|worldview|language system)\b/i.test(campUi),
+    technicalProofExists:
+      technical.includes("Camp foothold / ecology / care substrate") &&
+      technical.includes("deriveCampFootholdProfile") &&
+      technical.includes("payload estimate") &&
+      technical.includes("claim guards") &&
+      technical.includes("decision isolation"),
+    graphNodeExists:
+      graph.includes('id: "campFoothold"') &&
+      graph.includes("FOOTHOLD / CAMP ECOLOGY / CARE / STORAGE / FIRE-1") &&
+      graph.includes("new decision influence"),
+    auditFlagWired:
+      benchmark.includes("targetedFootholdCampEcologyCareStorageFireAudit") &&
+      benchmark.includes("--targeted-foothold-camp-ecology-care-storage-fire-audit") &&
+      benchmark.includes("runTargetedFootholdCampEcologyCareStorageFireAudit"),
+    regressionAuditFlagsPresent:
+      benchmark.includes("--targeted-material-affordance-forager-engineering-audit") &&
+      benchmark.includes("--targeted-knowledge-ecology-activity-parties-audit") &&
+      benchmark.includes("--targeted-band-identity-ui-audit") &&
+      benchmark.includes("--targeted-event-system-ui-audit") &&
+      benchmark.includes("--targeted-deep-time-history-audit") &&
+      benchmark.includes("--targeted-deep-time-chronicle-ui-audit") &&
+      benchmark.includes("--targeted-problem-framing-practice-experimentation-audit") &&
+      benchmark.includes("--targeted-ui-readability-polish-1c-audit") &&
+      benchmark.includes("--targeted-whole-ui-readability-history-fun-audit") &&
+      benchmark.includes("--targeted-band-chronicle-foundation-audit") &&
+      benchmark.includes("--targeted-band-chronicle-wiki-expansion-audit") &&
+      benchmark.includes("--targeted-specific-memory-referents-audit"),
+  };
+}
+
+function runCampFootholdStaticGuards() {
+  const problemGuards = runProblemPracticeStaticGuards();
+  const simRoot = join(process.cwd(), "src/sim");
+  const decisionFiles = [
+    ...collectSourceFiles(join(simRoot, "rules")),
+    ...collectSourceFiles(join(simRoot, "tick")),
+    ...collectSourceFiles(join(simRoot, "runner")),
+  ];
+  const campFootholdRefsInDecisionPathFiles = decisionFiles
+    .filter((file) => /deriveCampFootholdProfile|campFoothold|CampFoothold|camp-foothold/.test(readFileSync(file, "utf8")))
+    .map((file) => file.replace(`${process.cwd()}/`, ""));
+
+  return {
+    ...problemGuards,
+    campFootholdRefsInDecisionPaths: campFootholdRefsInDecisionPathFiles.length,
+    campFootholdRefsInDecisionPathFiles,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// PRACTICE FEEDBACK / ROUTINE LEARNING-READINESS-1 targeted audit.
+// Verifies a bounded selected-band feedback-readiness projection downstream of
+// Problem Practice, repetition/familiarity, and Camp Foothold without creating
+// skills, adaptations, settlement, inventory, culture, or decision influence.
+// ---------------------------------------------------------------------------
+
+function runTargetedPracticeFeedbackRoutineReadinessAudit(modules, options) {
+  const years = 100;
+  const command = "node scripts/simBenchmark.mjs --targeted-practice-feedback-routine-readiness-audit --json";
+  const runOptions = {
+    ...options,
+    reportBand: false,
+    probeAudit: false,
+    returnWorld: true,
+    fast: true,
+    deterministic: false,
+  };
+  const baseRun = runBenchmark(
+    modules,
+    { scenario: "baseline", years, ticks: undefined },
+    runOptions,
+  );
+  const repeatRun = runBenchmark(
+    modules,
+    { scenario: "baseline", years, ticks: undefined },
+    runOptions,
+  );
+  const projectedWorld = projectPerformancePlayabilityWorld(modules, baseRun.world);
+  const repeatProjectedWorld = projectPerformancePlayabilityWorld(modules, repeatRun.world);
+  const activeBands = Object.values(projectedWorld.bands).filter(isActiveBand).sort(compareBands);
+  const selectedBands = selectPracticeFeedbackBands(modules, projectedWorld, activeBands);
+  const preDerivationSnapshot = JSON.stringify(selectedBands);
+  const liveEntries = selectedBands.map((band) => makePracticeFeedbackAuditEntry(modules, projectedWorld, band, "live"));
+  const projectionMutatedBands = preDerivationSnapshot !== JSON.stringify(selectedBands);
+  const repeatEntries = selectedBands
+    .map((band) => repeatProjectedWorld.bands[band.id])
+    .filter((band) => band !== undefined)
+    .map((band) => makePracticeFeedbackAuditEntry(modules, repeatProjectedWorld, band, "live"));
+  const fixtureCases = [
+    buildPersistentCampFixtureCase(modules, "refuge_anchor"),
+    buildPersistentCampFixtureCase(modules, "storage_processing"),
+    buildPersistentCampFixtureCase(modules, "crossing_camp"),
+    buildPersistentCampFixtureCase(modules, "fragile_overuse"),
+  ];
+  const fixtureEntries = fixtureCases.flatMap((fixture) => {
+    const world = projectPerformancePlayabilityWorld(modules, fixture.world);
+    const band = world.bands["band:river-valley-foragers"] ?? Object.values(world.bands).filter(isActiveBand).sort(compareBands)[0];
+    return band === undefined ? [] : [makePracticeFeedbackAuditEntry(modules, world, band, `fixture:${fixture.name}`)];
+  });
+  const repeatFixtureEntries = fixtureCases.flatMap((fixture) => {
+    const world = projectPerformancePlayabilityWorld(modules, fixture.world);
+    const band = world.bands["band:river-valley-foragers"] ?? Object.values(world.bands).filter(isActiveBand).sort(compareBands)[0];
+    return band === undefined ? [] : [makePracticeFeedbackAuditEntry(modules, world, band, `fixture:${fixture.name}`)];
+  });
+  const allEntries = [...liveEntries, ...fixtureEntries];
+  const allRepeatEntries = [...repeatEntries, ...repeatFixtureEntries];
+  const profiles = allEntries.map((entry) => entry.profile);
+  const items = allEntries.flatMap((entry) => entry.profile.items.map((item) => ({ entry, item })));
+  const evidenceRows = items.flatMap(({ entry, item }) => item.evidence.map((evidence) => ({ entry, item, evidence })));
+  const normalTextSamples = allEntries.flatMap((entry) => collectPracticeFeedbackNormalText(entry.profile));
+  const sourceChecks = practiceFeedbackSourceChecks();
+  const staticGuards = runPracticeFeedbackStaticGuards();
+  const linkAudit = auditPracticeFeedbackLinks(allEntries);
+  const partAProblemClosure = allEntries.every((entry) =>
+    entry.problemPractice.problemFrames.length > 0 &&
+    entry.problemPractice.practiceCandidates.length > 0 &&
+    entry.problemPractice.integrity.projectionOnly === true &&
+    entry.problemPractice.integrity.noDecisionInfluence === true &&
+    entry.problemPractice.integrity.noAutomaticImprovement === true &&
+    entry.problemPractice.caps.capsHeld === true);
+  const partAFootholdClosure = allEntries.every((entry) =>
+    entry.foothold.places.length > 0 &&
+    entry.foothold.factors.length > 0 &&
+    entry.foothold.integrity.projectionOnly === true &&
+    entry.foothold.integrity.noDecisionInfluence === true &&
+    entry.foothold.integrity.noSettlementSystem === true &&
+    entry.foothold.caps.capsHeld === true);
+  const problemSourceChecks = problemPracticeSourceChecks();
+  const footholdSourceChecks = campFootholdSourceChecks();
+  const deterministicRepeat =
+    makePracticeFeedbackFingerprint([...liveEntries, ...fixtureEntries]) ===
+    makePracticeFeedbackFingerprint([...repeatEntries, ...repeatFixtureEntries]);
+  const maxPayload = Math.max(0, ...profiles.map((profile) => profile.technicalProof.payloadBytesEstimate));
+  const maxItemsPerProfile = Math.max(0, ...profiles.map((profile) => profile.items.length));
+  const maxEvidencePerItem = Math.max(0, ...items.map(({ item }) => item.evidence.length));
+  const rawDebugHits = normalTextSamples.filter((sample) => /\b(?:sourceId|reasonIds|JSON\.stringify|\{|\}|\[object Object\])\b/.test(sample)).slice(0, 8);
+  const techTreeHits = normalTextSamples.filter((sample) => /\b(?:unlock|unlocked|tech tree|researched|level|bonus|invented|acquired|mastered)\b/i.test(sample)).slice(0, 8);
+  const fakeSkillHits = positiveForbiddenPracticeFeedbackHits(normalTextSamples, /\b(?:skill|adaptation)\b/i);
+  const fakeCultureHits = positiveForbiddenPracticeFeedbackHits(normalTextSamples, /\b(?:culture|taboo|myth|worldview|religion|language)\b/i);
+  const settlementInventoryHits = positiveForbiddenPracticeFeedbackHits(normalTextSamples, /\b(?:settlement|village|storage economy|inventory|property|granary|agriculture|domestication)\b/i);
+  const daughterEntries = allEntries.filter((entry) => entry.band.parentBandId !== undefined || entry.band.inheritanceProfile !== undefined || entry.band.deepHistory?.founding?.kind === "fission_daughter");
+  const inheritedItems = items.filter(({ item }) => item.inheritedVsLivedBasis === "inherited_not_lived");
+  const livedEvidenceRows = evidenceRows.filter(({ evidence }) => evidence.livedBasis === "lived" || evidence.livedBasis === "mixed");
+  const inheritedEvidenceRows = evidenceRows.filter(({ evidence }) => evidence.livedBasis === "inherited_not_lived");
+  const repeatedItems = items.filter(({ item }) => item.repeatedExposureBasis.length > 0 || item.linkedRepetitionIds.length > 0);
+  const learningReadyItems = items.filter(({ item }) => item.readinessStatus === "learning_ready_later");
+  const badRepetitionItems = items.filter(({ item }) =>
+    item.risks.includes("dead_end") ||
+    item.risks.includes("false_confidence") ||
+    item.risks.includes("local_only") ||
+    item.risks.includes("low_feedback") ||
+    item.readinessStatus === "dead_end_risk" ||
+    item.readinessStatus === "false_confidence_risk" ||
+    item.readinessStatus === "repeated_low_feedback");
+
+  const requiredChecks = {
+    partAProblemPracticeClosure:
+      partAProblemClosure &&
+      problemSourceChecks.projectionExists === true &&
+      problemSourceChecks.auditFlagWired === true,
+    partAFootholdClosure:
+      partAFootholdClosure &&
+      footholdSourceChecks.projectionExists === true &&
+      footholdSourceChecks.auditFlagWired === true,
+    profilesGenerated: allEntries.length >= 8 && profiles.every((profile) => profile.items.length > 0),
+    itemsStructured:
+      items.length > 0 &&
+      items.every(({ item }) =>
+        typeof item.id === "string" &&
+        typeof item.family === "string" &&
+        typeof item.feedbackType === "string" &&
+        typeof item.feedbackQuality === "string" &&
+        typeof item.readinessStatus === "string" &&
+        Array.isArray(item.evidence)),
+    problemCandidateLinks:
+      items.some(({ item }) => item.linkedProblemFrameId !== undefined) &&
+      items.some(({ item }) => item.linkedPracticeCandidateId !== undefined),
+    affordanceLinks: items.some(({ item }) => item.linkedAffordanceIds.length > 0),
+    repetitionSignals: items.some(({ item }) => item.linkedRepetitionIds.length > 0 || item.repeatedExposureBasis.length > 0),
+    activityEventKnowledgeFootholdEvidence:
+      evidenceRows.some(({ evidence }) => evidence.sourceSystem === "activity_party") &&
+      evidenceRows.some(({ evidence }) => evidence.sourceSystem === "camp_foothold") &&
+      (evidenceRows.some(({ evidence }) => evidence.sourceSystem === "canonical_event") || items.some(({ item }) => item.linkedEventIds.length > 0)) &&
+      items.some(({ item }) => item.linkedKnowledgeIds.length > 0),
+    feedbackTypeRepresented: Object.values(sumCountObjects(profiles.map((profile) => profile.feedbackTypeCounts))).some((count) => count > 0),
+    feedbackQualityRepresented: Object.values(sumCountObjects(profiles.map((profile) => profile.feedbackQualityCounts))).some((count) => count > 0),
+    readinessStatusRepresented: Object.values(sumCountObjects(profiles.map((profile) => profile.readinessStatusCounts))).some((count) => count > 0),
+    badRepetitionRepresented: badRepetitionItems.length > 0,
+    riskTypesRepresented:
+      items.some(({ item }) => item.risks.includes("dead_end")) &&
+      items.some(({ item }) => item.risks.includes("false_confidence")) &&
+      items.some(({ item }) => item.risks.includes("local_only")) &&
+      items.some(({ item }) => item.risks.includes("low_feedback")),
+    noAutoImprovement:
+      items.every(({ item }) => item.noSkillUnlocked === true && item.noAutomaticImprovement === true && item.noDecisionInfluence === true),
+    learningReadyIsNotSkill:
+      learningReadyItems.length > 0 &&
+      learningReadyItems.every(({ item }) => item.learningReadyLaterIsNotSkill === true && item.noSkillUnlocked === true),
+    inheritedSeparated:
+      profiles.every((profile) => profile.integrity.inheritedSeparated === true) &&
+      (inheritedEvidenceRows.length > 0 || daughterEntries.length > 0),
+    daughterParentRoutineNotLocalTesting:
+      daughterEntries.every((entry) => entry.profile.integrity.daughterParentRoutineNotLocalTesting === true) &&
+      inheritedItems.every(({ item }) => item.readinessStatus === "inherited_not_tested_here"),
+    publicUiNoRawDebug:
+      sourceChecks.publicUiNoRawDump === true &&
+      rawDebugHits.length === 0,
+    publicUiNoTechTreeLanguage:
+      sourceChecks.publicUiNoForbiddenLanguage === true &&
+      techTreeHits.length === 0,
+    noEarlySystemsImplemented:
+      sourceChecks.noEarlySystemsImplemented === true &&
+      fakeSkillHits.length === 0 &&
+      fakeCultureHits.length === 0 &&
+      settlementInventoryHits.length === 0,
+    technicalUiProof: sourceChecks.technicalProofExists === true,
+    chronicleDecision: profiles.every((profile) => profile.chronicleIntegration.mode === "inspected_skipped"),
+    noBrokenLinks: linkAudit.brokenLinks === 0,
+    noDecisionPathInfluence:
+      staticGuards.practiceFeedbackRefsInDecisionPaths === 0 &&
+      staticGuards.problemPracticeRefsInDecisionPaths === 0 &&
+      staticGuards.campFootholdRefsInDecisionPaths === 0 &&
+      staticGuards.materialAffordanceRefsInDecisionPaths === 0 &&
+      staticGuards.knowledgeEcologyRefsInDecisionPaths === 0 &&
+      staticGuards.bandIdentityRefsInDecisionPaths === 0 &&
+      staticGuards.eventSystemRefsInDecisionPaths === 0,
+    deterministicOutput: deterministicRepeat,
+    boundedPayloads:
+      maxPayload <= 42000 &&
+      maxItemsPerProfile <= 8 &&
+      maxEvidencePerItem <= 4 &&
+      profiles.every((profile) => profile.caps.capsHeld === true),
+    existingAuditFlagsPresent: sourceChecks.regressionAuditFlagsPresent === true,
+    behaviorNeutral:
+      projectionMutatedBands === false &&
+      profiles.every((profile) => profile.integrity.noBehaviorInfluence === true && profile.integrity.projectionOnly === true),
+  };
+  const passedCount = Object.values(requiredChecks).filter(Boolean).length;
+  const failedChecks = Object.entries(requiredChecks)
+    .filter(([, passed]) => !passed)
+    .map(([name]) => name);
+
+  return {
+    check: "PRACTICE FEEDBACK / ROUTINE LEARNING-READINESS-1 targeted audit",
+    command,
+    verdict: failedChecks.length === 0 ? "pass" : "review",
+    checkSummary: {
+      passed: passedCount,
+      failed: failedChecks.length,
+      total: Object.keys(requiredChecks).length,
+      failedChecks,
+    },
+    metrics: {
+      profiles: profiles.length,
+      liveProfiles: liveEntries.length,
+      fixtureProfiles: fixtureEntries.length,
+      items: items.length,
+      itemsByFamily: countRowsBy(items, ({ item }) => item.family),
+      feedbackTypeCounts: sumCountObjects(profiles.map((profile) => profile.feedbackTypeCounts)),
+      feedbackQualityCounts: sumCountObjects(profiles.map((profile) => profile.feedbackQualityCounts)),
+      readinessStatusCounts: sumCountObjects(profiles.map((profile) => profile.readinessStatusCounts)),
+      repeatedExposureItems: repeatedItems.length,
+      learningReadyLaterItems: learningReadyItems.length,
+      deadEndRiskCount: sumNumbers(profiles.map((profile) => profile.deadEndRiskCount)),
+      falseConfidenceRiskCount: sumNumbers(profiles.map((profile) => profile.falseConfidenceRiskCount)),
+      localOnlyRiskCount: sumNumbers(profiles.map((profile) => profile.localOnlyRiskCount)),
+      lowFeedbackRiskCount: sumNumbers(profiles.map((profile) => profile.lowFeedbackRiskCount)),
+      blockerCounts: sumCountObjects(profiles.map((profile) => profile.blockerCounts)),
+      sourceSystemCounts: sumCountObjects(profiles.map((profile) => profile.sourceSystemCounts)),
+      problemRefs: sumNumbers(profiles.map((profile) => profile.problemRefCount)),
+      candidateRefs: sumNumbers(profiles.map((profile) => profile.candidateRefCount)),
+      affordanceRefs: sumNumbers(profiles.map((profile) => profile.affordanceRefCount)),
+      knowledgeRefs: sumNumbers(profiles.map((profile) => profile.knowledgeRefCount)),
+      activityRefs: sumNumbers(profiles.map((profile) => profile.activityRefCount)),
+      eventRefs: sumNumbers(profiles.map((profile) => profile.eventRefCount)),
+      footholdRefs: sumNumbers(profiles.map((profile) => profile.footholdRefCount)),
+      repetitionRefs: sumNumbers(profiles.map((profile) => profile.repetitionRefCount)),
+      inheritedBasisRefs: inheritedEvidenceRows.length,
+      livedBasisRefs: livedEvidenceRows.length,
+      daughterProfiles: daughterEntries.length,
+      brokenLinks: linkAudit.brokenLinks,
+      rawDebugHits: rawDebugHits.length,
+      techTreeHits: techTreeHits.length,
+      fakeSkillHits: fakeSkillHits.length,
+      fakeCultureHits: fakeCultureHits.length,
+      settlementInventoryHits: settlementInventoryHits.length,
+      legacySkillHits: profiles.filter((profile) => profile.technicalProof.legacyStartingSkillProofCount > 0).length,
+      maxPayload,
+      maxPayloadKb: round2(maxPayload / 1024),
+      maxItemsPerProfile,
+      maxEvidencePerItem,
+      decisionPathRefs: staticGuards.practiceFeedbackRefsInDecisionPaths,
+      projectionMutatedBands,
+      partAProblemPracticeProfiles: allEntries.filter((entry) => entry.problemPractice.problemFrames.length > 0 && entry.problemPractice.practiceCandidates.length > 0).length,
+      partAFootholdProfiles: allEntries.filter((entry) => entry.foothold.places.length > 0 && entry.foothold.factors.length > 0).length,
+    },
+    samples: {
+      profiles: allEntries.slice(0, 5).map((entry) => ({
+        kind: entry.kind,
+        bandId: String(entry.band.id),
+        title: entry.profile.overviewTitle,
+        items: entry.profile.items.map((item) => ({
+          family: item.family,
+          label: item.publicLabel,
+          status: item.readinessStatus,
+          feedbackType: item.feedbackType,
+          feedbackQuality: item.feedbackQuality,
+          risks: item.risks,
+          blockers: item.blockers,
+          evidence: item.evidence.map((evidence) => evidence.label),
+        })),
+      })),
+      rawDebugHits,
+      techTreeHits,
+      fakeSkillHits,
+      fakeCultureHits,
+      settlementInventoryHits,
+      brokenEvidenceLinks: linkAudit.brokenEvidenceLinks,
+      practiceFeedbackRefsInDecisionPathFiles: staticGuards.practiceFeedbackRefsInDecisionPathFiles,
+    },
+    sourceChecks,
+    partAClosure: {
+      problemPractice: {
+        closed: requiredChecks.partAProblemPracticeClosure,
+        sourceChecks: problemSourceChecks,
+      },
+      foothold: {
+        closed: requiredChecks.partAFootholdClosure,
+        sourceChecks: footholdSourceChecks,
+      },
+    },
+    staticGuards,
+    requiredChecks,
+  };
+}
+
+function makePracticeFeedbackAuditEntry(modules, world, band, kind) {
+  return {
+    kind,
+    band,
+    profile: modules.practiceFeedbackReadiness.derivePracticeFeedbackReadinessProfile(world, band),
+    problemPractice: modules.problemPractice.deriveProblemPracticeProfile(world, band),
+    foothold: modules.campFoothold.deriveCampFootholdProfile(world, band),
+    material: modules.materialAffordance.deriveMaterialAffordanceProfile(world, band),
+    knowledge: modules.knowledgeEcology.deriveKnowledgeEcologyProfile(world, band),
+    events: modules.eventSystem.deriveCanonicalEvents(world, band),
+  };
+}
+
+function selectPracticeFeedbackBands(modules, world, bands) {
+  const selected = [];
+  const add = (band) => {
+    if (band !== undefined && !selected.some((entry) => entry.id === band.id)) {
+      selected.push(band);
+    }
+  };
+  const scored = [...bands].sort((left, right) =>
+    scorePracticeFeedbackBand(modules, world, right) - scorePracticeFeedbackBand(modules, world, left) || compareBands(left, right));
+
+  for (const band of scored.filter((entry) => (entry.foragingAdaptation?.repetitionAffordances.length ?? 0) > 0).slice(0, 3)) add(band);
+  for (const band of scored.filter((entry) => (entry.recentIntraSeasonTrips?.length ?? 0) > 0).slice(0, 3)) add(band);
+  for (const band of scored.filter((entry) => entry.parentBandId !== undefined || entry.inheritanceProfile !== undefined || entry.deepHistory?.founding?.kind === "fission_daughter").slice(0, 2)) add(band);
+  for (const band of scored) {
+    add(band);
+    if (selected.length >= 8) {
+      break;
+    }
+  }
+
+  return selected;
+}
+
+function scorePracticeFeedbackBand(modules, world, band) {
+  const problem = modules.problemPractice.deriveProblemPracticeProfile(world, band);
+  const foothold = modules.campFoothold.deriveCampFootholdProfile(world, band);
+  return (
+    problem.practiceCandidates.length * 8 +
+    problem.repetitionRefCount * 4 +
+    (band.foragingAdaptation?.repetitionAffordances.length ?? 0) * 6 +
+    (band.recentIntraSeasonTrips?.length ?? 0) * 2 +
+    foothold.factors.length * 2 +
+    foothold.temporaryCacheSignals.length * 2 +
+    foothold.fireHearthFuelSignals.length * 2 +
+    foothold.careCampSignals.length * 2 +
+    (band.parentBandId === undefined && band.inheritanceProfile === undefined ? 0 : 10)
+  );
+}
+
+function collectPracticeFeedbackNormalText(profile) {
+  return [
+    profile.overviewTitle,
+    ...profile.overviewLines,
+    ...profile.items.flatMap((item) => [
+      item.publicLabel,
+      item.meaning,
+      item.familiaritySignal,
+      item.localTransferClue,
+      ...item.repeatedExposureBasis,
+      ...item.blockers,
+      ...item.risks,
+      ...item.evidence.map((evidence) => evidence.label),
+    ]),
+  ].filter((text) => typeof text === "string" && text.length > 0);
+}
+
+function positiveForbiddenPracticeFeedbackHits(samples, pattern) {
+  return samples
+    .filter((sample) => pattern.test(sample) && !/\b(?:no|not|never|without|future hook|later|only|not a skill|not learned|does not)\b/i.test(sample))
+    .slice(0, 8);
+}
+
+function auditPracticeFeedbackLinks(entries) {
+  const brokenEvidenceLinks = [];
+  for (const entry of entries) {
+    const frameIds = new Set(entry.problemPractice.problemFrames.map((frame) => frame.id));
+    const candidateIds = new Set(entry.problemPractice.practiceCandidates.map((candidate) => candidate.id));
+    const affordanceIds = new Set(entry.material.items.map((item) => item.id));
+    const knowledgeIds = new Set(entry.knowledge.items.map((item) => item.id));
+    const eventIds = new Set(entry.events.events.map((event) => event.id));
+    const footholdIds = new Set([
+      ...entry.foothold.places.map((place) => place.id),
+      ...entry.foothold.factors.map((factor) => factor.id),
+      ...entry.foothold.temporaryCacheSignals.map((signal) => signal.id),
+      ...entry.foothold.fireHearthFuelSignals.map((signal) => signal.id),
+      ...entry.foothold.careCampSignals.map((signal) => signal.id),
+    ]);
+    const repetitionIds = new Set((entry.band.foragingAdaptation?.repetitionAffordances ?? []).map((item) => item.id));
+    for (const item of entry.profile.items) {
+      if (item.linkedProblemFrameId !== undefined && !frameIds.has(item.linkedProblemFrameId)) {
+        brokenEvidenceLinks.push(`${String(entry.band.id)}:${item.id}:problem:${item.linkedProblemFrameId}`);
+      }
+      if (item.linkedPracticeCandidateId !== undefined && !candidateIds.has(item.linkedPracticeCandidateId)) {
+        brokenEvidenceLinks.push(`${String(entry.band.id)}:${item.id}:candidate:${item.linkedPracticeCandidateId}`);
+      }
+      for (const id of item.linkedAffordanceIds) {
+        if (!affordanceIds.has(id)) brokenEvidenceLinks.push(`${String(entry.band.id)}:${item.id}:affordance:${id}`);
+      }
+      for (const id of item.linkedKnowledgeIds) {
+        if (!knowledgeIds.has(id)) brokenEvidenceLinks.push(`${String(entry.band.id)}:${item.id}:knowledge:${id}`);
+      }
+      for (const id of item.linkedEventIds) {
+        if (!eventIds.has(id)) brokenEvidenceLinks.push(`${String(entry.band.id)}:${item.id}:event:${id}`);
+      }
+      for (const id of item.linkedFootholdIds) {
+        if (!footholdIds.has(id)) brokenEvidenceLinks.push(`${String(entry.band.id)}:${item.id}:foothold:${id}`);
+      }
+      for (const id of item.linkedRepetitionIds) {
+        if (!repetitionIds.has(id) && !entry.problemPractice.practiceCandidates.some((candidate) => candidate.relatedRepetitionIds.includes(id))) {
+          brokenEvidenceLinks.push(`${String(entry.band.id)}:${item.id}:repetition:${id}`);
+        }
+      }
+    }
+  }
+
+  return {
+    brokenLinks: brokenEvidenceLinks.length,
+    brokenEvidenceLinks: brokenEvidenceLinks.slice(0, 12),
+  };
+}
+
+function makePracticeFeedbackFingerprint(entries) {
+  return JSON.stringify(entries
+    .sort((left, right) => `${left.kind}:${String(left.band.id)}`.localeCompare(`${right.kind}:${String(right.band.id)}`))
+    .map((entry) => ({
+      kind: entry.kind,
+      bandId: String(entry.band.id),
+      title: entry.profile.overviewTitle,
+      items: entry.profile.items.map((item) => ({
+        id: item.id,
+        family: item.family,
+        status: item.readinessStatus,
+        feedbackType: item.feedbackType,
+        feedbackQuality: item.feedbackQuality,
+        confidence: item.confidence,
+        risks: item.risks,
+        blockers: item.blockers,
+        evidence: item.evidence.map((evidence) => [evidence.sourceSystem, evidence.sourceId, evidence.label, evidence.livedBasis]),
+      })),
+    })));
+}
+
+function practiceFeedbackSourceChecks() {
+  const feedback = readFileSync(join(process.cwd(), "src/sim/agents/practiceFeedbackReadiness.ts"), "utf8");
+  const feedbackUi = readFileSync(join(process.cwd(), "src/ui/band/PracticeFeedback.tsx"), "utf8");
+  const bandPanel = readFileSync(join(process.cwd(), "src/ui/BandPanel.tsx"), "utf8");
+  const technical = readFileSync(join(process.cwd(), "src/ui/band/Technical.tsx"), "utf8");
+  const css = readFileSync(join(process.cwd(), "src/index.css"), "utf8");
+  const graph = readFileSync(join(process.cwd(), "src/architecture/graphData.ts"), "utf8");
+  const benchmark = readFileSync(join(process.cwd(), "scripts/simBenchmark.mjs"), "utf8");
+
+  return {
+    projectionExists:
+      feedback.includes("export function derivePracticeFeedbackReadinessProfile") &&
+      feedback.includes("PracticeFeedbackReadinessProfile") &&
+      feedback.includes("PracticeFeedbackReadinessItem") &&
+      feedback.includes("PracticeFeedbackQuality"),
+    projectionPure:
+      !feedback.includes("applyPracticeFeedback") &&
+      !feedback.includes("advancePracticeFeedback") &&
+      !feedback.includes("band.practiceFeedback") &&
+      !feedback.includes("world.bands =") &&
+      !feedback.includes("Math.random"),
+    acceptedInputsImported:
+      feedback.includes("deriveProblemPracticeProfile") &&
+      feedback.includes("deriveMaterialAffordanceProfile") &&
+      feedback.includes("deriveCampFootholdProfile") &&
+      feedback.includes("deriveKnowledgeEcologyProfile") &&
+      feedback.includes("deriveCanonicalEvents") &&
+      feedback.includes("deriveBandIdentityProfile"),
+    flagsPresent:
+      feedback.includes("noSkillUnlocked") &&
+      feedback.includes("noAutomaticImprovement") &&
+      feedback.includes("noDecisionInfluence") &&
+      feedback.includes("learningReadyLaterIsNotSkill"),
+    badRepetitionModelPresent:
+      feedback.includes("dead_end") &&
+      feedback.includes("false_confidence") &&
+      feedback.includes("local_only") &&
+      feedback.includes("low_feedback"),
+    noEarlySystemsImplemented:
+      !/function\s+(?:applySkill|advanceSkill|deriveCulture|advanceCulture|deriveTaboo|advanceTaboo|deriveMyth|deriveWorldview|deriveLanguage|applySettlement|advanceSettlement|applyInventory|advanceInventory|applyAgriculture|advanceAgriculture)/.test(feedback) &&
+      !feedback.includes("band.settlement") &&
+      !feedback.includes("band.inventory") &&
+      !feedback.includes("world.culture"),
+    publicTabExists:
+      bandPanel.includes('id: "feedback"') &&
+      bandPanel.includes('label: "Practice Feedback"') &&
+      bandPanel.includes("<PracticeFeedback"),
+    publicCardsExist:
+      feedbackUi.includes("Repeated trials") &&
+      feedbackUi.includes("Learning-ready later") &&
+      feedbackUi.includes("Dead ends and weak feedback") &&
+      css.includes(".band-practice-feedback"),
+    publicSaysNotSkill:
+      feedbackUi.includes("not a skill") &&
+      feedbackUi.includes("No skill or adaptation exists yet"),
+    publicUiNoRawDump:
+      !feedbackUi.includes("JSON.stringify") &&
+      !feedbackUi.includes("sourceId") &&
+      !feedbackUi.includes("reasonIds"),
+    publicUiNoForbiddenLanguage:
+      !/\b(?:unlock|unlocked|tech tree|researched|level|bonus|invented|acquired|mastered)\b/i.test(feedbackUi),
+    technicalProofExists:
+      technical.includes("Practice feedback / routine readiness substrate") &&
+      technical.includes("derivePracticeFeedbackReadinessProfile") &&
+      technical.includes("payload estimate") &&
+      technical.includes("claim guards") &&
+      technical.includes("decision isolation"),
+    graphNodeExists:
+      graph.includes('id: "practiceFeedbackReadiness"') &&
+      graph.includes("PRACTICE FEEDBACK / ROUTINE LEARNING-READINESS-1") &&
+      graph.includes("no skills/adaptations"),
+    auditFlagWired:
+      benchmark.includes("targetedPracticeFeedbackRoutineReadinessAudit") &&
+      benchmark.includes("--targeted-practice-feedback-routine-readiness-audit") &&
+      benchmark.includes("runTargetedPracticeFeedbackRoutineReadinessAudit"),
+    regressionAuditFlagsPresent:
+      benchmark.includes("--targeted-problem-framing-practice-experimentation-audit") &&
+      benchmark.includes("--targeted-foothold-camp-ecology-care-storage-fire-audit") &&
+      benchmark.includes("--targeted-material-affordance-forager-engineering-audit") &&
+      benchmark.includes("--targeted-knowledge-ecology-activity-parties-audit") &&
+      benchmark.includes("--targeted-band-identity-ui-audit") &&
+      benchmark.includes("--targeted-event-system-ui-audit") &&
+      benchmark.includes("--targeted-deep-time-history-audit") &&
+      benchmark.includes("--targeted-deep-time-chronicle-ui-audit") &&
+      benchmark.includes("--targeted-ui-readability-polish-1c-audit") &&
+      benchmark.includes("--targeted-whole-ui-readability-history-fun-audit") &&
+      benchmark.includes("--targeted-band-chronicle-foundation-audit") &&
+      benchmark.includes("--targeted-band-chronicle-wiki-expansion-audit") &&
+      benchmark.includes("--targeted-specific-memory-referents-audit"),
+  };
+}
+
+function runPracticeFeedbackStaticGuards() {
+  const campGuards = runCampFootholdStaticGuards();
+  const simRoot = join(process.cwd(), "src/sim");
+  const decisionFiles = [
+    ...collectSourceFiles(join(simRoot, "rules")),
+    ...collectSourceFiles(join(simRoot, "tick")),
+    ...collectSourceFiles(join(simRoot, "runner")),
+  ];
+  const practiceFeedbackRefsInDecisionPathFiles = decisionFiles
+    .filter((file) => /derivePracticeFeedbackReadinessProfile|practiceFeedbackReadiness|PracticeFeedbackReadiness|practice-feedback|routine-readiness/.test(readFileSync(file, "utf8")))
+    .map((file) => file.replace(`${process.cwd()}/`, ""));
+
+  return {
+    ...campGuards,
+    practiceFeedbackRefsInDecisionPaths: practiceFeedbackRefsInDecisionPathFiles.length,
+    practiceFeedbackRefsInDecisionPathFiles,
+  };
+}
+
+function sumCountObjects(objects) {
+  const out = {};
+  for (const object of objects) {
+    for (const [key, value] of Object.entries(object ?? {})) {
+      out[key] = (out[key] ?? 0) + Number(value ?? 0);
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // BAND-CHRONICLE-FOUNDATION-1 targeted audit.
 // Verifies the selected-band deterministic historian projection: bounded yearly
 // summaries, repeated-year compression, multi-year arcs, relevance selection,
@@ -17484,6 +20393,7 @@ function buildForagingFixtureBand(world, baseBand, tiles, mode) {
       ]
     : [
         makeResourceMemoryFixture(world, tiles.nearbyTileId, "generic_plant_food", "suspected", "inferred", 0.38, 0.24, false, 3),
+        makeResourceMemoryFixture(world, tiles.nearbyTileId, "fiber_material", "observed", "direct", 0.5, 0.08, false, 3),
         makeResourceMemoryFixture(world, tiles.nearbyTileId, "fallback_food", "suspected", "direct", 0.48, 0.22, false, 2),
         makeResourceMemoryFixture(world, tiles.nearbyTileId, "medicinal_or_toxic", "suspected", "direct", 0.42, 0.16, true, 1),
         makeResourceMemoryFixture(world, tiles.nearbyTileId, "aquatic_food", "observed", "direct", 0.54, 0.36, false, 2),
@@ -17725,6 +20635,15 @@ function makeForagingAdaptationStateFingerprint(state) {
     fallback: state.fallbackCandidates.map((candidate) => [candidate.tileId, candidate.resourceClassId, candidate.level, candidate.expectedUsefulness]),
     trips: state.tripFailureMemories.map((memory) => [memory.tileId, memory.taskGroupType, memory.action, memory.confidencePenalty]),
     probes: state.nearbyOpportunityProbes.map((probe) => [probe.tileId, probe.comparison, probe.probeReadiness]),
+    repetition: (state.repetitionAffordances ?? []).map((item) => [
+      item.domain,
+      item.familiarityStatus,
+      item.repeatedExposureCount,
+      item.repeatedAttemptSignal,
+      item.feedbackQuality,
+      item.improvementPotential,
+      item.deadEndRisk,
+    ]),
     behavior: state.behavior,
     crisis: state.crisisBreakaway,
   });

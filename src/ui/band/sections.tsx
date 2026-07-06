@@ -174,7 +174,7 @@ export function ForagingAdaptationDetails({ band }: { readonly band: Band }) {
       <Detail label="mode" value={`${adaptation.mode} · hunger ${formatNumber(adaptation.hungerSeverity)} · streak ${adaptation.hungerStreak} · recovery ${formatNumber(adaptation.recoverySignal)}`} />
       <Detail
         label="caps"
-        value={`learning ${adaptation.learningRecords.length}/${adaptation.learningRecordCap} · fallback ${adaptation.fallbackCandidates.length}/${adaptation.fallbackCandidateCap} · trips ${adaptation.tripFailureMemories.length}/${adaptation.tripFailureCap} · probes ${adaptation.nearbyOpportunityProbes.length}/${adaptation.nearbyProbeCap} · candidates ${adaptation.candidateTileCap} · held ${String(adaptation.capsHeld)}`}
+        value={`learning ${adaptation.learningRecords.length}/${adaptation.learningRecordCap} · fallback ${adaptation.fallbackCandidates.length}/${adaptation.fallbackCandidateCap} · trips ${adaptation.tripFailureMemories.length}/${adaptation.tripFailureCap} · probes ${adaptation.nearbyOpportunityProbes.length}/${adaptation.nearbyProbeCap} · repetition ${adaptation.repetitionAffordances.length}/${adaptation.repetitionAffordanceCap} · candidates ${adaptation.candidateTileCap} · held ${String(adaptation.capsHeld)}`}
       />
       <Detail
         label="behavior hooks"
@@ -192,6 +192,13 @@ export function ForagingAdaptationDetails({ band }: { readonly band: Band }) {
         label="deferred systems"
         value={`culture ladder ${String(adaptation.noCultureLadder)} · agriculture ${String(adaptation.noAgriculture)} · villages ${String(adaptation.noVillageSedentism)} · storage economy ${String(adaptation.noStorageEconomy)} · war/territory ${String(adaptation.noWarTerritory)}`}
       />
+      {adaptation.repetitionAffordances.slice(0, 8).map((item, index) => (
+        <Detail
+          key={`${item.id}:${index}`}
+          label={`repetition ${index + 1}`}
+          value={`${item.domain} · ${item.familiarityStatus} · exposure ${item.repeatedExposureCount} · attempts ${item.repeatedAttemptSignal} · feedback ${item.feedbackQuality} · potential ${item.improvementPotential} · risk ${item.deadEndRisk} · learned skill false · automatic improvement false · ${item.summary}`}
+        />
+      ))}
       {adaptation.learningRecords.slice(0, 6).map((record, index) => (
         <Detail
           key={`${String(record.tileId)}:${record.resourceClassId}:${index}`}

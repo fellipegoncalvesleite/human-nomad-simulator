@@ -121,6 +121,18 @@ function KnowledgeCard({
           <span className="knowledge-card-kicker">{domainLabel(item.domain)}</span>
           <span className="knowledge-card-title">{item.title}</span>
           <span className="knowledge-card-summary">{item.summary}</span>
+          <span className="knowledge-card-evidence-preview" aria-label="top knowledge evidence">
+            {item.evidence.slice(0, 2).map((entry, index) => (
+              <span
+                key={`${item.id}:preview:${entry.kind}:${entry.label}:${index}`}
+                className="knowledge-evidence-chip compact"
+                title={entry.label}
+              >
+                <Icon name={iconForEvidence(entry.kind)} size={12} />
+                <span>{entry.label}</span>
+              </span>
+            ))}
+          </span>
         </span>
         <span className="knowledge-card-chips">
           <Chip>{confidenceLabel(item.confidenceBand)}</Chip>
@@ -137,7 +149,11 @@ function KnowledgeCard({
         </div>
         <div className="knowledge-evidence-list" aria-label="knowledge evidence">
           {item.evidence.map((entry, index) => (
-            <span key={`${item.id}:${entry.kind}:${entry.label}:${index}`} className="knowledge-evidence-chip">
+            <span
+              key={`${item.id}:${entry.kind}:${entry.label}:${index}`}
+              className="knowledge-evidence-chip"
+              title={entry.label}
+            >
               <Icon name={iconForEvidence(entry.kind)} size={13} />
               <span>{entry.label}</span>
             </span>

@@ -10,7 +10,7 @@
 //   (fission event ids, churn years, reason ids, place/route/crossing keys).
 //   A fact the sim cannot prove stays undefined and is listed by name in
 //   unknownAtFounding instead of being fabricated.
-// - DETERMINISTIC: no Math.random, no clock; Record iteration sorts keys;
+// - DETERMINISTIC: no unseeded random call, no clock; Record iteration sorts keys;
 //   ids are minted from (bandId, type, subject/year) templates.
 // - BOUNDED: eras cap at MAX_ERA_RECORDS (oldest adjacent pairs merge —
 //   the deep past gets coarser, the recent past stays sharp); episodes cap

@@ -252,18 +252,22 @@ function buildSubsistenceCard(band: Band, events: readonly CanonicalEvent[]): Ca
   const fallbackSignal = fallbackEvents.length > 0 || (band.seasonalSupport?.currentSeasonSupport.foodStress ?? 0) > 0.45;
   const score = clamp01(gatheredCount * 0.1 + fishingCount * 0.12 + huntingCount * 0.08 + fallbackEvents.length * 0.18 + (band.seasonalSupport?.currentSeasonSupport.foodStress ?? 0) * 0.25);
   const title = aquaticSignal
-    ? "Water foods stand out"
+    ? "A water-food band is forming"
     : gatheringSignal
-      ? "Gathered food stands out"
+      ? fallbackSignal
+        ? "Fallback gathering is shaping them"
+        : "A plant-gathering band is forming"
       : fallbackSignal
-        ? "Scarcity shapes the food story"
+        ? "A fallback-food band is forming"
         : "Food pattern still open";
   const summary = aquaticSignal
-    ? "Fishing or aquatic returns show up often enough to mark how this band eats, without turning it into a fixed label."
+    ? "The identity leans toward water foods because aquatic work is recurring, not because a fixed foodway has been assigned."
     : gatheringSignal
-      ? "Plant gathering and local foraging are the clearest food work in the recent record."
+      ? fallbackSignal
+        ? "This band is becoming one whose food work is mostly fallback gathering under pressure."
+        : "This band is becoming easier to recognize by plant gathering and local foraging than by hunting or fishing."
       : fallbackSignal
-        ? "The record is defined more by pressure and fallback food than by one named foodway."
+        ? "The band is being marked more by scarcity response than by one strong food habit."
         : "The record has not yet settled around one clear food habit.";
 
   return makeDraft("subsistence", title, summary, score, evidence, fallbackSignal && score < 0.45 ? "Food pressure is present, but it is not yet a long pattern." : undefined);
@@ -333,18 +337,22 @@ function buildFamiliarCountryCard(band: Band, events: readonly CanonicalEvent[])
 
   const score = clamp01(knownTiles / 42 + returnPlaces.length * 0.08 + attachedPlaces.length * 0.08 + corridorCount * 0.08 + crossingCount * 0.08 + countryEvents.length * 0.12);
   const title = countryEvents.some((event) => /expanded/i.test(event.title))
-    ? "Their country has opened outward"
+    ? "An outward-country band is forming"
     : returnPlaces.length >= 2
-      ? "Return places anchor the map"
+      ? "A return-place band is forming"
       : corridorCount + crossingCount > 0
-        ? "Routes organize the known country"
+        ? crossingCount > corridorCount
+          ? "A crossing-edge band is forming"
+          : "A corridor-shaped band is forming"
         : "Their country is still taking shape";
   const summary = countryEvents.some((event) => /expanded/i.test(event.title))
-    ? "Older history shows the known range widening, while recent memory still holds the places and routes."
+    ? "This band is being defined by widening country rather than one tight home range."
     : returnPlaces.length >= 2
-      ? "Repeated returns give the band a few places that matter more than the surrounding blank country."
+      ? "This band is becoming place-returning without becoming place-bound."
       : corridorCount + crossingCount > 0
-        ? "Routes and crossings are part of how this band reads the land."
+        ? crossingCount > corridorCount
+          ? "Crossing memory gives this band a more edge-oriented country than nearby bands with only camp returns."
+          : "Corridors give this band a route-shaped country rather than a cluster of isolated places."
         : "Known places exist, but few have become strong landmarks yet.";
 
   return makeDraft("familiar_country", title, summary, score, evidence);
@@ -390,22 +398,26 @@ function buildMobilityCard(band: Band, events: readonly CanonicalEvent[]): CardD
 
   const score = clamp01(moveEvents.length * 0.12 + routeUse * 0.06 + returnPlaceCount * 0.12 + routeEvents.length * 0.12 + (daughter ? 0.2 : 0));
   const title = daughter
-    ? "This branch has its own movement story"
+    ? routeUse > 0
+      ? "A daughter branch carrying route memory"
+      : "A daughter branch making its own path"
     : routeUse >= 4
-      ? "They move by remembered routes"
+      ? "A route-following band is forming"
       : returnPlaceCount >= 2
-        ? "They keep returning to known camps"
+        ? "A camp-returning band is forming"
         : moveEvents.length > 0
-          ? "Recent camp moves stand out"
+          ? "A recently mobile band is forming"
           : "Movement pattern still open";
   const summary = daughter
-    ? "After founding, this band begins its own movement story; parent routes remain inheritance, not personal experience."
+    ? routeUse > 0
+      ? "This daughter band carries inherited route memory while its own movement story is still separating from the parent."
+      : "This daughter band is defined first by branching away, before a durable movement style has formed."
     : routeUse >= 4
-      ? "Repeated corridors now matter more than isolated one-off moves."
+      ? "This band is becoming route-following rather than place-bound."
       : returnPlaceCount >= 2
-        ? "Known camp places pull them back, without implying settled life."
+        ? "This band is becoming recognizable by repeated returns, without implying settled life."
         : moveEvents.length > 0
-          ? "The camp has shifted recently, though the pattern is not yet old or durable."
+          ? "Recent movement is starting to matter, but it is not yet an old style."
           : "The record is not strong enough to describe a narrow way of moving.";
 
   return makeDraft("mobility_style", title, summary, score, evidence);
@@ -467,22 +479,22 @@ function buildRiskMemoryCard(band: Band, events: readonly CanonicalEvent[]): Car
 
   const riskScore = clamp01(pressureEvents.length * 0.14 + failedMoves.length * 0.18 + riskyCrossings.length * 0.16 + failureStories.length * 0.1 + Math.max(waterStress, foodStress) * 0.35);
   const title = riskyCrossings.length > 0
-    ? "Crossings have taught caution"
+    ? "A cautious crossing band is forming"
     : failedMoves.length > 0
-      ? "Blocked paths have taught caution"
+      ? "A band shaped by failed moves"
       : waterStress > 0.45
-        ? "Water pressure teaches caution"
+        ? "A water-caution band is forming"
         : foodStress > 0.45 || pressureEvents.length > 0
-          ? "Food pressure teaches caution"
+          ? "A food-pressure band is forming"
           : "Caution is still faint";
   const summary = riskyCrossings.length > 0
-    ? "Risky or uncertain crossings have become part of how the band judges the land."
+    ? "This band is becoming more crossing-cautious than simply route-following."
     : failedMoves.length > 0
-      ? "Recent moves were blocked or rejected, so caution comes from a real failed path."
+      ? "Failed or rejected movement is shaping the band more than successful exploration."
       : waterStress > 0.45
-        ? "Water is the clearest pressure in the current record."
+        ? "Water pressure is becoming the main reason this band reads country cautiously."
         : foodStress > 0.45 || pressureEvents.length > 0
-          ? "Food or fallback pressure is present, but the longer pattern is still forming."
+          ? "Food or fallback pressure is present, but the identity is still forming."
           : "There is no strong repeated danger shaping the band yet.";
 
   return makeDraft("risk_memory", title, summary, riskScore, evidence, riskScore < 0.35 ? "The caution is visible, but still faint." : undefined);
@@ -568,10 +580,10 @@ function buildInheritanceCard(band: Band, events: readonly CanonicalEvent[]): Ca
   const inheritedCount = evidence.filter((entry) => entry.livedStatus === "inherited_not_personally_lived").length;
   const score = clamp01((daughter ? 0.45 : 0.2) + inheritedCount * 0.16 + (history?.ancestryLine.length ?? 0) * 0.08);
   const title = daughter || inheritedCount > 0
-    ? "They carry parent memory separately"
+    ? "A daughter band carrying parent memory"
     : "Most of the portrait comes from their own life";
   const summary = daughter || inheritedCount > 0
-    ? "Parent history travels with the band, but its own life begins at founding."
+    ? "Parent history travels with the band, but this band should not be read as a clone of the parent."
     : "The clues come mostly from this band's own beginning, movement, memory, and events.";
 
   return makeDraft("inheritance", title, summary, score, evidence);
@@ -659,35 +671,64 @@ function summaryTitle(cards: readonly BandIdentityCard[]): string {
   }
   switch (strongest.dimension) {
     case "subsistence":
-      if (/gathered/i.test(strongest.title)) {
-        return "A band leaning on gathered food";
+      if (/fallback gathering/i.test(strongest.title)) {
+        return "A band of fallback gathering";
       }
-      if (/water/i.test(strongest.title)) {
-        return "A band marked by water foods";
+      if (/plant-gathering/i.test(strongest.title)) {
+        return "A plant-gathering band";
       }
-      if (/scarcity/i.test(strongest.title)) {
-        return "A band shaped by scarcity";
+      if (/water-food/i.test(strongest.title)) {
+        return "A water-food band";
+      }
+      if (/fallback-food/i.test(strongest.title)) {
+        return "A band shaped by fallback food";
       }
       return "A band with food habits still forming";
     case "familiar_country":
-      return "A band with a widening country";
+      if (/outward-country/i.test(strongest.title)) {
+        return "A band with widening country";
+      }
+      if (/return-place/i.test(strongest.title)) {
+        return "A return-place band";
+      }
+      if (/crossing-edge/i.test(strongest.title)) {
+        return "A crossing-edge band";
+      }
+      if (/corridor-shaped/i.test(strongest.title)) {
+        return "A corridor-shaped band";
+      }
+      return "A band whose country is still forming";
     case "mobility_style":
-      if (/branch/i.test(strongest.title)) {
-        return "A daughter band with its own path";
+      if (/daughter branch carrying route memory/i.test(strongest.title)) {
+        return "A daughter band carrying route memory";
       }
-      if (/remembered routes/i.test(strongest.title)) {
-        return "A band of remembered routes";
+      if (/daughter branch/i.test(strongest.title)) {
+        return "A daughter band making its own path";
       }
-      if (/returning/i.test(strongest.title) || /camps/i.test(strongest.title)) {
-        return "A band of returning camps";
+      if (/route-following/i.test(strongest.title)) {
+        return "A route-following band";
+      }
+      if (/camp-returning/i.test(strongest.title)) {
+        return "A camp-returning band";
       }
       return "A band shaped by movement";
     case "risk_memory":
+      if (/cautious crossing/i.test(strongest.title)) {
+        return "A cautious crossing band";
+      }
+      if (/failed moves/i.test(strongest.title)) {
+        return "A band shaped by failed moves";
+      }
+      if (/water-caution/i.test(strongest.title)) {
+        return "A water-caution band";
+      }
       return "A band learning caution";
     case "social_demographic":
       return "A band shaped by its people";
     case "inheritance":
-      return "A band carrying earlier memory";
+      return /daughter/i.test(strongest.title)
+        ? "A daughter band carrying inherited memory"
+        : "A band carrying earlier memory";
   }
 }
 

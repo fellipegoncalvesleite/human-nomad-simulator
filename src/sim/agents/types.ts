@@ -2620,6 +2620,62 @@ export interface NearbyForagingOpportunityProbe {
   readonly reasonIds: readonly ReasonId[];
 }
 
+export type RepetitionAffordanceDomain =
+  | "fiber_handling"
+  | "food_processing"
+  | "food_work"
+  | "crossing"
+  | "camp_setup"
+  | "route_use"
+  | "material_handling";
+
+export type RepetitionFeedbackQuality =
+  | "low_feedback"
+  | "mixed_feedback"
+  | "useful_feedback"
+  | "negative_feedback"
+  | "context_bound_feedback";
+
+export type RepetitionImprovementPotential =
+  | "none_yet"
+  | "weak"
+  | "possible"
+  | "strong_if_feedback_improves";
+
+export type RepetitionDeadEndRisk =
+  | "low"
+  | "low_feedback_risk"
+  | "dead_end_attempt"
+  | "false_confidence_risk"
+  | "local_context_only"
+  | "reinforced_bad_habit";
+
+export type RepetitionFamiliarityStatus =
+  | "familiarity_without_proven_skill"
+  | "future_practice_potential"
+  | "marginal_routine"
+  | "dead_end_attempt"
+  | "false_confidence_risk"
+  | "local_context_only";
+
+export interface RepetitionAffordanceItem {
+  readonly id: string;
+  readonly domain: RepetitionAffordanceDomain;
+  readonly title: string;
+  readonly summary: string;
+  readonly repeatedExposureCount: number;
+  readonly repeatedAttemptSignal: number;
+  readonly feedbackQuality: RepetitionFeedbackQuality;
+  readonly improvementPotential: RepetitionImprovementPotential;
+  readonly deadEndRisk: RepetitionDeadEndRisk;
+  readonly familiarityStatus: RepetitionFamiliarityStatus;
+  readonly evidenceLabels: readonly string[];
+  readonly futureHook: "practice_experimentation";
+  readonly noSkillUnlocked: true;
+  readonly noAutomaticImprovement: true;
+  readonly reasonIds: readonly ReasonId[];
+}
+
 export interface ForagingAdaptationBehavior {
   readonly riskToleranceModifier: NormalizedIntensity;
   readonly fallbackExpansionBias: NormalizedIntensity;
@@ -2661,6 +2717,7 @@ export interface ForagingLearningAdaptationState {
   readonly fallbackCandidates: readonly FallbackDietCandidate[];
   readonly tripFailureMemories: readonly ForagingTripFailureMemory[];
   readonly nearbyOpportunityProbes: readonly NearbyForagingOpportunityProbe[];
+  readonly repetitionAffordances: readonly RepetitionAffordanceItem[];
   readonly behavior: ForagingAdaptationBehavior;
   readonly crisisBreakaway: CrisisBreakawayPressureState;
   readonly knowledgeUpdatedTileIds: readonly TileId[];
@@ -2668,6 +2725,7 @@ export interface ForagingLearningAdaptationState {
   readonly fallbackCandidateCap: number;
   readonly tripFailureCap: number;
   readonly nearbyProbeCap: number;
+  readonly repetitionAffordanceCap: number;
   readonly candidateTileCap: number;
   readonly antiOmniscience: {
     readonly fromBandKnownTilesOnly: boolean;

@@ -97,6 +97,18 @@ function IdentityCard({
           <span className="identity-card-kicker">{dimensionLabel(card.dimension)}</span>
           <span className="identity-card-title">{card.title}</span>
           <span className="identity-card-summary">{card.summary}</span>
+          <span className="identity-card-evidence-preview" aria-label="top identity evidence">
+            {card.evidence.slice(0, 2).map((entry, index) => (
+              <span
+                key={`${card.id}:preview:${entry.kind}:${entry.label}:${index}`}
+                className="identity-evidence-chip compact"
+                title={entry.label}
+              >
+                <Icon name={iconForEvidence(entry.kind)} size={12} />
+                <span>{entry.label}</span>
+              </span>
+            ))}
+          </span>
         </span>
         <span className="identity-card-chips">
           <Chip>{strengthLabel(card.strength)}</Chip>
@@ -113,7 +125,11 @@ function IdentityCard({
         </div>
         <div className="identity-evidence-list" aria-label="identity evidence">
           {card.evidence.map((entry, index) => (
-            <span key={`${card.id}:${entry.kind}:${entry.label}:${index}`} className="identity-evidence-chip">
+            <span
+              key={`${card.id}:${entry.kind}:${entry.label}:${index}`}
+              className="identity-evidence-chip"
+              title={entry.label}
+            >
               <Icon name={iconForEvidence(entry.kind)} size={13} />
               <span>{entry.label}</span>
             </span>

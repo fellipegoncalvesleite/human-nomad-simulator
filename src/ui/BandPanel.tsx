@@ -15,7 +15,11 @@ import { Survival } from "./band/Survival";
 import { Food } from "./band/Food";
 import { Nature } from "./band/Nature";
 import { Place } from "./band/Place";
+import { CampFootholds } from "./band/CampFootholds";
 import { People } from "./band/People";
+import { Affordances } from "./band/Affordances";
+import { ProblemsAndTrials } from "./band/ProblemsAndTrials";
+import { PracticeFeedback } from "./band/PracticeFeedback";
 import { Identity } from "./band/Identity";
 import { Events } from "./band/Events";
 import { Knowledge } from "./band/Knowledge";
@@ -30,7 +34,11 @@ type BandDetailView =
   | "food"
   | "nature"
   | "place"
+  | "camp"
   | "people"
+  | "affordances"
+  | "problems"
+  | "feedback"
   | "knowledge"
   | "identity"
   | "events"
@@ -50,7 +58,11 @@ const BAND_DETAIL_VIEWS: readonly {
   { id: "food", label: "Food" },
   { id: "nature", label: "Nature" },
   { id: "place", label: "Place" },
+  { id: "camp", label: "Camp & Footholds" },
   { id: "people", label: "People" },
+  { id: "affordances", label: "Affordances" },
+  { id: "problems", label: "Problems & Trials" },
+  { id: "feedback", label: "Practice Feedback" },
   { id: "knowledge", label: "Knowledge" },
   { id: "identity", label: "Identity" },
   { id: "events", label: "Events" },
@@ -280,7 +292,11 @@ function BandDetails({
         {detailView === "place" ? (
           <Place band={band} world={world} currentTick={currentTick} onOpenChronicle={openChroniclePage} />
         ) : null}
+        {detailView === "camp" ? <CampFootholds band={band} world={world} /> : null}
         {detailView === "people" ? <People band={band} world={world} onOpenChronicle={openChroniclePage} /> : null}
+        {detailView === "affordances" ? <Affordances band={band} world={world} /> : null}
+        {detailView === "problems" ? <ProblemsAndTrials band={band} world={world} /> : null}
+        {detailView === "feedback" ? <PracticeFeedback band={band} world={world} /> : null}
         {detailView === "knowledge" ? (
           <Knowledge
             band={band}

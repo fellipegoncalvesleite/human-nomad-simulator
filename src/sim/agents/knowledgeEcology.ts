@@ -6,7 +6,7 @@ import type {
   TravelCorridorMemory,
 } from "./types";
 import { deriveCanonicalEvents, type CanonicalEvent } from "./eventSystem";
-import type { BandId, ReasonId, RouteId, TileId } from "../core/types";
+import type { BandId, Coord, ReasonId, RouteId, TileId } from "../core/types";
 import type { WorldState } from "../world/types";
 
 const KNOWLEDGE_ITEM_CAP = 12;
@@ -317,7 +317,7 @@ function buildRouteKnowledge(
   evidence.push(...routeEvents.slice(0, 2).map((event) => eventEvidence(event, "route event in the record")));
   const trip = routeInfoTrips[0] ?? activityTrips[0];
   if (trip !== undefined) {
-    evidence.push(activityEvidence(trip, "returning party refreshed a route"));
+    evidence.push(activityEvidence(trip, routeTripEvidenceLabel(trip)));
   }
 
   const useCount = primary?.useCount ?? routeEvents.length;
@@ -328,10 +328,10 @@ function buildRouteKnowledge(
   return [makeDraft({
     domain: "route_corridor",
     sourceKey: primary?.id ?? "route-events",
-    title: fading ? "An older route is fading" : "A route is known through use",
+    title: fading ? "Route evidence is old and thin" : "Routes are known through use",
     summary: fading
-      ? "The route remains in memory, but it has not been reinforced by recent parties."
-      : "Repeated movement and returning parties make this more than a one-time path.",
+      ? "A remembered corridor remains in evidence, but recent route parties have not refreshed it."
+      : "Route memory is backed by corridor use, movement records, or a returning route party.",
     score: confidence + routeEvents.length * 0.05,
     confidence,
     carrier: trip === undefined ? "working_adults" : "returning_activity_party",
@@ -371,7 +371,7 @@ function buildCrossingKnowledge(
   if (crossing !== undefined) {
     evidence.push({
       kind: "crossing_memory",
-      label: crossing.riskMemory >= 0.5 ? "risky crossing remembered" : "crossing remembered",
+      label: crossingEvidenceLabel(crossing),
       sourceId: `crossing:${key}`,
       confidence: clamp01(crossing.successConfidence),
       scope: "recent",
@@ -382,7 +382,7 @@ function buildCrossingKnowledge(
   }
   evidence.push(...crossingEvents.slice(0, 2).map((event) => eventEvidence(event, "crossing event")));
   if (waterRiskTrips[0] !== undefined) {
-    evidence.push(activityEvidence(waterRiskTrips[0], "party turned back at water"));
+    evidence.push(activityEvidence(waterRiskTrips[0], riskTripEvidenceLabel(waterRiskTrips[0])));
   }
 
   const age = crossing === undefined ? 0 : Math.max(0, currentYear - crossing.lastUsedAt.year);
@@ -393,10 +393,10 @@ function buildCrossingKnowledge(
   return [makeDraft({
     domain: "crossing",
     sourceKey: key ?? "crossing-events",
-    title: warningOnly ? "A crossing is known as a warning" : "A crossing is practically known",
+    title: warningOnly ? "Crossing knowledge is mostly caution" : "Crossing knowledge has practical proof",
     summary: warningOnly
-      ? "The band has evidence for the crossing, but the record reads more like caution than easy use."
-      : "Crossing memory marks where water can be negotiated by people who have done it before.",
+      ? "The evidence points to a crossing, but the current record reads more like warning than easy use."
+      : "Crossing memory marks a water negotiation that has been used before.",
     score: confidence + crossingEvents.length * 0.04,
     confidence,
     carrier: warningOnly ? "camp_group_heard" : "working_adults",
@@ -437,7 +437,7 @@ function buildPlaceCountryKnowledge(
   if (primary !== undefined) {
     evidence.push({
       kind: "place_memory",
-      label: returnPlaces.length > 1 ? "return places remembered" : "known place remembered",
+      label: placeEvidenceLabel(primary, returnPlaces.length),
       sourceId: `place-memory:${String(primary.tileId)}`,
       confidence: clamp01(primary.confidence),
       scope: "recent",
@@ -467,14 +467,14 @@ function buildPlaceCountryKnowledge(
     domain: "place_country",
     sourceKey: primary === undefined ? "known-country" : String(primary.tileId),
     title: countryEvents.some((event) => /expanded|widened/i.test(`${event.title} ${event.summary}`))
-      ? "Known country has widened"
+      ? "Country knowledge has widened"
       : returnPlaces.length > 0
-        ? "Return places hold the country together"
-        : "The band has a working map",
+        ? "Return evidence anchors known country"
+        : "Known places form a working map",
     summary: countryEvents.some((event) => /expanded|widened/i.test(`${event.title} ${event.summary}`))
-      ? "Older history records a wider known country, while current memory carries the usable places."
+      ? "Older history records wider country, while current memory carries the usable places."
       : returnPlaces.length > 0
-        ? "Repeated returns make some places more than dots on a map."
+        ? "Repeated returns make a few places stand out from surrounding known ground."
         : "Observed places give the band a local map, but few have deep attachment yet.",
     score: confidence,
     confidence,
@@ -572,12 +572,12 @@ function buildWaterRefugeKnowledge(band: Band, events: readonly CanonicalEvent[]
   const place = waterPlaces[0];
   const evidence: KnowledgeEvidenceRef[] = [];
   if (trip !== undefined) {
-    evidence.push(activityEvidence(trip, "water party returned information"));
+    evidence.push(activityEvidence(trip, waterTripEvidenceLabel(trip)));
   }
   if (place !== undefined) {
     evidence.push({
       kind: "place_memory",
-      label: "water or refuge place remembered",
+      label: waterPlaceEvidenceLabel(place),
       sourceId: `water-place:${String(place.tileId)}`,
       confidence: clamp01(place.confidence),
       scope: "recent",
@@ -593,8 +593,8 @@ function buildWaterRefugeKnowledge(band: Band, events: readonly CanonicalEvent[]
   return [makeDraft({
     domain: "water_refuge",
     sourceKey: place === undefined ? "water-activity" : String(place.tileId),
-    title: "Water and refuge knowledge is carried",
-    summary: "Water places are known through remembered places, recent parties, or pressure records.",
+    title: "Water/refuge knowledge has direct traces",
+    summary: "Water places are supported by remembered places, recent parties, or pressure records.",
     score: confidence,
     confidence,
     carrier: trip === undefined ? "whole_band" : "returning_activity_party",
@@ -635,12 +635,12 @@ function buildRiskKnowledge(
 
   const evidence: KnowledgeEvidenceRef[] = [];
   if (failedTrips[0] !== undefined) {
-    evidence.push(activityEvidence(failedTrips[0], "recent party met a limit"));
+    evidence.push(activityEvidence(failedTrips[0], riskTripEvidenceLabel(failedTrips[0])));
   }
   if (hardMoves[0] !== undefined) {
     evidence.push({
       kind: "residential_move",
-      label: "hard move remembered",
+      label: moveRiskEvidenceLabel(hardMoves[0]),
       sourceId: `residential-move:${String(hardMoves[0].eventId)}`,
       confidence: clamp01(0.42 + (hardMoves[0].hardshipRisk ?? 0) * 0.35),
       scope: "recent",
@@ -652,7 +652,7 @@ function buildRiskKnowledge(
   if (highRiskCrossing !== undefined) {
     evidence.push({
       kind: "crossing_memory",
-      label: "crossing caution remembered",
+      label: crossingCautionLabel(highRiskCrossing),
       sourceId: `crossing-risk:${String(highRiskCrossing.crossingTileA)}:${String(highRiskCrossing.crossingTileB)}`,
       confidence: clamp01(highRiskCrossing.riskMemory),
       scope: "recent",
@@ -670,10 +670,10 @@ function buildRiskKnowledge(
   return [makeDraft({
     domain: "risk_caution",
     sourceKey: failedTrips[0] === undefined ? "risk-events" : `${String(failedTrips[0].targetTileId)}:${failedTrips[0].activityOutcome}`,
-    title: fading ? "An old warning is fading" : "Caution has a remembered cause",
+    title: fading ? "Warning evidence is old and thin" : "Caution has remembered causes",
     summary: fading
       ? "The warning is preserved as older memory, but recent parties have not refreshed it."
-      : "Blocked trips, hard movement, pressure, or risky crossings make caution grounded in experience.",
+      : "Blocked trips, hard movement, pressure, or risky crossings keep caution grounded in evidence.",
     score: confidence,
     confidence,
     carrier: failedTrips.length > 0 ? "returning_activity_party" : "camp_group_heard",
@@ -699,7 +699,7 @@ function buildSocialKnowledge(band: Band): readonly KnowledgeItemDraft[] {
   if (contacts[0] !== undefined) {
     evidence.push({
       kind: "reported_knowledge",
-      label: "known neighboring band",
+      label: countLabel(contacts.length, "known neighboring band", "known neighboring bands"),
       sourceId: `contact:${String(contacts[0].otherBandId)}`,
       confidence: clamp01(contacts[0].familiarity),
       scope: "current",
@@ -710,7 +710,7 @@ function buildSocialKnowledge(band: Band): readonly KnowledgeItemDraft[] {
   if (reports[0] !== undefined) {
     evidence.push({
       kind: "reported_knowledge",
-      label: "heard report carried in camp",
+      label: reportEvidenceLabel(reports[0], reports.length),
       sourceId: String(reports[0].reportId),
       confidence: clamp01(reports[0].confidence),
       scope: "recent",
@@ -723,8 +723,10 @@ function buildSocialKnowledge(band: Band): readonly KnowledgeItemDraft[] {
   return [makeDraft({
     domain: "social_contact",
     sourceKey: contacts[0] === undefined ? "reported-knowledge" : String(contacts[0].otherBandId),
-    title: "Other people are part of what is known",
-    summary: "Contact and reports can carry knowledge, but they stay separate from direct proof.",
+    title: reports.length > contacts.length ? "Camp-heard reports are kept separate" : "Other people are part of what is known",
+    summary: reports.length > contacts.length
+      ? "Reports add hearsay context, but the panel keeps them distinct from direct proof."
+      : "Contact and reports can carry knowledge, but they stay separate from direct proof.",
     score: clamp01(0.34 + contacts.length * 0.08 + reports.length * 0.04),
     confidence: clamp01(0.3 + contacts.length * 0.08 + reports.length * 0.03),
     carrier: "camp_group_heard",
@@ -758,7 +760,7 @@ function buildInheritedKnowledge(
   if (history.founding.parentBandId !== undefined) {
     evidence.push({
       kind: "founding_snapshot",
-      label: "parent memory at founding",
+      label: "daughter founded with parent memory",
       sourceId: `founding:${String(history.bandId)}:${history.founding.foundedAt.year}`,
       confidence: 0.58,
       scope: "inherited",
@@ -772,7 +774,7 @@ function buildInheritedKnowledge(
   if (inheritedEra !== undefined) {
     evidence.push({
       kind: "deep_history",
-      label: "parent-era summary",
+      label: "parent era carried forward",
       sourceId: `inherited-era:${String(inheritedEra.sourceBandId)}:${inheritedEra.startYear}-${inheritedEra.endYear}`,
       confidence: 0.48,
       scope: "inherited",
@@ -880,20 +882,6 @@ function eventEvidence(event: CanonicalEvent, label: string): KnowledgeEvidenceR
   };
 }
 
-function routeEvidence(route: TravelCorridorMemory, currentYear: number): KnowledgeEvidenceRef {
-  return {
-    kind: "route_memory",
-    label: currentYear - route.lastUsedAt.year >= 12 ? "older route memory" : "route used repeatedly",
-    sourceId: `route:${String(route.id)}`,
-    confidence: clamp01(route.confidence),
-    scope: currentYear - route.lastUsedAt.year >= 12 ? "durable" : "recent",
-    livedStatus: "personally_lived",
-    tileId: route.toTileId,
-    routeId: route.id,
-    reasonIds: [],
-  };
-}
-
 function activityEvidence(trip: IntraSeasonTripRecord, label: string): KnowledgeEvidenceRef {
   return {
     kind: "activity_trip",
@@ -914,7 +902,7 @@ function activitySummaryEvidence(
 ): KnowledgeEvidenceRef {
   return {
     kind: "activity_summary",
-    label: activityReturnLabel(returnedResourceKind),
+    label: activityReturnLabel(returnedResourceKind, count),
     sourceId: `activity-summary:${String(band.id)}:${returnedResourceKind}`,
     confidence: clamp01(0.34 + count * 0.08),
     scope: "recent",
@@ -1030,7 +1018,9 @@ function overviewLines(items: readonly KnowledgeEcologyItem[]): readonly string[
   const activity = items.filter((item) => item.evidence.some((entry) => entry.kind === "activity_trip" || entry.kind === "activity_summary")).length;
   const lines = [
     practical > 0
-      ? `${countWord(practical)} item${practical === 1 ? "" : "s"} are practical knowledge, reinforced by use or direct memory.`
+      ? practical === 1
+        ? "one item is practical knowledge, reinforced by use or direct memory."
+        : `${countWord(practical)} items are practical knowledge, reinforced by use or direct memory.`
       : "Most visible knowledge is still heard, inherited, or weak rather than fully practical.",
   ];
   if (activity > 0) {
@@ -1105,41 +1095,188 @@ function activityOutcomeConfidence(outcome: string): number {
 }
 
 function activityFoodLabel(trip: IntraSeasonTripRecord): string {
+  const target = tripTargetPhrase(trip);
   switch (trip.taskGroupType) {
     case "fishing_group":
-      return "fishing party tested food knowledge";
+      return `fishing party worked ${target}`;
     case "hunting_group":
-      return "hunting party tested food knowledge";
+      return `hunting party worked ${target}`;
     case "plant_followup_group":
-      return "plant follow-up party tested a remembered place";
+      return `plant follow-up checked ${target}`;
     case "plant_gathering_group":
     case "local_foraging_group":
-      return "gathering party tested food knowledge";
+      return `gathering party worked ${target}`;
     case "water_group":
     case "memory_refresh_group":
-      return "activity party brought back food context";
+      return `activity party brought back food context from ${target}`;
   }
 }
 
-function activityReturnLabel(kind: ActivityReturnResourceKind): string {
+function activityReturnLabel(kind: ActivityReturnResourceKind, count: number): string {
+  const times = timesLabel(count);
   switch (kind) {
     case "gathered_food_placeholder":
-      return "gathered-food return recorded";
+      return `gathered food returned ${times}`;
     case "fish_placeholder":
-      return "fish return recorded";
+      return `fish returned ${times}`;
     case "hunted_food_placeholder":
-      return "hunting return recorded";
+      return `hunting returned ${times}`;
     case "plant_information":
-      return "plant information returned";
+      return `plant information returned ${times}`;
     case "food_observation_only":
-      return "food place observed";
+      return `food place observed ${times}`;
     case "water_information":
-      return "water information returned";
+      return `water information returned ${times}`;
     case "route_information":
-      return "route information returned";
+      return `route information returned ${times}`;
     case "none":
       return "no return recorded";
   }
+}
+
+function routeEvidence(route: TravelCorridorMemory, currentYear: number): KnowledgeEvidenceRef {
+  const ageYears = Math.max(0, currentYear - route.lastUsedAt.year);
+  return {
+    kind: "route_memory",
+    label: routeEvidenceLabel(route, ageYears),
+    sourceId: `route:${String(route.id)}`,
+    confidence: clamp01(route.confidence),
+    scope: ageYears >= 12 ? "durable" : "recent",
+    livedStatus: "personally_lived",
+    tileId: route.toTileId,
+    routeId: route.id,
+    reasonIds: [],
+  };
+}
+
+function routeEvidenceLabel(route: TravelCorridorMemory, ageYears: number): string {
+  const direction = directionBetweenTileIds(route.fromTileId, route.toTileId);
+  const uses = countLabel(route.useCount, "use", "uses");
+  if (ageYears >= 12) {
+    return `${direction} corridor, ${uses}, last used ${ageYears}y ago`;
+  }
+  return `${direction} corridor, ${uses}`;
+}
+
+function routeTripEvidenceLabel(trip: IntraSeasonTripRecord): string {
+  return `route party returned from ${tripTargetPhrase(trip)}`;
+}
+
+function waterTripEvidenceLabel(trip: IntraSeasonTripRecord): string {
+  return `water party checked ${tripTargetPhrase(trip)}`;
+}
+
+function riskTripEvidenceLabel(trip: IntraSeasonTripRecord): string {
+  const target = tripTargetPhrase(trip);
+  switch (trip.activityOutcome) {
+    case "failed_due_to_water_risk":
+      return `${target} water trip turned back`;
+    case "abandoned_due_to_risk":
+      return `${target} trip abandoned`;
+    case "failed_due_to_distance":
+      return `${target} party failed by distance`;
+    case "failed_due_to_low_memory_confidence":
+      return `${target} party lacked route proof`;
+    case "failed_due_to_season_mismatch":
+      return `${target} season mismatch`;
+    default:
+      return `${target} party met a limit`;
+  }
+}
+
+function moveRiskEvidenceLabel(move: NonNullable<Band["recentResidentialMoveEvents"]>[number]): string {
+  const direction = directionBetweenTileIds(move.fromTileId, move.toTileId);
+  if (move.status === "failed_no_route") {
+    return `blocked ${direction} move`;
+  }
+  if (move.hardshipOutcome === "rejected") {
+    return `${direction} move rejected`;
+  }
+  return `${direction} hard move`;
+}
+
+function placeEvidenceLabel(place: Band["placeMemory"][TileId], returnPlaceCount: number): string {
+  if (place.repeatedReturnCount > 0) {
+    return countLabel(place.repeatedReturnCount, "recent return", "recent returns");
+  }
+  if (returnPlaceCount > 1) {
+    return countLabel(returnPlaceCount, "return place", "return places");
+  }
+  if (place.visitCount > 1) {
+    return countLabel(place.visitCount, "recorded visit", "recorded visits");
+  }
+  return "known place remembered";
+}
+
+function waterPlaceEvidenceLabel(place: Band["placeMemory"][TileId]): string {
+  if (place.valences.includes("reliable")) {
+    return "reliable water/refuge place";
+  }
+  if ((place.lastKnownWaterStress ?? 1) <= 0.3) {
+    return "low-water-stress place";
+  }
+  if ((place.lastKnownWaterStress ?? 0) >= 0.55) {
+    return "water-stress place remembered";
+  }
+  return "water/refuge place remembered";
+}
+
+function crossingEvidenceLabel(crossing: Band["crossingMemories"][string]): string {
+  const direction = directionBetweenTileIds(crossing.crossingTileA, crossing.crossingTileB);
+  const uses = countLabel(crossing.useCount, "use", "uses");
+  if (crossing.riskMemory >= 0.5 && crossing.successConfidence < 0.45) {
+    return `risky ${direction} crossing, ${uses}`;
+  }
+  if (crossing.riskMemory >= 0.5) {
+    return `${direction} crossing, risky`;
+  }
+  return `${direction} crossing, ${uses}`;
+}
+
+function crossingCautionLabel(crossing: Band["crossingMemories"][string]): string {
+  const direction = directionBetweenTileIds(crossing.crossingTileA, crossing.crossingTileB);
+  return `risky ${direction} crossing`;
+}
+
+function reportEvidenceLabel(
+  report: NonNullable<Band["reportedKnowledge"]>["reports"][number],
+  reportCount: number,
+): string {
+  if (reportCount > 1) {
+    return countLabel(reportCount, "camp-heard report", "camp-heard reports");
+  }
+  return `camp-heard ${report.topic.replace(/_/g, " ")}`;
+}
+
+function tripTargetPhrase(trip: IntraSeasonTripRecord): string {
+  const direction = directionBetweenTileIds(trip.originTileId, trip.targetTileId);
+  return direction === "local" ? "near camp" : `${direction} of camp`;
+}
+
+function directionBetweenTileIds(fromTileId: TileId, toTileId: TileId): string {
+  const from = parseTileCoord(fromTileId);
+  const to = parseTileCoord(toTileId);
+  if (from === undefined || to === undefined) {
+    return "known";
+  }
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  if (dx === 0 && dy === 0) {
+    return "local";
+  }
+  const horizontal = dx < 0 ? "west" : dx > 0 ? "east" : "";
+  const vertical = dy < 0 ? "north" : dy > 0 ? "south" : "";
+  if (vertical.length > 0 && horizontal.length > 0) {
+    return `${vertical}-${horizontal}`;
+  }
+  return vertical || horizontal || "known";
+}
+
+function parseTileCoord(tileId: TileId): Coord | undefined {
+  const [, rawX, rawY] = String(tileId).split(":");
+  const x = Number(rawX);
+  const y = Number(rawY);
+  return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : undefined;
 }
 
 function tripYear(trip: IntraSeasonTripRecord | undefined): number | undefined {
@@ -1172,6 +1309,12 @@ function countWord(count: number): string {
   if (count === 2) return "two";
   if (count === 3) return "three";
   return "several";
+}
+
+function timesLabel(count: number): string {
+  if (count <= 1) return "once";
+  if (count === 2) return "twice";
+  return `${count} times`;
 }
 
 function capReasonIds(reasonIds: readonly ReasonId[] | undefined): readonly ReasonId[] {

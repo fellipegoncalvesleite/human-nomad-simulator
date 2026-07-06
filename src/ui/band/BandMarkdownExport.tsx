@@ -6,15 +6,25 @@ import type { Decision } from "../../sim/rules/types";
 import type { Tile, WorldState } from "../../sim/world/types";
 
 import { Icon } from "../icons";
+import { Affordances } from "./Affordances";
+import { CampFootholds } from "./CampFootholds";
 import { Doing } from "./Doing";
+import { Events } from "./Events";
 import { Food } from "./Food";
 import { History } from "./History";
+import { Identity } from "./Identity";
+import { Knowledge } from "./Knowledge";
 import { Nature } from "./Nature";
 import { Overview } from "./Overview";
 import { People } from "./People";
 import { Place } from "./Place";
+import { PracticeFeedback } from "./PracticeFeedback";
+import { ProblemsAndTrials } from "./ProblemsAndTrials";
 import { Survival } from "./Survival";
+import { Technical } from "./Technical";
 
+// Keep this list and its ids/labels aligned with BAND_DETAIL_VIEWS in
+// BandPanel.tsx so the exported .md mirrors exactly the tabs a player sees.
 type ExportSectionId =
   | "overview"
   | "doing"
@@ -22,8 +32,16 @@ type ExportSectionId =
   | "food"
   | "nature"
   | "place"
+  | "camp"
   | "people"
-  | "story";
+  | "affordances"
+  | "problems"
+  | "feedback"
+  | "knowledge"
+  | "identity"
+  | "events"
+  | "story"
+  | "technical";
 
 const EXPORT_SECTIONS: readonly {
   readonly id: ExportSectionId;
@@ -35,8 +53,16 @@ const EXPORT_SECTIONS: readonly {
   { id: "food", label: "Food" },
   { id: "nature", label: "Nature" },
   { id: "place", label: "Place" },
+  { id: "camp", label: "Camp & Footholds" },
   { id: "people", label: "People" },
-  { id: "story", label: "Story" },
+  { id: "affordances", label: "Affordances" },
+  { id: "problems", label: "Problems & Trials" },
+  { id: "feedback", label: "Practice Feedback" },
+  { id: "knowledge", label: "Knowledge" },
+  { id: "identity", label: "Identity" },
+  { id: "events", label: "Events" },
+  { id: "story", label: "Chronicle" },
+  { id: "technical", label: "Technical" },
 ];
 
 const DEFAULT_SECTION_IDS: readonly ExportSectionId[] = EXPORT_SECTIONS.map((section) => section.id);
@@ -349,10 +375,33 @@ function renderExportSection({
       return <Nature band={band} world={world} />;
     case "place":
       return <Place band={band} world={world} currentTick={currentTick} />;
+    case "camp":
+      return <CampFootholds band={band} world={world} />;
     case "people":
       return <People band={band} world={world} defaultExpanded />;
+    case "affordances":
+      return <Affordances band={band} world={world} />;
+    case "problems":
+      return <ProblemsAndTrials band={band} world={world} />;
+    case "feedback":
+      return <PracticeFeedback band={band} world={world} />;
+    case "knowledge":
+      return <Knowledge band={band} world={world} />;
+    case "identity":
+      return <Identity band={band} world={world} />;
+    case "events":
+      return <Events band={band} world={world} />;
     case "story":
       return <History band={band} world={world} latestDecision={latestDecision} />;
+    case "technical":
+      return (
+        <Technical
+          band={band}
+          world={world}
+          currentTile={currentTile}
+          latestDecision={latestDecision}
+        />
+      );
   }
 }
 

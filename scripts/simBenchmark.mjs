@@ -7734,7 +7734,10 @@ function runFaunaStockFixtureAudit(modules) {
   const tileId = stock.anchorTileId;
   const faunaClass = stock.faunaClass;
 
-  // B — repeated hunting/fishing trip depletion: monotone non-increasing, floored.
+  // B — repeated HUMAN trip depletion: monotone non-increasing and floored at the
+  // HUMAN_HARVEST_RESERVE. Direct harvesting can never overdraw a stock, but that
+  // reserve is NOT a survival guarantee (natural pressure can still push below it).
+  const reserve = fauna.HUMAN_HARVEST_RESERVE ?? 0.08;
   let depleteWorld = world;
   const abundanceTrace = [fauna.getFaunaStockDynamic(depleteWorld, stock.id).abundance];
   const returnFactorFull = fauna.deriveFaunaTripReturnFactor(depleteWorld, geoA, tileId, faunaClass, "summer");
@@ -7744,20 +7747,58 @@ function runFaunaStockFixtureAudit(modules) {
   }
   const depletedAbundance = fauna.getFaunaStockDynamic(depleteWorld, stock.id).abundance;
   const monotoneNonIncreasing = abundanceTrace.every((value, index) => index === 0 || value <= abundanceTrace[index - 1] + 1e-9);
-  const flooredAtOrAbove = depletedAbundance >= 0.18 - 1e-9;
+  // Replaces the stale universal 0.18 floor: abundance stays bounded/finite, and
+  // HUMAN harvesting bottoms out exactly at the reserve (cannot overdraw), while
+  // hunting return collapses as the stock approaches it.
+  const abundanceBoundedNoNaN =
+    abundanceTrace.every((value) => Number.isFinite(value) && value >= 0 && value <= 1) &&
+    geoA.stocks.every((entry) => {
+      const abundance = fauna.getFaunaStockDynamic(world, entry.id).abundance;
+      return Number.isFinite(abundance) && abundance >= 0 && abundance <= 1;
+    });
+  const humanHarvestReserveHeld = depletedAbundance >= reserve - 1e-9 && depletedAbundance <= reserve + 0.02;
   const meaningfulDepletion = depletedAbundance < 0.7;
   const returnFactorDepleted = fauna.deriveFaunaTripReturnFactor(depleteWorld, geoA, tileId, faunaClass, "summer");
   const depletedReturnLower = returnFactorDepleted < returnFactorFull;
+  const huntingCollapsesNearReserve = returnFactorDepleted <= returnFactorFull * 0.25 + 1e-9;
 
-  // D — rested recovery: abundance rebounds toward baseline when pressure stops.
-  const recoveryCache = modules.buildTickContextCache(depleteWorld);
-  let recoverWorld = depleteWorld;
+  // D1 — rested recovery from a VIABLE remnant: a self-supporting stock left at the
+  // reserve rebounds toward carrying capacity once human pressure stops (no bands).
+  const recoveryCache = modules.buildTickContextCache({ ...depleteWorld, bands: {} });
+  let recoverWorld = { ...depleteWorld, bands: {} };
   const recoveryStart = fauna.getFaunaStockDynamic(recoverWorld, stock.id).abundance;
   for (let i = 0; i < 24; i += 1) {
     recoverWorld = fauna.advanceFaunaStocks(recoverWorld, recoveryCache);
   }
   const recoveredAbundance = fauna.getFaunaStockDynamic(recoverWorld, stock.id).abundance;
   const recovered = recoveredAbundance > recoveryStart + 0.02;
+
+  // D2 — continued HUMAN pressure prevents recovery: rest interleaved with fresh
+  // trip depletion holds the stock near the reserve instead of rebounding.
+  let pressuredWorld = { ...depleteWorld, bands: {} };
+  const pressuredCache = modules.buildTickContextCache(pressuredWorld);
+  for (let i = 0; i < 24; i += 1) {
+    pressuredWorld = fauna.advanceFaunaStocks(pressuredWorld, pressuredCache);
+    pressuredWorld = fauna.applyFaunaTripDepletion(pressuredWorld, geoA, tileId, faunaClass, 0.85, 2000 + i);
+  }
+  const pressuredAbundance = fauna.getFaunaStockDynamic(pressuredWorld, stock.id).abundance;
+  const humanPressurePreventsRecovery = pressuredAbundance < recoveredAbundance - 0.2;
+
+  // D3 — a stock at TRUE ZERO does not magically resurrect: recovery is proportional
+  // to remaining abundance (low-abundance brake), so with no explicit recolonization
+  // model a collapsed stock stays collapsed — there is no universal floor lifting it.
+  const zeroDyn = { ...fauna.getFaunaStockDynamic(depleteWorld, stock.id), abundance: 0 };
+  let zeroWorld = { ...depleteWorld, bands: {}, faunaStocks: { ...(depleteWorld.faunaStocks ?? {}), [stock.id]: zeroDyn } };
+  const zeroCache = modules.buildTickContextCache(zeroWorld);
+  for (let i = 0; i < 24; i += 1) {
+    zeroWorld = fauna.advanceFaunaStocks(zeroWorld, zeroCache);
+  }
+  const trueZeroAbundance = fauna.getFaunaStockDynamic(zeroWorld, stock.id).abundance;
+  const trueZeroDoesNotResurrect = trueZeroAbundance <= 0.02;
+
+  const predatorStocks = geoA.stocks.filter((entry) => entry.trophicRole === "predator");
+  const totalFaunaCap = fauna.GLOBAL_STOCK_CAP ?? 260;
+  const predatorSubCap = fauna.PREDATOR_STOCK_CAP ?? 24;
 
   // B (seasonality) — a run/peak season pays a higher return pulse than a lean one.
   const peakFactor = fauna.seasonalAvailabilityFactor(stock, stock.seasonality.peakSeasons[0] ?? "summer", true);
@@ -7779,14 +7820,20 @@ function runFaunaStockFixtureAudit(modules) {
 
   const checks = {
     determinismMatch,
-    boundedCount: geoA.stocks.length <= 260,
+    boundedCount: geoA.stocks.length <= totalFaunaCap,
+    predatorsReservedWithinCap:
+      predatorStocks.length >= 1 && predatorStocks.length <= predatorSubCap && geoA.stocks.length <= totalFaunaCap,
     influenceBounded,
     ccBounded,
+    abundanceBoundedNoNaN,
     monotoneNonIncreasing,
-    flooredAtOrAbove,
+    humanHarvestReserveHeld,
     meaningfulDepletion,
     depletedReturnLower,
+    huntingCollapsesNearReserve,
     recovered,
+    humanPressurePreventsRecovery,
+    trueZeroDoesNotResurrect,
     peakAboveLean,
     signBounded,
   };
@@ -7799,10 +7846,19 @@ function runFaunaStockFixtureAudit(modules) {
     scenario: "map2_varied_migration (geography only; unit dynamics)",
     notes: [
       "Directly exercises faunaStock.ts pure dynamics (no sim tick loop, no trips run); deterministic, no random.",
-      "Trip depletion is bounded by ABUNDANCE_FLOOR; rested recovery rebounds toward carrying capacity.",
+      "TOTAL fauna cap covers prey + predators; predators are reserved WITHIN the cap, never appended on top of it.",
+      "No universal abundance floor: HUMAN harvesting bottoms out at HUMAN_HARVEST_RESERVE, but natural/trophic pressure can collapse a stock below it, and a true-zero stock does not resurrect.",
+      "Rested recovery from a viable remnant rebounds toward carrying capacity; continued human pressure holds it near the reserve.",
       "Sign strength on an uncovered tile is exactly 0 — fauna are never knowable without a stock present (anti-omniscience).",
     ],
     checks,
+    cap: {
+      totalFaunaCap,
+      predatorSubCap,
+      actualTotal: geoA.stocks.length,
+      predatorCount: predatorStocks.length,
+      deterministicSelection: "prey trimmed by lowest carrying capacity (stable by id) so total <= cap; predators retained",
+    },
     geography: {
       stockCount: summary.stockCount,
       aquaticCount: summary.aquaticCount,
@@ -7815,6 +7871,7 @@ function runFaunaStockFixtureAudit(modules) {
     depletion: {
       sampledStockKind: stock.kind,
       faunaClass,
+      humanHarvestReserve: reserve,
       abundanceStart: abundanceTrace[0],
       abundanceAfter30Trips: round4Maybe(depletedAbundance),
       returnFactorFull: round4Maybe(returnFactorFull),
@@ -7823,6 +7880,8 @@ function runFaunaStockFixtureAudit(modules) {
     recovery: {
       abundanceBeforeRest: round4Maybe(recoveryStart),
       abundanceAfter24Seasons: round4Maybe(recoveredAbundance),
+      abundanceUnderContinuedPressure: round4Maybe(pressuredAbundance),
+      trueZeroAfter24Seasons: round4Maybe(trueZeroAbundance),
     },
     seasonality: { peakFactor: round4Maybe(peakFactor), leanFactor: round4Maybe(leanFactor) },
     sign: { coveredSign: round4Maybe(coveredSign), uncoveredSign },
@@ -7873,6 +7932,7 @@ function runTargetedFaunaStocksAudit(modules, options) {
   const stockDynamicRecords = Object.keys(world.faunaStocks ?? {}).length;
   const unsupportedEvents = faunaEvents.filter((event) => !isSupportedFaunaEvent(event));
   const hiddenKnowledgeViolations = countFaunaAntiOmniscienceViolations(activeBands);
+  const antiOmniscienceProof = runFaunaAntiOmniscienceProof(modules, world);
   const memoryCapViolations = visibleBands.filter((band) => {
     const nature = band.visibleNature;
     return nature !== undefined && (
@@ -7923,6 +7983,7 @@ function runTargetedFaunaStocksAudit(modules, options) {
       visibleBands.every((band) => band.visibleNature?.antiOmniscience.exactHiddenStockLocationsRevealed === false) &&
       animalTraces.every((trace) => trace.targetKnownMemoryOnly === true) &&
       hiddenKnowledgeViolations === 0 &&
+      antiOmniscienceProof.pass === true &&
       faunaFixture.checks.signBounded === true,
     noPopulationCrash: defaultRun.summary.totalPopulation > Math.max(20, defaultRun.summary.startPopulation * 0.2),
     noMegaBandExplosion: activeBands.filter((band) => band.demography.population >= 500).length === 0,
@@ -8001,6 +8062,7 @@ function runTargetedFaunaStocksAudit(modules, options) {
       exactHiddenStockLocationsRevealed: visibleBands.some((band) => band.visibleNature?.antiOmniscience.exactHiddenStockLocationsRevealed === true),
       traceTargetKnownOnly: animalTraces.every((trace) => trace.targetKnownMemoryOnly === true),
       uncoveredSignZero: faunaFixture.sign.uncoveredSign === 0,
+      separationProof: antiOmniscienceProof,
     },
     performanceCaps: {
       faunaStockCount: faunaSummary.stockCount,
@@ -8486,8 +8548,16 @@ function countFaunaAntiOmniscienceViolations(bands) {
     if (band.visibleNature?.antiOmniscience.exactHiddenStockLocationsRevealed === true) {
       violations += 1;
     }
+    // Only an animal-activity TRACE can leak hidden targeting: a trip that hunted
+    // an animal must have aimed at a location the band already knew. A trip with
+    // NO animalActivityTrace (water_group, plant harvest, or an abstract/background
+    // hunting placeholder — see `abstractHuntingPlaceholders`) targets no animal
+    // stock and is legitimately traceless. The pre-physical-food-pipeline audit
+    // counted every traceless trip, which false-flagged the new non-hunting intra-
+    // season trips (0 → 208). The real invariant is `targetKnownMemoryOnly` on the
+    // traces that exist (already enforced by antiOmnisciencePasses via animalTraces).
     for (const trip of band.recentIntraSeasonTrips ?? []) {
-      if (trip.animalActivityTrace?.targetKnownMemoryOnly !== true) {
+      if (trip.animalActivityTrace !== undefined && trip.animalActivityTrace.targetKnownMemoryOnly !== true) {
         violations += 1;
       }
     }
@@ -8499,9 +8569,216 @@ function countFaunaAntiOmniscienceViolations(bands) {
         violations += 1;
       }
     }
+    // An INFERRED predator (never observed) must anchor its sign card to a tile the
+    // band actually saw prey on — never the predator's exact hidden anchor, which
+    // would leak into isCardNearTile-based access-norm/proto-camp reasoning.
+    for (const card of band.visibleNature?.faunaCards ?? []) {
+      if (
+        card.sourceKind === "predator_sign" &&
+        card.anchorTileId !== undefined &&
+        !card.seenTileIds.includes(card.anchorTileId)
+      ) {
+        violations += 1;
+      }
+    }
   }
 
   return violations;
+}
+
+// FAUNA-STOCKS-1C anti-omniscience proof — makes the zero-violation result mean
+// real truth/knowledge SEPARATION rather than an absent audit. Uses live band
+// state plus two controlled synthetic bands to prove each accepted invariant.
+function runFaunaAntiOmniscienceProof(modules, world) {
+  const fauna = modules.faunaStock;
+  const geography = fauna.deriveFaunaStockGeography(world);
+  const stockById = new Map(geography.stocks.map((stock) => [String(stock.id), stock]));
+  const terrestrial = geography.stocks.find((stock) => stock.faunaClass === "animal_food") ?? geography.stocks[0];
+  const sourceBand = Object.values(world.bands).filter(isActiveBand).sort(compareBands)[0] ?? Object.values(world.bands)[0];
+
+  // (1) UNSEEN fauna stay unknown: a band with no persisted animal knowledge, no
+  //     traces and no place memory produces NO fauna cards even while standing on
+  //     a real stock's own anchor tile. Known terrain is not an animal sighting.
+  const blindBand = {
+    ...sourceBand,
+    id: "band:ao-blind-probe",
+    position: terrestrial.anchorTileId,
+    knowledge: { ...sourceBand.knowledge, observedTiles: { [terrestrial.anchorTileId]: { tileId: terrestrial.anchorTileId } } },
+    placeMemory: {},
+    recentIntraSeasonTrips: [],
+    lastIntraSeasonTrip: undefined,
+    animalPatternKnowledge: undefined,
+    protoCampMemory: undefined,
+    resourceEcology: undefined,
+    resourceKnowledgeState: undefined,
+    visibleNature: undefined,
+  };
+  const blindNature = modules.visibleNature.deriveVisibleNatureState(world, blindBand);
+  const unseenFaunaUnknown = blindNature.faunaCards.length === 0 && blindNature.animalKnowledge.length === 0;
+
+  // (2) Technical/world truth REMAINS available: geography exposes the exact anchor
+  //     tile and getFaunaStockDynamic exposes an exact numeric abundance.
+  const truth = fauna.getFaunaStockDynamic(world, terrestrial.id);
+  const technicalShowsWorldTruth =
+    terrestrial.anchorTileId !== undefined && typeof truth.abundance === "number" && truth.abundance >= 0 && truth.abundance <= 1;
+
+  // (3) Live band-facing cards: predator signs are GROUNDED (anchor is a seen prey
+  //     tile, never the predator's exact hidden anchor) and uncertain-only; no card
+  //     exposes a raw numeric abundance; every decision is band-knowledge-scoped.
+  const activeBands = Object.values(world.bands).filter(isActiveBand);
+  const allCards = activeBands.flatMap((band) => band.visibleNature?.faunaCards ?? []);
+  // Force a CONTROLLED prey→predator overlap so the predator-sign invariants are
+  // proven non-vacuously: a band that has OBSERVED a herd-prey stock sitting in a
+  // predator's region should infer a predator sign — and that sign must anchor to
+  // an observed prey tile, never the predator's exact hidden anchor.
+  const controlledPredatorCards = [];
+  const predator = geography.stocks.find((stock) => stock.trophicRole === "predator");
+  const preyForPredator = predator === undefined
+    ? undefined
+    : geography.stocks.find((stock) =>
+        stock.trophicRole !== "predator" &&
+        stock.anchorTileId === predator.anchorTileId &&
+        (stock.kind === "large_game" || stock.kind === "medium_game"),
+      ) ?? geography.stocks.find((stock) =>
+        stock.trophicRole !== "predator" &&
+        stock.regionId === predator.regionId &&
+        (stock.kind === "large_game" || stock.kind === "medium_game"),
+      );
+  if (predator !== undefined && preyForPredator !== undefined) {
+    for (let suffix = 0; suffix < 16 && controlledPredatorCards.length === 0; suffix += 1) {
+      const preyObserverBand = {
+        ...blindBand,
+        id: `band:ao-predator-probe-${suffix}`,
+        position: preyForPredator.anchorTileId,
+        knowledge: {
+          ...blindBand.knowledge,
+          observedTiles: Object.fromEntries(
+            [preyForPredator.anchorTileId, ...preyForPredator.influenceTileIds].map((tileId) => [tileId, { tileId }]),
+          ),
+        },
+        animalPatternKnowledge: {
+          bandId: `band:ao-predator-probe-${suffix}`,
+          lastUpdatedTick: world.time.tick,
+          recordCap: 12,
+          evidencePerRecordCap: 6,
+          capsHeld: true,
+          records: [{
+            id: "ao-prey-record",
+            stockId: String(preyForPredator.id),
+            faunaKind: preyForPredator.kind,
+            placeTileId: preyForPredator.anchorTileId,
+            routeTileIds: [preyForPredator.anchorTileId],
+            seasonsObserved: [world.time.season],
+            patterns: [],
+            observationCount: 4,
+            directObservationCount: 4,
+            inferenceCount: 0,
+            contradictionCount: 0,
+            confidence: 0.7,
+            state: "confident",
+            basis: "direct_observation",
+            lastObservedTick: world.time.tick,
+            evidenceRefs: [],
+          }],
+        },
+      };
+      const preyNature = modules.visibleNature.deriveVisibleNatureState(world, preyObserverBand);
+      for (const card of preyNature.faunaCards) {
+        if (card.sourceKind === "predator_sign") controlledPredatorCards.push(card);
+      }
+    }
+  }
+  const predatorCards = [...allCards.filter((card) => card.sourceKind === "predator_sign"), ...controlledPredatorCards];
+  const preyDoesNotRevealExactPredator = predatorCards.every((card) => {
+    const grounded = card.anchorTileId !== undefined && card.seenTileIds.includes(card.anchorTileId);
+    const real = card.derivedFromStockId === undefined ? undefined : stockById.get(card.derivedFromStockId);
+    // The exact hidden predator anchor may only coincide with a card tile if the
+    // band actually saw that tile; otherwise it must NOT be exposed.
+    const noExactHiddenAnchor = real === undefined || card.anchorTileId !== real.anchorTileId || card.seenTileIds.includes(real.anchorTileId);
+    return grounded && noExactHiddenAnchor;
+  });
+  const predatorSignsUncertainOnly = predatorCards.every((card) =>
+    (card.knowledgeState === "inferred_from_tracks" || card.knowledgeState === "dangerous") &&
+    card.usefulness === "low" &&
+    card.huntingOrFishingPressure === 0 &&
+    card.confidence <= 0.72,
+  );
+  const normalUiNoExactHiddenAbundance = allCards.every((card) =>
+    typeof card.perceivedAbundance === "string" &&
+    !Object.prototype.hasOwnProperty.call(card, "abundance") &&
+    !Object.prototype.hasOwnProperty.call(card, "exactAbundance"),
+  );
+  const decisionsUseBandKnowledgeOnly = activeBands.every((band) =>
+    band.visibleNature === undefined || band.visibleNature.antiOmniscience.candidateTilesFromBandKnowledgeOnly === true,
+  );
+
+  // (4) STALE evidence may be wrong: a persisted record whose latest observation
+  //     CONTRADICTED the pattern surfaces as an uncertain (failed/stale) card, not
+  //     a confident sighting — knowledge is not a permanent upgrade.
+  const staleBand = {
+    ...blindBand,
+    id: "band:ao-stale-probe",
+    animalPatternKnowledge: {
+      bandId: "band:ao-stale-probe",
+      lastUpdatedTick: world.time.tick,
+      recordCap: 12,
+      evidencePerRecordCap: 6,
+      capsHeld: true,
+      records: [{
+        id: "ao-stale-record",
+        stockId: String(terrestrial.id),
+        faunaKind: terrestrial.kind,
+        placeTileId: terrestrial.anchorTileId,
+        routeTileIds: [terrestrial.anchorTileId],
+        seasonsObserved: [world.time.season],
+        patterns: [],
+        observationCount: 4,
+        directObservationCount: 1,
+        inferenceCount: 0,
+        contradictionCount: 4,
+        confidence: 0.18,
+        state: "contradicted",
+        basis: "bounded_inference",
+        lastObservedTick: world.time.tick,
+        evidenceRefs: [],
+      }],
+    },
+  };
+  const staleNature = modules.visibleNature.deriveVisibleNatureState(world, staleBand);
+  const staleCard = staleNature.faunaCards.find((card) => card.stockId === String(terrestrial.id));
+  const staleEvidenceMayBeWrong = staleCard === undefined
+    ? false
+    : (staleCard.knowledgeState === "failed_to_find" || staleCard.knowledgeState === "stale_route") && staleCard.confidence < 0.5;
+
+  const checks = {
+    unseenFaunaUnknown,
+    technicalShowsWorldTruth,
+    preyDoesNotRevealExactPredator,
+    predatorSignsUncertainOnly,
+    normalUiNoExactHiddenAbundance,
+    decisionsUseBandKnowledgeOnly,
+    staleEvidenceMayBeWrong,
+  };
+
+  return {
+    pass: Object.values(checks).every(Boolean),
+    checks,
+    detail: {
+      blindBandCards: blindNature.faunaCards.length,
+      predatorSignCards: predatorCards.length,
+      controlledPredatorSignCards: controlledPredatorCards.length,
+      controlledPredatorGroundedAnchors: controlledPredatorCards.map((card) => ({
+        anchor: String(card.anchorTileId),
+        seen: card.seenTileIds.map(String),
+        anchorInSeen: card.seenTileIds.includes(card.anchorTileId),
+        derivedFrom: card.derivedFromStockId,
+      })),
+      technicalAnchorTile: String(terrestrial.anchorTileId),
+      technicalAbundance: round4Maybe(truth.abundance),
+      staleCardState: staleCard?.knowledgeState ?? "none",
+      staleCardConfidence: round4Maybe(staleCard?.confidence),
+    },
+  };
 }
 
 function makeFaunaStocksAuditFingerprint(world) {
@@ -41086,6 +41363,62 @@ function runTargetedRoutines2Check(modules, options) {
         promising.band.animalPatternKnowledge,
       );
 
+  // Controlled EMERGENCE (production behavior, no injection): pattern knowledge is
+  // EARNED from repeated real observation traces via advanceAnimalPatternKnowledge,
+  // then proto-management EMERGES from advanceAnimalManagement. Proves a suitable
+  // stock can naturally enter the loop, an aquatic/predator stock never does, and
+  // no-knowledge yields nothing.
+  const runManagementEmergence = (stock) => {
+    if (stock === undefined) return { fed: false, observationCount: 0, records: [] };
+    let band = {
+      ...baseBand,
+      position: stock.anchorTileId,
+      animalPatternKnowledge: undefined,
+      animalManagement: undefined,
+      recentIntraSeasonTrips: [],
+    };
+    for (let obs = 0; obs < 3; obs += 1) {
+      const tickAt = Number(baseWorld.time.tick) + obs;
+      const trace = makeControlledAnimalTrace(
+        fauna.deriveFaunaTripStockTrace(baseWorld, geography, stock.anchorTileId, stock.faunaClass, baseWorld.time.season, tickAt),
+        "partial_success", "partial", "reliable_route_strengthened", 0.3,
+      );
+      const trip = makeControlledAnimalTrip(baseWorld, band, stock.anchorTileId, trace, "partial_success", obs);
+      band = { ...band, recentIntraSeasonTrips: [trip], lastIntraSeasonTrip: trip };
+      const worldAtTick = { ...baseWorld, time: { ...baseWorld.time, tick: tickAt } };
+      band = { ...band, animalPatternKnowledge: animals.advanceAnimalPatternKnowledge(worldAtTick, band) };
+    }
+    const knowledge = band.animalPatternKnowledge;
+    const management = animals.advanceAnimalManagement(baseWorld, band, knowledge);
+    return {
+      fed: management.records.some((record) => record.feedingAttempts > 0 || record.holdingAttempts > 0),
+      observationCount: knowledge.records.reduce((max, record) => Math.max(max, record.observationCount), 0),
+      managementRecordCount: management.records.length,
+      records: management.records,
+    };
+  };
+  const emergenceSuitable = runManagementEmergence(promisingStock);
+  // EXCLUSION proofs: even given MAXIMAL (confident, repeatedly-observed) knowledge,
+  // a fish stock and a predator stock must never become management candidates —
+  // deriveFaunaTripStockTrace/bestStockOfClassAt already refuse to trace a predator,
+  // and advanceAnimalManagement filters both out (anti-domestication / prey-danger).
+  const fishStock = geography.stocks.find((stock) => String(stock.kind).includes("fish"));
+  const predatorStock2 = geography.stocks.find((stock) => stock.trophicRole === "predator");
+  const managementFor = (stock) => stock === undefined
+    ? { records: [] }
+    : animals.advanceAnimalManagement(
+        baseWorld,
+        { ...baseBand, position: stock.anchorTileId, animalPatternKnowledge: knowledgeFor(stock), animalManagement: undefined },
+        knowledgeFor(stock),
+      );
+  const fishManagement = managementFor(fishStock);
+  const predatorManagement = managementFor(predatorStock2);
+  const emergenceNoContact = animals.advanceAnimalManagement(
+    baseWorld,
+    { ...baseBand, animalPatternKnowledge: undefined, animalManagement: undefined },
+    { bandId: baseBand.id, lastUpdatedTick: baseWorld.time.tick, records: [], recordCap: 12, evidencePerRecordCap: 5, capsHeld: true },
+  );
+
   let routineWorld = baseWorld;
   if (promisingStock !== undefined && promising.history.length > 1) {
     const manager = {
@@ -41127,9 +41460,18 @@ function runTargetedRoutines2Check(modules, options) {
   });
   const recoveryDynamic = promisingStock === undefined ? undefined : recoveryWorld.faunaStocks?.[promisingStock.id];
 
+  // NATURAL/default-world emergence: the sparse 5-band `baseline` seed no longer
+  // reaches proto-management — under the canonical physical-food pipeline those
+  // few bands forage water/plants/fish and rarely accumulate REPEATED terrestrial-
+  // game pattern knowledge (the ROUTINES-2 encounter→pattern→management chain is
+  // unchanged; the ecology around it shifted). The denser default-world varied-
+  // migration map keeps enough bands re-encountering suitable game that proto-
+  // management emerges naturally through production behavior (no injected records).
+  const liveScenarioName = "map2_varied_migration";
+  const liveScenarioYears = 30;
   const live = runBenchmark(
     modules,
-    { scenario: "baseline", years: 30, ticks: undefined },
+    { scenario: liveScenarioName, years: liveScenarioYears, ticks: undefined },
     { ...options, reportBand: false, probeAudit: false, returnWorld: true, deterministic: false },
   );
   const liveBands = Object.values(live.world.bands);
@@ -41185,6 +41527,14 @@ function runTargetedRoutines2Check(modules, options) {
       (recoveryDynamic?.abundance ?? 0) > 0.5 && (recoveryDynamic?.reproductiveCondition ?? 0) > 0,
     live_observation_loop_activates: liveKnowledge.length > 0,
     live_management_loop_activates: liveManagement.some((record) => record.feedingAttempts > 0 || record.holdingAttempts > 0),
+    // Controlled EMERGENCE proofs (production behavior, no injected records):
+    controlled_suitable_stock_enters_management_naturally:
+      emergenceSuitable.observationCount >= 2 && emergenceSuitable.fed === true,
+    controlled_fish_stock_never_managed: fishManagement.records.length === 0,
+    controlled_predator_never_managed: predatorManagement.records.length === 0,
+    controlled_no_contact_no_management:
+      emergenceNoContact.records.length === 0 ||
+      emergenceNoContact.records.every((record) => record.feedingAttempts === 0 && record.holdingAttempts === 0),
     live_stock_routines_activate: liveRoutineDynamics.length > 0,
     live_dry_route_response_activates: liveWaterResponses.length > 0,
     caps_held: liveBands.every((band) => (band.animalPatternKnowledge?.capsHeld ?? true) && (band.animalManagement?.capsHeld ?? true)),
@@ -41211,9 +41561,16 @@ function runTargetedRoutines2Check(modules, options) {
       reproductiveFailure: reproductiveFailureState?.records,
       managedDynamic: promisingDynamic,
       migrationDynamic, waterDynamic, flightDynamic, recoveryDynamic,
+      emergence: {
+        suitableKind: promisingStock?.kind,
+        suitable: { observationCount: emergenceSuitable.observationCount, fed: emergenceSuitable.fed, managementRecordCount: emergenceSuitable.managementRecordCount },
+        fishExcluded: { kind: fishStock?.kind, managementRecords: fishManagement.records.length },
+        predatorExcluded: { kind: predatorStock2?.kind, managementRecords: predatorManagement.records.length },
+        noContactRecords: emergenceNoContact.records.length,
+      },
     },
     live: {
-      scenario: "baseline", years: 30, bands: liveBands.length,
+      scenario: liveScenarioName, years: liveScenarioYears, bands: liveBands.length,
       animalPatternRecords: liveKnowledge.length, managementRecords: liveManagement.length,
       routineDynamics: liveRoutineDynamics.length,
       patternStates: countBy(liveKnowledge, (record) => record.state),

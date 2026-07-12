@@ -672,7 +672,11 @@ function derivePredatorSignCards(
     label: "wolf-like predator signs",
     sourceKind: "predator_sign",
     habitat: predator.habitat,
-    anchorTileId: predator.anchorTileId,
+    // ANTI-OMNISCIENCE: an inferred predator is NEVER observed, so its card must
+    // not carry the predator's exact hidden anchor tile (which would leak into
+    // isCardNearTile-based access-norm/proto-camp reasoning). Anchor the sign to
+    // a tile where the band actually saw the prey — uncertain direction only.
+    anchorTileId: prey.seenTileIds[0] ?? prey.anchorTileId,
     seenTileIds: prey.seenTileIds.slice(0, 3),
     tags: ["pack_predator", "scavenger", "camp_follower_candidate", "seasonal_mover", "high_risk", "trackable"],
     knowledgeState: risk >= 0.48 ? "dangerous" : "inferred_from_tracks",

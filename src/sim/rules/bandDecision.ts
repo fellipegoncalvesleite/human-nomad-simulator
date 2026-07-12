@@ -4557,10 +4557,22 @@ function applyIntentShaping(
           },
         );
 
+  // CAUSAL-REPAIR-1: the stay candidate carries an additive bias premium built ON
+  // TOP of scoreDecision by buildStayCandidate — the flat stay bias, anchor hold,
+  // and seasonal-round pull — and that premium is where the chronic-hardship
+  // stay-bias EROSION lives (a failing band's stay bias is eroded, a comfortable
+  // band's is not). Recomputing the score purely from scoreDecision here would
+  // discard it, collapsing a chronically-failing and a comfortable band to an
+  // identical stay score. Preserve the premium so hardship erosion survives intent
+  // shaping. Only the stay action carries this premium, so moves/scouts/probes are
+  // unaffected (their scoring is unchanged).
+  const stayBiasPremium = candidate.action.type === "stay"
+    ? candidate.score - round2(scoreDecision(candidate.scoreBreakdown))
+    : 0;
   return {
     ...candidate,
     scoreBreakdown,
-    score: round2(scoreDecision(scoreBreakdown) - badSiteStuckResidencePenalty),
+    score: round2(scoreDecision(scoreBreakdown) + stayBiasPremium - badSiteStuckResidencePenalty),
     secondaryReasons:
       intentSecondaryReason === undefined
         ? candidate.secondaryReasons

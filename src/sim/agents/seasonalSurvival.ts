@@ -18,6 +18,11 @@ export interface CanonicalNutritionState {
   readonly recoveryRelief: number;
   readonly foodMovementPressure: number;
   readonly foodDemographicPressure: number;
+  // False ONLY when nutrition has not yet been measured (no physical-food interval
+  // has completed for this band): a new/daughter band, an audit fixture with no
+  // seasonalSupport, or a migrated legacy snapshot. Distinguishes "unknown / not
+  // yet measured" (neutral) from a measured deficit (which can be severe).
+  readonly nutritionStateAvailable: boolean;
 }
 
 // One authoritative translation from physical-support history into nutritional
@@ -27,13 +32,21 @@ export function deriveCanonicalNutritionState(
   support: SeasonalSupportState | undefined,
 ): CanonicalNutritionState {
   if (support === undefined) {
+    // UNMEASURED, not starving. `undefined` means the band has not yet completed a
+    // physical-food interval (new/daughter/fixture/legacy) — treating that as
+    // chronic hunger wrongly punished comfortable bands and daughter bands. It is
+    // neutral. A KNOWN zero-food state is a DEFINED support with foodStress≈1 below,
+    // which still yields severe stress, so this is not a free-food loophole:
+    // production active bands receive a defined seasonalSupport once carrying state
+    // exists (their first observed-tile interval), so this branch is transient.
     return {
-      currentFoodStress: 1,
-      recentFoodStress: 1,
+      currentFoodStress: 0,
+      recentFoodStress: 0,
       chronicFoodStress: 0,
       recoveryRelief: 0,
-      foodMovementPressure: 0.7,
-      foodDemographicPressure: 0.65,
+      foodMovementPressure: 0,
+      foodDemographicPressure: 0,
+      nutritionStateAvailable: false,
     };
   }
 
@@ -56,6 +69,7 @@ export function deriveCanonicalNutritionState(
     foodDemographicPressure: round2(clamp01(
       currentFoodStress * 0.38 + recentFoodStress * 0.26 + chronicFoodStress * 0.48 - recoveryRelief * 0.14,
     )),
+    nutritionStateAvailable: true,
   };
 }
 

@@ -227,14 +227,20 @@ export interface FaunaFoodHarvestResolution {
 const ANCHOR_SPACING = 4; // min ~grid separation between same-class anchors
 const INFLUENCE_RADIUS = 2;
 const INFLUENCE_TILE_CAP = 13;
-const GLOBAL_STOCK_CAP = 260; // hard ceiling regardless of map size
+// TOTAL fauna-stock ceiling — bounds ALL physical fauna stocks (prey + predators)
+// regardless of map size. Predators are reserved WITHIN this ceiling, never
+// appended on top of it (see computeFaunaStockGeography).
+export const GLOBAL_STOCK_CAP = 260; // hard ceiling regardless of map size
 const STOCKS_PER_TILE_DENSITY = 22; // ~1 candidate per N tiles before caps
 const REGION_STOCK_CAP_BASE = 2;
 const REGION_STOCK_TILES_PER = 14;
 const SUITABILITY_THRESHOLD = 0.34;
 
 // Dynamics.
-const HUMAN_HARVEST_RESERVE = 0.08;
+// Direct human harvesting cannot draw a stock below this reserve (it is NOT a
+// survival guarantee — trophic/forage/predation/natural pressure can still push
+// a weakened stock below it toward local collapse).
+export const HUMAN_HARVEST_RESERVE = 0.08;
 const DEPLETION_STRENGTH = 0.5; // how hard pressure pulls abundance down per season
 const GENERAL_PRESSURE_WEIGHT = 0.7; // camp/catchment occupation
 const DISTURB_GAIN = 0.5;
@@ -256,7 +262,9 @@ const FORAGE_SHORTAGE_LOSS = 0.22;
 const PREDATOR_DEMAND_SCALE = 0.055;
 const PREDATOR_SHORTAGE_LOSS = 0.2;
 const PREDATION_CANDIDATE_CAP = 6;
-const PREDATOR_STOCK_CAP = 24;
+// Predator sub-cap — at most this many predator stocks, reserved inside the total
+// GLOBAL_STOCK_CAP. Map-size independent; predators are never appended unbounded.
+export const PREDATOR_STOCK_CAP = 24;
 
 // Support coupling.
 const FACTOR_FLOOR = 0.45; // worst-case realized fauna factor for a covered tile
@@ -403,10 +411,29 @@ function computeFaunaStockGeography(world: WorldState): FaunaStockGeography {
     predatorRegions.add(prey.regionId);
   }
 
+  // Enforce the TOTAL cap contract: prey + predators must fit inside
+  // GLOBAL_STOCK_CAP. If appending predators pushed the total over the ceiling,
+  // deterministically drop the lowest-carrying-capacity NON-predator stocks
+  // (stable by id) so predators are reserved within the cap rather than erased
+  // and the total never exceeds the declared ceiling. Predator-anchor prey have
+  // high carrying capacity (see gate above) and are retained.
+  let cappedStocks: readonly FaunaStockGeo[] = stocks;
+  if (stocks.length > GLOBAL_STOCK_CAP) {
+    const predators = stocks.filter((stock) => stock.trophicRole === "predator");
+    const keptPreyIds = new Set(
+      stocks
+        .filter((stock) => stock.trophicRole !== "predator")
+        .sort((a, b) => b.carryingCapacity - a.carryingCapacity || String(a.id).localeCompare(String(b.id)))
+        .slice(0, Math.max(0, GLOBAL_STOCK_CAP - predators.length))
+        .map((stock) => stock.id),
+    );
+    cappedStocks = stocks.filter((stock) => stock.trophicRole === "predator" || keptPreyIds.has(stock.id));
+  }
+
   const byId = new Map<FaunaStockId, FaunaStockGeo>();
   const byTile = new Map<TileId, FaunaStockGeo[]>();
 
-  for (const stock of stocks) {
+  for (const stock of cappedStocks) {
     byId.set(stock.id, stock);
 
     for (const tileId of stock.influenceTileIds) {
@@ -420,7 +447,7 @@ function computeFaunaStockGeography(world: WorldState): FaunaStockGeography {
     }
   }
 
-  return { stocks, byId, byTile };
+  return { stocks: cappedStocks, byId, byTile };
 }
 
 // Habitat → best aquatic candidate + best terrestrial candidate for this tile.
@@ -1186,8 +1213,14 @@ export function advanceFaunaStocks(world: WorldState, cache: TickContextCache): 
     const management = managementByStock.get(String(stock.id));
     const routine = deriveRoutineState(stock, dyn, world.time.season, generalPressure, management);
     const forageReceipt = forage.receipts.get(String(stock.id));
-    const forageSupportRatio = stock.trophicRole === "predator" ? 1 : (forageReceipt?.supportRatio ?? 0);
-    const forageStress = stock.trophicRole === "predator" ? 0 : clamp01(1 - forageSupportRatio);
+    // Only land herbivores/omnivores depend on the plant-forage ledger. Predators
+    // are gated by prey below; aquatic prey (fish/shellfish/seasonal runs) are
+    // supported by their own aquatic habitat, not land plants — treating a missing
+    // land-forage receipt as zero support wrongly starved them to extinction and
+    // collapsed their sign strength (breaking recovery and animal-pattern learning).
+    const selfSupportingForage = stock.trophicRole === "predator" || stock.trophicRole === "aquatic_prey";
+    const forageSupportRatio = selfSupportingForage ? 1 : (forageReceipt?.supportRatio ?? 0);
+    const forageStress = selfSupportingForage ? 0 : clamp01(1 - forageSupportRatio);
     const recovery = stock.recoveryRate * (1 - dyn.abundance) * (1 - dyn.disturbance * 0.5) *
       (0.35 + (routine.reproductiveCondition ?? 0.7) * 0.35) *
       (stock.trophicRole === "predator" ? 0 : forageSupportRatio) *

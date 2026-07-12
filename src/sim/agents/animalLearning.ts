@@ -330,7 +330,10 @@ export function advanceAnimalManagement(
   const priorRecords = band.animalManagement?.records ?? [];
   const candidates = knowledge.records.filter((record) =>
     record.observationCount >= 2 && record.directObservationCount >= 1 && record.confidence >= 0.3 && record.state !== "dormant" &&
-    !record.faunaKind.includes("fish") && record.faunaKind !== "shellfish_reedbed");
+    // Aquatic prey are not held/fed on land; predators are prey/danger, never a
+    // proto-management target — feeding a wolf-like stock must never read as
+    // habituation. Both are excluded from management candidacy (anti-domestication).
+    !record.faunaKind.includes("fish") && record.faunaKind !== "shellfish_reedbed" && !record.faunaKind.includes("predator"));
   const records: AnimalManagementRecord[] = [];
   for (const pattern of candidates.slice(0, ANIMAL_MANAGEMENT_CAP)) {
     const prior = priorRecords.find((record) => record.stockId === pattern.stockId);

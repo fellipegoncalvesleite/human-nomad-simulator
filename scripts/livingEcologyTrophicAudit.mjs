@@ -28,6 +28,7 @@ try {
     check: "LIVING-ECOLOGY-TROPHIC-COUPLING-1B",
     verdict: pass ? "PASS" : "FAIL",
     checks,
+    nutritionState: first.nutritionState,
     controlledFood: first.controlledFood,
     unitSensitivity: first.unitSensitivity,
     independentPressures: first.independentPressures,
@@ -95,7 +96,35 @@ try {
     const movementPressures = controlledFood.map((row) => row.foodMovementPressure);
     const mortality = controlledFood.map((row) => row.foodMortalityContribution);
     const fertility = controlledFood.map((row) => row.fertilityPressure);
+
+    // NUTRITION-STATE CONTRACT (TROPHIC-1C-REGRESSION-C): "unknown / not yet
+    // measured" (undefined support: new/daughter/fixture/legacy) is NEUTRAL, and
+    // strictly distinct from a MEASURED zero-food deficit (defined support with
+    // zero receipts) which stays severe. Missing state is not a free-food loophole.
+    const nutritionUnmeasured = survival.deriveCanonicalNutritionState(undefined);
+    const measuredZeroSupport = withHistory(afterOne, baseBand, templateTrip, 0).support;
+    const measuredAdequateSupport = withHistory(afterOne, baseBand, templateTrip, 0.4).support;
+    const nutritionMeasuredZero = survival.deriveCanonicalNutritionState(measuredZeroSupport);
+    const nutritionMeasuredAdequate = survival.deriveCanonicalNutritionState(measuredAdequateSupport);
+    const nutritionState = {
+      unmeasured: nutritionUnmeasured,
+      measuredZero: nutritionMeasuredZero,
+      measuredAdequate: nutritionMeasuredAdequate,
+    };
+
     const checks = {
+      unmeasuredNutritionNeutral:
+        nutritionUnmeasured.nutritionStateAvailable === false &&
+        nutritionUnmeasured.foodMovementPressure === 0 &&
+        nutritionUnmeasured.currentFoodStress === 0,
+      measuredNutritionAvailable:
+        nutritionMeasuredZero.nutritionStateAvailable === true &&
+        nutritionMeasuredAdequate.nutritionStateAvailable === true,
+      measuredZeroStaysSevere: nutritionMeasuredZero.foodMovementPressure > 0.5,
+      unknownDistinctFromKnownZero:
+        nutritionUnmeasured.foodMovementPressure < nutritionMeasuredZero.foodMovementPressure,
+      measuredAdequateLowerThanZero:
+        nutritionMeasuredAdequate.foodMovementPressure < nutritionMeasuredZero.foodMovementPressure,
       zeroSevere: controlledFood[0].ratio === 0 && controlledFood[0].foodStress === 1,
       supportRatioMonotonic: strictlyIncreasing(controlledFood.map((row) => row.ratio)),
       foodStressMonotonic: nonIncreasing(stresses) && stresses[0] > stresses.at(-1),
@@ -127,7 +156,7 @@ try {
       productionOrderingExplicit: advanceSource.indexOf("runDailyActions") < advanceSource.indexOf("runSeasonalCompatibilityTick"),
     };
     return {
-      checks, controlledFood, unitSensitivity, independentPressures, live, trophic,
+      checks, controlledFood, unitSensitivity, independentPressures, live, trophic, nutritionState,
       fingerprint: { controlledFood, unitSensitivity, independentPressures, live, trophic },
     };
   }

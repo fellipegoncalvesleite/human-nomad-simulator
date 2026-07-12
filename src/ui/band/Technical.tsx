@@ -2,6 +2,7 @@ import type { Band } from "../../sim/agents/types";
 import { deriveBandChronicle } from "../../sim/agents/bandChronicle";
 import { deriveBandTendencies } from "../../sim/agents/bandTendency";
 import { deriveChronicHardship } from "../../sim/agents/chronicHardship";
+import { deriveCanonicalNutritionState } from "../../sim/agents/seasonalSurvival";
 import { deriveCrossingPracticeRelief } from "../../sim/agents/crossingPractice";
 import { effectiveFragmentStrength } from "../../sim/agents/practicalFragments";
 import { deriveCarryingRelief, deriveDryRouteWaterRelief, deriveEngineeringSafetyRelief } from "../../sim/agents/practicalResponses";
@@ -474,6 +475,16 @@ function CausalAgencyDetails({
 }) {
   const tendencies = deriveBandTendencies(band);
   const hardship = deriveChronicHardship(band, tendencies);
+  const nutrition = deriveCanonicalNutritionState(band.seasonalSupport);
+  // World truth (Technical) distinguishes the four canonical nutrition states so a
+  // neutral "not yet measured" band is never confused with a measured deficit.
+  const nutritionStatus = !nutrition.nutritionStateAvailable
+    ? "unavailable — not yet measured (neutral)"
+    : nutrition.chronicFoodStress >= 0.45
+      ? "measured — chronic deficit"
+      : nutrition.foodMovementPressure >= 0.42
+        ? "measured — deficit"
+        : "measured — adequate";
   const currentTick = world === null ? 0 : Number(world.time.tick);
   const travelPlan = deriveSeasonalTravelPlanForBand(
     band,
@@ -537,6 +548,10 @@ function CausalAgencyDetails({
       <Detail
         label="hardship effects"
         value={`stay-bias erosion ${formatCompactNumber(hardship.stayBiasErosion)} (cap 0.6) · move-pressure boost ${formatCompactNumber(hardship.movePressureBoost)} (cap 0.18) · scout urgency ${formatCompactNumber(hardship.scoutUrgency)} (cap 0.14)`}
+      />
+      <Detail
+        label="nutrition state"
+        value={`${nutritionStatus} · food-move ${formatCompactNumber(nutrition.foodMovementPressure)} · current ${formatCompactNumber(nutrition.currentFoodStress)} · chronic ${formatCompactNumber(nutrition.chronicFoodStress)}`}
       />
       <Detail
         label="pressure escalation applied"

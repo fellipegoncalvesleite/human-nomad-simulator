@@ -1,4 +1,4 @@
-np// Focused diagnostic for checkpoint 2J.1A: prove the shared-catchment math is
+// Focused diagnostic for checkpoint 2J.1A: prove the shared-catchment math is
 // safe by driving the REAL implementation (buildSharedCatchmentIndex /
 // getTileSupportShare / getOverlappingBandIds / getBandForagingFootprint) with
 // small controlled worlds and printing concrete numbers. Read-only; no sim state

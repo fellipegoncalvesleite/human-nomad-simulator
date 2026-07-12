@@ -132,7 +132,10 @@ import {
   updateSeasonalRound,
   type SeasonalRoundScoringContext,
 } from "../agents/seasonalRound";
-import { deriveResidentialMoveEventRing } from "../agents/residentialMoveEvent";
+import {
+  advanceResidentialMovementIntentOutcomes,
+  deriveResidentialMoveEventRing,
+} from "../agents/residentialMoveEvent";
 import type { TickContextCache } from "../agents/contextCache";
 import {
   deriveBandPressureState,
@@ -1347,6 +1350,32 @@ export function applyBandDecision(
     moved,
     decision,
     prevRing: band.recentResidentialMoveEvents,
+    executedPathTiles: migrationWalk === undefined ? undefined : [band.position, ...migrationWalk.path],
+    stagedLegIncomplete: migrationWalk !== undefined && migrationWalk.stopReason === "budget_exhausted",
+  });
+  const residentialDependencyShare =
+    (band.demography.dependents + band.demography.elders) / Math.max(1, band.demography.population);
+  const temporaryResidentialDelayGrounded = !isMovementAction && band.currentIntent !== undefined && (
+    (band.pressureState?.fatiguePressure ?? 0) >= 0.32 ||
+    (band.bodyCampLogistics?.sickness.severity ?? 0) >= 0.3 ||
+    residentialDependencyShare >= 0.55 ||
+    band.demography.workingAdults < 4 ||
+    ((world.time.season === "summer" || world.time.season === "winter") &&
+      (band.pressureState?.riskPressure ?? 0) >= 0.45)
+  );
+  const residentialMovementIntentOutcomes = advanceResidentialMovementIntentOutcomes({
+    world,
+    band,
+    decision,
+    selectedTileId: targetTileId,
+    actualTileId: nextPosition,
+    attempted: isMovementAction,
+    moved,
+    crossingBlocked,
+    destinationBlocked,
+    stagedLegIncomplete: migrationWalk !== undefined && migrationWalk.stopReason === "budget_exhausted",
+    temporaryDelayGrounded: temporaryResidentialDelayGrounded,
+    prior: band.residentialMovementIntentOutcomes,
   });
   const latestMoveEvent = moved ? recentResidentialMoveEvents?.[0] : undefined;
   // INVENTION-1: practical-response efficacy contexts. The applied plan is the
@@ -1683,6 +1712,7 @@ export function applyBandDecision(
     // RESIDENTIAL-MOVE-1 — record-only relocation event (derived once, above,
     // so the carrying efficacy could read this season's realized hardship).
     recentResidentialMoveEvents,
+    residentialMovementIntentOutcomes,
     // INVENTION-1: bounded learned fragments + composed practical responses.
     practicalAdaptation,
     storageCapacity: effectiveStorageCapacity,

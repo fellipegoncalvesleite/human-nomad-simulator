@@ -216,7 +216,19 @@ function zeroReceipt(sourceKind, failureReason) {
 function withReceipts(band, receipts) {
   return {
     ...band,
-    recentIntraSeasonTrips: receipts.map((physicalFoodHarvest, index) => ({ tick: 777, day: index + 1, physicalFoodHarvest })),
+    recentIntraSeasonTrips: receipts.map((physicalFoodHarvest, index) => {
+      const positive = physicalFoodHarvest.usableSupport > 0;
+      const returnedResourceKind = !positive ? "none" :
+        physicalFoodHarvest.sourceKind === "plant_patch" ? "gathered_plant_food" :
+        physicalFoodHarvest.sourceKind === "fauna_stock" ? "hunted_fauna_food" :
+        "harvested_aquatic_food";
+      return {
+        tick: 777,
+        day: index + 1,
+        physicalFoodHarvest,
+        resourceReturn: { returnedResourceKind, consumedByEconomy: positive },
+      };
+    }),
   };
 }
 

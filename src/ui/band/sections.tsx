@@ -561,7 +561,14 @@ function demographicOutlook(band: Band): string {
   const demo = band.demography;
   const viability = band.viability?.status;
 
-  if (viability === "extinct" || viability === "nonviable") {
+  if (viability === "extinct") {
+    const terminal = band.viability?.terminalSnapshot;
+    return terminal === undefined
+      ? "extinct — final pressures archived"
+      : `extinct since year ${terminal.year} ${terminal.season} — final pressures archived`;
+  }
+
+  if (viability === "nonviable") {
     return "critical — at risk of collapse";
   }
 
@@ -1960,7 +1967,7 @@ export function ActivityOutcomeDetails({
       />
       <Detail label="outcomes" value={formatActivityOutcomes(summary.outcomesByType)} />
       <Detail label="returns" value={formatActivityReturns(summary.returnsByResourceKind)} />
-      <Detail label="max placeholder value" value={formatNumber(summary.maxEstimatedReturnValue)} />
+      <Detail label="max resolved return value" value={formatNumber(summary.maxEstimatedReturnValue)} />
       <Detail label="guard" value={formatOutcomeGuard(summary)} />
     </>
   );
@@ -3017,18 +3024,25 @@ export function formatSeasonalEcology(trip: IntraSeasonTripRecord): string {
 }
 
 export function formatTripGuard(trip: IntraSeasonTripRecord): string {
+  const physicalFood = trip.resourceReturn.semantics.contributesToNutrition;
+  const returnContractHeld = physicalFood
+    ? trip.resourceReturn.consumedByEconomy === true &&
+      trip.resourceReturn.noSupportChange === false &&
+      trip.physicalFoodHarvest !== undefined
+    : trip.resourceReturn.consumedByEconomy === false &&
+      trip.resourceReturn.noSupportChange === true &&
+      trip.physicalFoodHarvest === undefined;
   return trip.noResidentialRelocation &&
     trip.noYieldChange &&
     trip.noStressChange &&
     trip.noPopulationChange &&
     trip.noCarryingCapacityChange &&
-    trip.noSupportChange &&
-    trip.resourceReturn.consumedByEconomy === false &&
+    trip.noSupportChange === !physicalFood &&
+    returnContractHeld &&
     trip.resourceReturn.noYieldCoupling &&
-    trip.resourceReturn.noCarryingCapacityCoupling &&
+    trip.resourceReturn.noCarryingCapacityCoupling === !physicalFood &&
     trip.resourceReturn.noPopulationChange &&
     trip.resourceReturn.noStressChange &&
-    trip.resourceReturn.noSupportChange &&
     trip.activityMemoryEffect.noHiddenTruth &&
     trip.activityMemoryEffect.targetKnownMemoryOnly &&
     trip.activityMemoryEffect.noNewResourceDiscovery &&
@@ -3078,13 +3092,12 @@ export function formatActivityReturns(
 }
 
 export function formatOutcomeGuard(summary: NonNullable<Band["activityOutcomeSummary"]>): string {
-  return summary.consumedByEconomy === false &&
-    summary.noYieldCoupling &&
-    summary.noCarryingCapacityCoupling &&
+  return summary.noYieldCoupling &&
     summary.noPopulationChange &&
-    summary.noStressChange &&
-    summary.noSupportChange
-    ? "record-only; no yield/support/capacity/stress/pop coupling"
+    summary.noStressChange
+    ? summary.consumedByEconomy
+      ? "physical food receipts only; no yield/stress/pop coupling"
+      : "informational/material returns; no nutrition coupling"
     : "guard failed";
 }
 

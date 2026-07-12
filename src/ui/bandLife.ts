@@ -596,6 +596,10 @@ function summarizeReturn(trip: IntraSeasonTripRecord): string {
       return "fish found";
     case "hunted_fauna_food":
       return "animals taken";
+    case "gathered_fiber_material":
+      return "fiber material gathered";
+    case "gathered_fuel_material":
+      return "fuel material gathered";
     case "water_information":
       return "water checked";
     case "plant_information":

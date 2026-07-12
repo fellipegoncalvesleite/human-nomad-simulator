@@ -1121,6 +1121,10 @@ function activityReturnLabel(kind: ActivityReturnResourceKind, count: number): s
       return `fish returned ${times}`;
     case "hunted_fauna_food":
       return `hunting returned ${times}`;
+    case "gathered_fiber_material":
+      return `fiber material returned ${times}`;
+    case "gathered_fuel_material":
+      return `fuel material returned ${times}`;
     case "plant_information":
       return `plant information returned ${times}`;
     case "food_observation_only":

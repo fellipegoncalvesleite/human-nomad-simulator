@@ -204,7 +204,16 @@ try {
       usableSupport: raw, depletionApplied: raw,
       ...(raw > 0 ? { failureReason: undefined } : { failureReason: "physical_source_absent" }),
     };
-    return { ...band, recentIntraSeasonTrips: [{ ...trip, physicalFoodHarvest: receipt, tick: band.recentIntraSeasonTrips?.[0]?.tick ?? trip.tick }] };
+    const returnedResourceKind = raw > 0 ? "gathered_plant_food" : "none";
+    const resourceReturn = {
+      ...trip.resourceReturn,
+      returnedResourceKind,
+      estimatedReturnValue: raw,
+      consumedByEconomy: raw > 0,
+      noCarryingCapacityCoupling: raw <= 0,
+      noSupportChange: raw <= 0,
+    };
+    return { ...band, recentIntraSeasonTrips: [{ ...trip, resourceReturn, physicalFoodHarvest: receipt, tick: band.recentIntraSeasonTrips?.[0]?.tick ?? trip.tick }] };
   }
 
   function liveRun(initial, seasons) {

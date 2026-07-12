@@ -1,5 +1,6 @@
 import type { ReasonId, TickNumber } from "../core/types";
 import type { Band, HumanFoodSupportLedger, PhysicalFoodHarvestRecord } from "./types";
+import { isPhysicalFoodReturnKind } from "./physicalFoodReturn";
 
 const RECEIPT_CAP = 16;
 
@@ -49,7 +50,12 @@ export function deriveHumanFoodSupportLedger(
   populationDemand: number,
   harvestToSupportScale = HARVEST_TO_SUPPORT_SCALE,
 ): HumanFoodSupportLedger {
-  const trips = (band.recentIntraSeasonTrips ?? []).filter((trip) => trip.physicalFoodHarvest !== undefined);
+  const trips = (band.recentIntraSeasonTrips ?? []).filter((trip) =>
+    trip.physicalFoodHarvest !== undefined &&
+    trip.resourceReturn !== undefined &&
+    trip.resourceReturn.consumedByEconomy === true &&
+    isPhysicalFoodReturnKind(trip.resourceReturn.returnedResourceKind),
+  );
   const sourceSeasonTick = trips.length === 0
     ? undefined
     : trips.reduce((latest, trip) => Math.max(latest, Number(trip.tick)), Number(trips[0].tick)) as TickNumber;

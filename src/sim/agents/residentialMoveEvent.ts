@@ -30,6 +30,7 @@ import type {
   TileId,
 } from "../core/types";
 import type { Decision } from "../rules/types";
+import type { MobilityIntent, MobilityIntentKind } from "../rules/types";
 import type { WorldState } from "../world/types";
 import { isBandPassableDestination } from "../world/passability";
 // 2K.12: selection-only seasonal-memory reader (band-learned only; no hidden truth).
@@ -44,9 +45,12 @@ import type {
   ResidentialMoveEvent,
   ResidentialMoveKind,
   ResidentialMoveStatus,
+  ResidentialMovementHardshipOutcome,
+  ResidentialMovementIntentOutcomeRecord,
 } from "./types";
 
 const RESIDENTIAL_MOVE_EVENT_RING_CAP = 4;
+const RESIDENTIAL_INTENT_OUTCOME_RING_CAP = 12;
 // Generous but bounded — residential relocations are short and infrequent (only
 // fired when the band actually moved), and pathTiles are record-only (cosmetic,
 // excluded from the determinism fingerprint), so the cost never touches baselines.
@@ -60,6 +64,8 @@ export interface DeriveResidentialMoveEventArgs {
   readonly moved: boolean;
   readonly decision: Decision;
   readonly prevRing?: readonly ResidentialMoveEvent[];
+  readonly executedPathTiles?: readonly TileId[];
+  readonly stagedLegIncomplete?: boolean;
 }
 
 // THE GATE. When the residence did not move this season, the prior ring is returned
@@ -74,7 +80,14 @@ export function deriveResidentialMoveEventRing(
     return prevRing;
   }
 
-  const event = buildResidentialMoveEvent(world, band, nextPosition, decision);
+  const event = buildResidentialMoveEvent(
+    world,
+    band,
+    nextPosition,
+    decision,
+    args.executedPathTiles,
+    args.stagedLegIncomplete === true,
+  );
 
   return [event, ...(prevRing ?? [])].slice(0, RESIDENTIAL_MOVE_EVENT_RING_CAP);
 }
@@ -84,53 +97,27 @@ function buildResidentialMoveEvent(
   band: Band,
   nextPosition: TileId,
   decision: Decision,
+  executedPathTiles: readonly TileId[] | undefined,
+  stagedLegIncomplete: boolean,
 ): ResidentialMoveEvent {
   const fromTileId = band.position;
-  const route = findPassableLandPath(world, fromTileId, nextPosition);
+  // The decision executor is authoritative. A completed movement must never be
+  // reclassified as rejected because a retrospective path search or an unrelated
+  // remembered crossing produced a different answer.
+  const route = normalizeExecutedPath(fromTileId, nextPosition, executedPathTiles) ??
+    findPassableLandPath(world, fromTileId, nextPosition) ??
+    [fromTileId, nextPosition];
   const cause = classifyResidentialMoveCause(band, decision);
   const moveKind = moveKindForCause(cause);
   const reasonIds = [
     decision.primaryReason.id,
     ...decision.secondaryReasons.map((reason) => reason.id),
   ].slice(0, 6) as readonly ReasonId[];
-  const landStatus: ResidentialMoveStatus = route === undefined ? "failed_no_route" : "arrived";
-  const landDistance =
-    route === undefined ? manhattan(world, fromTileId, nextPosition) : Math.max(0, route.length - 1);
-  const temporaryWatercraft = deriveTemporaryWatercraftAssessmentForMove({
-    world,
-    band,
-    fromTileId,
-    toTileId: nextPosition,
-    landRouteStatus: landStatus,
-    landRouteDistance: landDistance,
-    storageCards: band.resourceEcology?.storageSuitabilityCards ?? [],
-    reasonIds,
-  });
-  const watercraftArrived =
-    temporaryWatercraft?.result === "crossing_success" &&
-    temporaryWatercraft.crossingPathTiles.length >= 2;
-  const watercraftDelayed =
-    temporaryWatercraft?.result === "crossing_delayed_materials" ||
-    temporaryWatercraft?.result === "crossing_partial_success";
-  const status: ResidentialMoveStatus =
-    route !== undefined ? "arrived" :
-    watercraftArrived ? "arrived" :
-    watercraftDelayed ? "delayed_placeholder" :
-    "failed_no_route";
-  const watercraftPathTiles = watercraftArrived && temporaryWatercraft !== undefined
-    ? temporaryWatercraft.crossingPathTiles
-    : undefined;
-  const pathTiles =
-    route ??
-    watercraftPathTiles ??
-    [fromTileId];
-  const distanceTiles = route === undefined && watercraftArrived
-    ? Math.max(1, pathTiles.length - 1)
-    : landDistance;
+  const status: ResidentialMoveStatus = "arrived";
+  const pathTiles = route;
+  const distanceTiles = Math.max(1, pathTiles.length - 1);
   const startDay = startDayForKind(moveKind);
-  const watercraftDelayDays = temporaryWatercraft === undefined
-    ? 0
-    : Math.min(4, Math.max(0, temporaryWatercraft.shuttleTrips - 1));
+  const watercraftDelayDays = 0;
   // CAUSAL-REPAIR-2: urgency quickens the PACE, not only the departure day.
   // An emergency water escape forced-marches ~2 tiles/day, a food-pressure
   // escape ~1.5; ordinary relocations keep the unhurried 1 tile/day (packing,
@@ -146,7 +133,22 @@ function buildResidentialMoveEvent(
     Math.min(14, Math.ceil(distanceTiles / paceTilesPerDay) + watercraftDelayDays),
   );
   const endDay = Math.min(SEASON_LENGTH_DAYS - 1, startDay + durationDays);
-  const hardship = deriveMigrationHardship(world, band, distanceTiles, status, temporaryWatercraft, paceTilesPerDay);
+  const hardship = deriveMigrationHardship(world, band, distanceTiles, status, undefined, paceTilesPerDay);
+  const hardshipOutcome = classifyResidentialMovementHardshipOutcome({
+    hasResidentialIntent: isResidentialMovementIntentKind(decision.mobilityIntent?.kind),
+    executionOpportunity: true,
+    attempted: true,
+    moved: true,
+    stagedLegIncomplete,
+    destinationInvalidated: false,
+    crossingTemporarilyBlocked: false,
+    temporaryConstraint: false,
+    intentAbandoned: false,
+    routeSubstituted: false,
+    intendedTileId: decision.mobilityIntent?.targetTileId,
+    selectedTileId: getDecisionTargetTileId(decision, nextPosition),
+    actualTileId: nextPosition,
+  }) ?? "accepted";
 
   // 2K.12: record-only learned-seasonal CONTEXT about the destination (not a cause — the
   // move scorer is not biased by seasonal memory in 2K.12). Flag default OFF / no relevant
@@ -176,9 +178,8 @@ function buildResidentialMoveEvent(
     hardshipRisk: hardship.risk,
     hardshipLevel: hardship.level,
     hardshipReason: hardship.reason,
-    hardshipOutcome: hardship.outcome,
+    hardshipOutcome,
     hardshipCautionModifier: hardship.cautionModifier,
-    ...(temporaryWatercraft !== undefined ? { temporaryWatercraft } : {}),
     ...(seasonalMemoryContext !== undefined ? { seasonalMemoryContext } : {}),
     noDailyPositionMutation: true,
     noYieldChange: true,
@@ -199,7 +200,6 @@ function deriveMigrationHardship(
   readonly risk: number;
   readonly level: "low" | "moderate" | "high" | "severe";
   readonly reason: string;
-  readonly outcome: "accepted" | "delayed" | "diverted" | "rejected" | "risk_only";
   readonly cautionModifier: number;
 } {
   const population = Math.max(1, band.demography.population);
@@ -258,22 +258,185 @@ function deriveMigrationHardship(
     foodStress >= 0.5 ? "hard move: food stress before departure" :
     distanceTiles >= 6 ? "hard move: long residential route" :
     "move hardship low";
-  const outcome =
-    temporaryWatercraft?.result === "crossing_success" ? "accepted" :
-    temporaryWatercraft?.result === "crossing_delayed_materials" || temporaryWatercraft?.result === "crossing_partial_success" ? "delayed" :
-    temporaryWatercraft?.result === "materials_missing" || temporaryWatercraft?.result === "crossing_abandoned_risk" ? "rejected" :
-    status === "failed_no_route" ? "rejected" :
-    level === "severe" ? "risk_only" :
-    level === "high" ? "accepted" :
-    "accepted";
-
   return {
     risk,
     level,
     reason,
-    outcome,
     cautionModifier: round2(risk * 0.4),
   };
+}
+
+export interface ResidentialMovementOutcomeEvidence {
+  readonly hasResidentialIntent: boolean;
+  readonly executionOpportunity: boolean;
+  readonly attempted: boolean;
+  readonly moved: boolean;
+  readonly stagedLegIncomplete: boolean;
+  readonly destinationInvalidated: boolean;
+  readonly crossingTemporarilyBlocked: boolean;
+  readonly temporaryConstraint: boolean;
+  readonly intentAbandoned: boolean;
+  readonly routeSubstituted: boolean;
+  readonly intendedTileId?: TileId;
+  readonly selectedTileId?: TileId;
+  readonly actualTileId: TileId;
+}
+
+export function classifyResidentialMovementHardshipOutcome(
+  evidence: ResidentialMovementOutcomeEvidence,
+): ResidentialMovementHardshipOutcome | undefined {
+  if (!evidence.hasResidentialIntent || !evidence.executionOpportunity) {
+    return undefined;
+  }
+  if (evidence.intentAbandoned || evidence.destinationInvalidated) {
+    return "rejected";
+  }
+  if (!evidence.moved) {
+    return evidence.crossingTemporarilyBlocked || evidence.temporaryConstraint || evidence.attempted ? "delayed" : undefined;
+  }
+  if (evidence.stagedLegIncomplete) {
+    return "delayed";
+  }
+  if (evidence.routeSubstituted) {
+    return "diverted";
+  }
+  return "accepted";
+}
+
+export interface AdvanceResidentialIntentOutcomeArgs {
+  readonly world: WorldState;
+  readonly band: Band;
+  readonly decision: Decision;
+  readonly selectedTileId: TileId;
+  readonly actualTileId: TileId;
+  readonly attempted: boolean;
+  readonly moved: boolean;
+  readonly crossingBlocked: boolean;
+  readonly destinationBlocked: boolean;
+  readonly stagedLegIncomplete: boolean;
+  readonly temporaryDelayGrounded: boolean;
+  readonly prior?: readonly ResidentialMovementIntentOutcomeRecord[];
+}
+
+export function advanceResidentialMovementIntentOutcomes(
+  args: AdvanceResidentialIntentOutcomeArgs,
+): readonly ResidentialMovementIntentOutcomeRecord[] | undefined {
+  let records = [...(args.prior ?? [])];
+  const previous = args.band.currentIntent;
+  const active = args.decision.mobilityIntent;
+
+  if (previous !== undefined && isResidentialMovementIntentKind(previous.kind)) {
+    if (args.decision.intentStatus === "abandoned_intent" ||
+        (args.decision.intentStatus === "changed_intent" && !sameIntent(previous, active))) {
+      records = upsertIntentOutcome(records, makeIntentRecord(args, previous, "rejected", "abandoned", false));
+    } else if (args.decision.intentStatus === "completed_intent") {
+      records = upsertIntentOutcome(records, makeIntentRecord(args, previous, "accepted", "completed", false));
+    }
+  }
+
+  if (active === undefined || !isResidentialMovementIntentKind(active.kind)) {
+    return records.length === 0 ? undefined : records.slice(0, RESIDENTIAL_INTENT_OUTCOME_RING_CAP);
+  }
+
+  const outcome = classifyResidentialMovementHardshipOutcome({
+    hasResidentialIntent: true,
+    executionOpportunity: args.attempted || args.crossingBlocked || args.destinationBlocked || args.temporaryDelayGrounded,
+    attempted: args.attempted,
+    moved: args.moved,
+    stagedLegIncomplete: args.stagedLegIncomplete,
+    destinationInvalidated: args.destinationBlocked,
+    crossingTemporarilyBlocked: args.crossingBlocked,
+    temporaryConstraint: args.temporaryDelayGrounded,
+    intentAbandoned: false,
+    routeSubstituted: false,
+    intendedTileId: active.targetTileId,
+    selectedTileId: args.selectedTileId,
+    actualTileId: args.actualTileId,
+  });
+  const lifecycle = outcome === "accepted" || outcome === "diverted" ? "completed" : "active";
+  records = upsertIntentOutcome(records, makeIntentRecord(args, active, outcome, lifecycle, args.attempted));
+  return records.slice(0, RESIDENTIAL_INTENT_OUTCOME_RING_CAP);
+}
+
+function makeIntentRecord(
+  args: AdvanceResidentialIntentOutcomeArgs,
+  intent: MobilityIntent,
+  outcome: ResidentialMovementHardshipOutcome | undefined,
+  lifecycle: ResidentialMovementIntentOutcomeRecord["lifecycle"],
+  attempted: boolean,
+): ResidentialMovementIntentOutcomeRecord {
+  const intentId = movementIntentId(intent);
+  const existing = args.prior?.find((record) => record.intentId === intentId);
+  const reason = outcome === undefined ? "the active intention had no residential execution opportunity this interval" :
+    outcome === "accepted" ? "the intended residential movement completed" :
+    outcome === "diverted" ? "movement completed at a materially different selected destination" :
+    outcome === "rejected" ? "the prior residential intention was abandoned or its destination became invalid" :
+    args.destinationBlocked ? "the selected destination was invalid" :
+    args.crossingBlocked ? "a temporarily unsafe crossing held the active intention" :
+    "care, fatigue, labor, sickness, or provisioning kept the active intention waiting";
+  return {
+    intentId,
+    bandId: args.band.id,
+    intentKind: intent.kind,
+    createdAtTick: intent.createdAt.tick,
+    lastUpdatedTick: args.world.time.tick,
+    ...(intent.targetTileId === undefined ? {} : { intendedTileId: intent.targetTileId }),
+    selectedTileId: args.selectedTileId,
+    actualTileId: args.actualTileId,
+    attempted,
+    executionCount: (existing?.executionCount ?? 0) + (attempted ? 1 : 0),
+    delayCount: (existing?.delayCount ?? 0) + (outcome === "delayed" ? 1 : 0),
+    ...(outcome === undefined ? {} : { outcome }),
+    lifecycle,
+    terminal: lifecycle !== "active",
+    reason,
+    reasonIds: [args.decision.primaryReason.id, ...args.decision.secondaryReasons.map((entry) => entry.id)].slice(0, 6),
+  };
+}
+
+function upsertIntentOutcome(
+  records: readonly ResidentialMovementIntentOutcomeRecord[],
+  next: ResidentialMovementIntentOutcomeRecord,
+): ResidentialMovementIntentOutcomeRecord[] {
+  const existing = records.find((record) => record.intentId === next.intentId);
+  if (existing?.terminal === true) {
+    return [...records];
+  }
+  return [next, ...records.filter((record) => record.intentId !== next.intentId)]
+    .slice(0, RESIDENTIAL_INTENT_OUTCOME_RING_CAP);
+}
+
+function movementIntentId(intent: MobilityIntent): string {
+  return `movement-intent:${intent.kind}:${Number(intent.createdAt.tick)}`;
+}
+
+function sameIntent(left: MobilityIntent, right: MobilityIntent | undefined): boolean {
+  return right !== undefined && movementIntentId(left) === movementIntentId(right);
+}
+
+function isResidentialMovementIntentKind(kind: MobilityIntentKind | undefined): boolean {
+  return kind !== undefined && kind !== "local_foraging";
+}
+
+function getDecisionTargetTileId(decision: Decision, fallback: TileId): TileId {
+  const action = decision.action;
+  return action.type === "move_to_tile" ||
+    action.type === "explore_unknown_neighbor" ||
+    action.type === "logistical_probe" ||
+    action.type === "resource_scout"
+    ? action.targetTileId
+    : fallback;
+}
+
+function normalizeExecutedPath(
+  fromTileId: TileId,
+  toTileId: TileId,
+  path: readonly TileId[] | undefined,
+): readonly TileId[] | undefined {
+  if (path === undefined || path.length < 2 || path[0] !== fromTileId || path[path.length - 1] !== toTileId) {
+    return undefined;
+  }
+  return path.slice(0, RESIDENTIAL_MOVE_PATH_MAX_TILES);
 }
 
 // 2K.12: record-only learned-seasonal context about the destination tile. Reads ONLY the

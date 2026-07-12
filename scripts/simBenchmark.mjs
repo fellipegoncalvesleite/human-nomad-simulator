@@ -31775,7 +31775,7 @@ function makeProtoCampTrip(world, band, tileId, index, outcome) {
     activityOutcome: outcome,
     activityOutcomeReasonIds: [reasonId],
     activityOutcomeSummary: outcome === "partial_success" ? "partial success at remembered patch" : "season mismatch at remembered patch",
-    resourceReturn: { estimatedReturnValue: outcome === "partial_success" ? 0.64 : 0.12, returnedResourceKind: "plant_food", returnConfidence: 0.7, reasonIds: [reasonId] },
+    resourceReturn: { estimatedReturnValue: outcome === "partial_success" ? 0.64 : 0.12, returnedResourceKind: "gathered_plant_food", returnConfidence: 0.7, reasonIds: [reasonId] },
     shadowSubsistence: { estimatedFoodEquivalent: 0, estimatedWaterEquivalent: 0, estimatedReturnFactor: 0, reasonIds: [reasonId], noSupportChange: true, noCarryingCapacityChange: true, noYieldChange: true },
     activityMemoryEffect: {
       sourceBandId: band.id,

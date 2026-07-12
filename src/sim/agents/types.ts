@@ -210,6 +210,31 @@ export type ResidentialMoveStatus =
   | "delayed_placeholder"
   | "failed_no_route";
 
+export type ResidentialMovementHardshipOutcome =
+  | "accepted"
+  | "delayed"
+  | "diverted"
+  | "rejected";
+
+export interface ResidentialMovementIntentOutcomeRecord {
+  readonly intentId: string;
+  readonly bandId: BandId;
+  readonly intentKind: MobilityIntentKind;
+  readonly createdAtTick: TickNumber;
+  readonly lastUpdatedTick: TickNumber;
+  readonly intendedTileId?: TileId;
+  readonly selectedTileId?: TileId;
+  readonly actualTileId: TileId;
+  readonly attempted: boolean;
+  readonly executionCount: number;
+  readonly delayCount: number;
+  readonly outcome?: ResidentialMovementHardshipOutcome;
+  readonly lifecycle: "active" | "completed" | "abandoned";
+  readonly terminal: boolean;
+  readonly reason: string;
+  readonly reasonIds: readonly ReasonId[];
+}
+
 export interface ResidentialMoveEvent {
   readonly eventId: EventId;
   readonly bandId: BandId;
@@ -230,7 +255,7 @@ export interface ResidentialMoveEvent {
   readonly hardshipRisk?: NormalizedIntensity;
   readonly hardshipLevel?: "low" | "moderate" | "high" | "severe";
   readonly hardshipReason?: string;
-  readonly hardshipOutcome?: "accepted" | "delayed" | "diverted" | "rejected" | "risk_only";
+  readonly hardshipOutcome?: ResidentialMovementHardshipOutcome;
   readonly hardshipCautionModifier?: NormalizedIntensity;
   readonly temporaryWatercraft?: TemporaryWatercraftAssessment;
   // 2K.12: record-only learned-seasonal CONTEXT about the destination tile (e.g. "this
@@ -323,12 +348,41 @@ export type ActivityReturnResourceKind =
   | "gathered_plant_food"
   | "harvested_aquatic_food"
   | "hunted_fauna_food"
+  | "gathered_fiber_material"
+  | "gathered_fuel_material"
   | "water_information"
   | "plant_information"
   | "route_information";
 
+export type ActivityReturnCategory =
+  | "failed_or_none"
+  | "physical_food"
+  | "physical_material"
+  | "observation"
+  | "opportunity"
+  | "legacy_unresolved"
+  | "projection_only";
+
+export type ActivityReturnMaterialDomain =
+  | "none"
+  | "plant_food"
+  | "aquatic_food"
+  | "fauna_food"
+  | "fiber"
+  | "fuel"
+  | "water"
+  | "information";
+
+export interface ActivityReturnSemantics {
+  readonly category: ActivityReturnCategory;
+  readonly isPhysical: boolean;
+  readonly contributesToNutrition: boolean;
+  readonly materialDomain: ActivityReturnMaterialDomain;
+}
+
 export interface ActivityResourceReturnRecord {
   readonly returnedResourceKind: ActivityReturnResourceKind;
+  readonly semantics: ActivityReturnSemantics;
   readonly estimatedReturnValue: number;
   readonly returnConfidence: number;
   readonly consumedByEconomy: boolean;
@@ -4312,6 +4366,17 @@ export interface BandViabilityState {
   readonly absorbedByBandId?: BandId;
   readonly populationTransferred?: number;
   readonly populationRemoved?: number;
+  readonly terminalSnapshot?: {
+    readonly tick: TickNumber;
+    readonly year: number;
+    readonly season: Season;
+    readonly cause: "demographic_zero" | "low_population_collapse" | "labor_collapse";
+    readonly populationBeforeRemoval: number;
+    readonly dependentsBeforeRemoval: number;
+    readonly workingAdultsBeforeRemoval: number;
+    readonly eldersBeforeRemoval: number;
+    readonly finalPopulationChangeReasonIds: readonly ReasonId[];
+  };
   readonly reasonIds: readonly ReasonId[];
 }
 
@@ -5746,6 +5811,10 @@ export interface Band {
   // events (newest first). Explanatory only: no behaviour reads it; daughters reset
   // it on fission rather than inheriting the parent's events.
   readonly recentResidentialMoveEvents?: readonly ResidentialMoveEvent[];
+  // POST-ECOLOGY CLOSURE-1 — one bounded record per real residential movement
+  // intention. Unlike recentResidentialMoveEvents this also records grounded waits
+  // and abandonment, so an ordinary stay with no intent produces no false rejection.
+  readonly residentialMovementIntentOutcomes?: readonly ResidentialMovementIntentOutcomeRecord[];
   // Bounded probe-recency memory (2K.1G): which logistical-probe targets the band has
   // recently scouted and whether they were informative — drives probe target diversity
   // + diminishing returns. Probe-quality only; never relocation/yield/stress.

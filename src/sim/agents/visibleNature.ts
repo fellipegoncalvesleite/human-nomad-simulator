@@ -1051,21 +1051,23 @@ function deriveAcuteEpisodes(
 ): readonly AcuteRiskEpisode[] {
   const support = band.seasonalSupport?.currentSeasonSupport;
   const latestMove = band.recentResidentialMoveEvents?.[0];
+  const latestIntentOutcome = band.residentialMovementIntentOutcomes?.[0];
+  const rejectedMovementIntent = latestIntentOutcome?.outcome === "rejected";
   const latestTrip = band.recentIntraSeasonTrips?.[0];
   const episodes: AcuteRiskEpisode[] = [];
 
-  if ((support?.waterStress ?? 0) >= 0.52 || latestMove?.hardshipOutcome === "rejected") {
+  if ((support?.waterStress ?? 0) >= 0.52 || latestMove?.hardshipOutcome === "rejected" || rejectedMovementIntent) {
     episodes.push({
       id: `acute:${band.id}:${world.time.tick}:dehydration`,
       kind: "acute_dehydration",
-      trigger: latestMove?.hardshipOutcome === "rejected" ? "rejected hard route" : "high seasonal water stress",
-      cause: latestMove?.hardshipReason ?? "water stress and known-route uncertainty",
+      trigger: latestMove?.hardshipOutcome === "rejected" || rejectedMovementIntent ? "rejected hard route" : "high seasonal water stress",
+      cause: latestMove?.hardshipReason ?? latestIntentOutcome?.reason ?? "water stress and known-route uncertainty",
       severity: round2(Math.max(support?.waterStress ?? 0, latestMove?.hardshipRisk ?? 0)),
       durationClass: "day",
       exposedCohorts: ["dependents", "elders", "adults"],
-      mitigation: latestMove?.hardshipOutcome === "rejected" ? "route rejected before unexplained deaths" : "staying near known water reduced the episode to caution",
+      mitigation: latestMove?.hardshipOutcome === "rejected" || rejectedMovementIntent ? "route rejected before unexplained deaths" : "staying near known water reduced the episode to caution",
       outcome: (band.demography.demographicChurn?.waterStressDeathsThisYear ?? 0) > 0 ? "mortality_recorded_elsewhere" : "route_rejected",
-      rawGrounding: "Band.seasonalSupport.currentSeasonSupport.waterStress + recentResidentialMoveEvents.hardshipOutcome",
+      rawGrounding: "Band.seasonalSupport.currentSeasonSupport.waterStress + residential movement intent/execution outcome",
       reasonIds: [
         `reason:acute:${band.id}:${world.time.tick}:dehydration:${band.position}` as ReasonId,
         ...(band.seasonalSupport?.reasonIds ?? []).slice(-3),

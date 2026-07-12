@@ -15,6 +15,7 @@ export function deriveInnerFissionState(world: WorldState, band: Band): InnerFis
   const viability = band.viability;
   const pressure = band.pressureState;
   const recentMove = band.recentResidentialMoveEvents?.[0];
+  const recentIntentOutcome = band.residentialMovementIntentOutcomes?.[0]?.outcome;
   const supportSeeking =
     viability?.weakBandFate === "support_seeking" ||
     viability?.weakBandClassification === "seeking_support" ||
@@ -45,8 +46,8 @@ export function deriveInnerFissionState(world: WorldState, band: Band): InnerFis
   );
   const migrationTension = clamp01(
     (recentMove?.hardshipRisk ?? 0) * 0.72 +
-      (recentMove?.hardshipOutcome === "rejected" ? 0.22 : 0) +
-      (recentMove?.hardshipOutcome === "delayed" ? 0.16 : 0),
+      (recentIntentOutcome === "rejected" || recentMove?.hardshipOutcome === "rejected" ? 0.22 : 0) +
+      (recentIntentOutcome === "delayed" || recentMove?.hardshipOutcome === "delayed" ? 0.16 : 0),
   );
   const supportSeekingTension = clamp01(
     supportSeeking ? 0.34 + (viability?.extinctionRisk ?? 0) * 0.36 : 0,

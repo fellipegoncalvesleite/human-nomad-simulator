@@ -50,7 +50,12 @@ import {
 import { derivePlantGatherPatchTrace, derivePlantGatherReturnFactor, resolvePlantFoodHarvest, type PlantGatherPatchTraceBase } from "./plantStock";
 import { deriveResourceClassAvailability } from "./resourceClasses";
 import { deriveHuntingSafetyRelief } from "./practicalResponses";
-import { isPhysicalFoodReturnKind } from "./physicalFoodReturn";
+import {
+  classifyActivityReturnKind,
+  getActivityReturnSemantics,
+  isPhysicalFoodReturnKind,
+  isPhysicalMaterialReturnKind,
+} from "./physicalFoodReturn";
 import { effectiveResourceConfidence, updateResourceKnowledgeFromObservation } from "./resourceKnowledge";
 import {
   deriveSeasonalEcologyFactor,
@@ -300,6 +305,7 @@ function resolvePhysicalFoodHarvest(
   const resourceReturn: ActivityResourceReturnRecord = {
     ...record.resourceReturn,
     returnedResourceKind,
+    semantics: getActivityReturnSemantics(returnedResourceKind),
     estimatedReturnValue: usableSupport,
     consumedByEconomy: usableSupport > 0,
     noCarryingCapacityCoupling: false,
@@ -370,6 +376,10 @@ function isPlantGatherTrip(
   resourceClassId: ResourceClassId | undefined,
 ): boolean {
   if (taskGroupType === "hunting_group" || taskGroupType === "fishing_group" || taskGroupType === "water_group" || taskGroupType === "memory_refresh_group") {
+    return false;
+  }
+
+  if (resourceClassId === "fiber_material" || resourceClassId === "fuel_material") {
     return false;
   }
 
@@ -1209,12 +1219,13 @@ function deriveResourceReturnRecord(
       ? baseReturnValue * plantReturnFactor
       : baseReturnValue;
   const outcomeRealization = outcome === "target_found" ? 0.55 : 1;
-  const estimatedReturnValue = isPhysicalFoodReturnKind(returnedResourceKind)
+  const estimatedReturnValue = isPhysicalFoodReturnKind(returnedResourceKind) || isPhysicalMaterialReturnKind(returnedResourceKind)
     ? round4(Math.min(0.5, scaledReturnValue * outcomeRealization))
     : 0;
 
   return {
     returnedResourceKind,
+    semantics: getActivityReturnSemantics(returnedResourceKind),
     estimatedReturnValue,
     returnConfidence,
     consumedByEconomy: false,
@@ -1232,51 +1243,24 @@ function deriveReturnedResourceKind(
   taskGroupType: IntraSeasonTripTaskGroupType,
   outcome: IntraSeasonTripActivityResult,
 ): ActivityReturnResourceKind {
-  if (isFailureOutcome(outcome) || outcome === "no_effect_observed") {
-    return "none";
-  }
-
-  if (taskGroupType === "water_group") {
-    return "water_information";
-  }
-
-  if (taskGroupType === "plant_followup_group") {
-    return outcome === "partial_success" ? "gathered_plant_food" : "plant_information";
-  }
-
-  if (taskGroupType === "memory_refresh_group") {
-    return "route_information";
-  }
-
-  if (outcome === "partial_success" || outcome === "target_found") {
-    if (taskGroupType === "hunting_group") {
-      return "hunted_fauna_food";
-    }
-
-    if (taskGroupType === "fishing_group") {
-      return "harvested_aquatic_food";
-    }
-
-    if (candidate.memory.resourceClassId === "aquatic_food") {
-      return "harvested_aquatic_food";
-    }
-
-    return "gathered_plant_food";
-  }
-
-  if (isFoodClass(candidate.memory.resourceClassId)) {
-    return "food_observation_only";
-  }
-
-  return "none";
+  return classifyActivityReturnKind({
+    resourceClassId: candidate.memory.resourceClassId,
+    taskGroupType,
+    outcome,
+  });
 }
 
 function summarizeActivityOutcome(
   outcome: IntraSeasonTripActivityResult,
   returnedResourceKind: ActivityReturnResourceKind,
 ): string {
-  const physicalReturn = isPhysicalFoodReturnKind(returnedResourceKind);
-  return `deterministic_${outcome}; return=${returnedResourceKind}; ${physicalReturn ? "physical_receipt_feeds_support" : "information_or_zero_return"}`;
+  const semantics = getActivityReturnSemantics(returnedResourceKind);
+  const result = semantics.contributesToNutrition
+    ? "physical_receipt_feeds_support"
+    : semantics.category === "physical_material"
+      ? "physical_material_no_nutrition"
+      : "information_or_zero_return";
+  return `deterministic_${outcome}; return=${returnedResourceKind}; ${result}`;
 }
 
 // ===========================================================================
@@ -1338,6 +1322,8 @@ function deriveShadowReturnKind(
     case "water_information":
       return "water_support_shadow";
     case "food_observation_only":
+    case "gathered_fiber_material":
+    case "gathered_fuel_material":
     case "plant_information":
     case "route_information":
       return "information_only";

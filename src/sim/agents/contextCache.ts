@@ -20,6 +20,7 @@ import type { CrowdingField } from "./crowding";
 import type { SharedCatchmentIndex } from "./sharedCatchment";
 import type { ResidentialAnchorContext } from "./residentialAnchor";
 import type { SeasonalRoundScoringContext } from "./seasonalRound";
+import { isLivingBand } from "./bandLifecycle";
 
 const SPATIAL_BUCKET_SIZE = 5;
 const DEFAULT_NEARBY_RADIUS = 4;
@@ -98,7 +99,7 @@ export function buildTickContextCache(world: WorldState): TickContextCache {
     .filter(isActiveBand)
     .map((band) => band.id)
     .sort(compareBandIds);
-  const nonDispersedBandCount = allBands.filter((band) => band.status !== "dispersed").length;
+  const nonDispersedBandCount = allBands.filter(isLivingBand).length;
   const bandSpatialIndex = buildBandSpatialIndex(world, activeBandIds);
   const salientMemoryByBandId = new Map<BandId, SalientBandMemorySummary>();
   const nearbyBandsByBandId = new Map<BandId, readonly BandId[]>();
@@ -535,11 +536,7 @@ function getTileOpportunityValue(tile: NonNullable<ReturnType<typeof getTile>>):
 }
 
 function isActiveBand(band: Band): boolean {
-  return (
-    band.status !== "dispersed" &&
-    band.viability?.status !== "absorbed" &&
-    band.viability?.status !== "extinct"
-  );
+  return isLivingBand(band);
 }
 
 function getBucketCoord(

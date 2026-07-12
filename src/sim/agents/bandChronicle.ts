@@ -839,11 +839,12 @@ function buildCurrentEra(context: ChronicleContext, arcs: readonly BandChronicle
   const strongest = arcs[0];
 
   if (band.viability?.status === "extinct") {
-    return `Ended by year ${world.time.year}`;
+    const terminalYear = band.viability.terminalSnapshot?.year ?? band.deepHistory?.terminalRecord?.year ?? world.time.year;
+    return `Ended by year ${terminalYear}`;
   }
 
   if (band.viability?.status === "absorbed") {
-    return `Absorbed by year ${world.time.year}`;
+    return `Absorbed by year ${band.deepHistory?.terminalRecord?.year ?? world.time.year}`;
   }
 
   if (strongest !== undefined && strongest.kind === "recovery") {

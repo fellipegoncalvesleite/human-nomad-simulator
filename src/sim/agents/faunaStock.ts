@@ -39,6 +39,7 @@ import { classifyForestCoverForTile, estimateForestSuitability } from "./forestP
 import type { ResourceClassContribution } from "./resourceClasses";
 import type { ReasonId, RegionId, Season, TickNumber, TileId } from "../core/types";
 import type { Tile, WorldState } from "../world/types";
+import { isLivingBand } from "./bandLifecycle";
 
 export type FaunaStockId = string & { readonly __faunaStockId: "FaunaStockId" };
 
@@ -1347,6 +1348,7 @@ interface ManagementPressure {
 function collectManagementPressure(world: WorldState): ReadonlyMap<string, ManagementPressure> {
   const accumulated = new Map<string, ManagementPressure>();
   for (const band of Object.values(world.bands)) {
+    if (!isLivingBand(band)) continue;
     for (const record of band.animalManagement?.records ?? []) {
       const prior = accumulated.get(record.stockId) ?? { feeding: 0, holding: 0, protection: 0, failure: 0 };
       accumulated.set(record.stockId, {

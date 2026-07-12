@@ -21,6 +21,7 @@ import type {
   ReturnTrendMemory,
   TemporarySeparationPressure,
 } from "./types";
+import { preserveTerminalBandSnapshots } from "./bandLifecycle";
 import { getNearbyBandPressure } from "./crowding";
 import { deriveCarryingCapacity } from "./carryingCapacity";
 import { deriveCanonicalNutritionState, updateSeasonalSupportState } from "./seasonalSurvival";
@@ -124,7 +125,7 @@ export function updateBandContextStates(
   world: WorldState,
   cache = buildTickContextCache(world),
 ): WorldState {
-  return applyBandReadabilityContext(applyRelationshipMemorySocialEcologyContext(applyBodyCampSurvivalLogisticsContext(applyForagingLearningAdaptationContext(applyProtoAccessContext(applyVisibleNatureContext(applyResourceEcologyContext(applyProtoCampContext(applyInnerFissionSocialReadabilityContext(
+  const updated = applyBandReadabilityContext(applyRelationshipMemorySocialEcologyContext(applyBodyCampSurvivalLogisticsContext(applyForagingLearningAdaptationContext(applyProtoAccessContext(applyVisibleNatureContext(applyResourceEcologyContext(applyProtoCampContext(applyInnerFissionSocialReadabilityContext(
     advanceRangeFriction(
       advanceReportedKnowledge(
         applyEncounterContext(
@@ -143,6 +144,7 @@ export function updateBandContextStates(
     ),
     cache,
   )))))))));
+  return preserveTerminalBandSnapshots(world, updated);
 }
 
 export function applyRangeSaturationContext(

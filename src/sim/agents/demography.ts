@@ -545,6 +545,7 @@ const DAUGHTER_NON_CLONEABLE_FIELDS = [
   "technologies", // legacy display tags are not inherited as complex competence
   "relationshipMemory", // reset/recompute: practice, reputation, route, and place-character memory is current-band lived relationship state
   "recentResidentialMoveEvents", // reset: a daughter does not inherit the parent's relocation events (RESIDENTIAL-MOVE-1)
+  "residentialMovementIntentOutcomes", // reset: a daughter has not lived the parent's movement-intent outcomes
   "activityLaborSummary", // reset: labor allocation is a current-day parent snapshot, not inherited history
   "activityOutcomeSummary", // reset: deterministic trip outcome scaffold is parent's current/recent activity history
   "activityMemoryUpdateSummary", // reset: activity-derived memory effects are parent's current/recent patch history
@@ -743,6 +744,7 @@ function createDaughterBand(
     storageCapacity: 0.16,
     relationshipMemory: undefined,
     recentResidentialMoveEvents: undefined,
+    residentialMovementIntentOutcomes: undefined,
     activityLaborSummary: undefined,
     activityOutcomeSummary: undefined,
     activityShadowSubsistenceSummary: undefined,

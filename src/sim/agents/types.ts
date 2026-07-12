@@ -2011,6 +2011,8 @@ export interface HumanFoodSupportLedger {
   readonly processingLoss: number;
   readonly spoilageLoss: number;
   readonly accessLoss: number;
+  readonly rawUsableHarvest: number;
+  readonly harvestToSupportScale: number;
   readonly totalUsableSupport: number;
   readonly populationDemand: number;
   readonly rawSupportRatio: number;

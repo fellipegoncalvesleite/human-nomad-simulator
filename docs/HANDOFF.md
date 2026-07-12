@@ -7766,3 +7766,41 @@ exception; daughter colours related-but-distinct and never visually confusing.
   exact, generic catchment/learned/AG11 food is excluded, Technical exposes source
   proof, and deterministic absence/no-double-count audits pass. Default-world food
   calibration is deliberately deferred; the current honest 500y run goes extinct.
+- **ECO-TROPHIC-1** — Living Ecology / Trophic Coupling verification + ledger unit
+  reconciliation — *PROGRESS 2026-07-11 (gate NOT passed → continue as
+  LIVING ECOLOGY / TROPHIC COUPLING-1B).*
+  Verified LIVING-ECOLOGY-A on commit `855434c` (clean tree; Phase-A audit 20/20 PASS;
+  plant/fauna/aquatic depletion, absence→zero, anti-omniscient views, determinism all
+  confirmed in code). Corrected the handoff's own scope note: the Phase-A commit is far
+  more complete than "foundation only" — aquatic (fish/shellfish/waterfowl/seasonal-run
+  stocks via faunaStock `resolveFaunaFoodHarvest`), toxicity→sickness (plant safetyRisk →
+  acuteRisk `plant_poisoning`/`spoiled_food` → demography), animal-danger→injury
+  (`animal_encounter_injury` bounded by practiced hunting relief), transport+processing
+  losses (real, distance/laborCost-driven), and differentiated fauna routines
+  (migration/wariness/reproductiveCondition/campProximity) are ALL already wired. The two
+  genuinely-unbuilt trophic gaps are **predator–prey** (scope-locked at faunaStock.ts:31,
+  no predator kind exists) and **dynamic herbivore–forage** feedback (forage only sets a
+  static carrying ceiling; `advanceFaunaStocks` recovery ignores plant-patch depletion).
+  **Extinction diagnosis (corrected):** the default worlds go fully extinct (map1/baseline
+  155→0 by ~y200; map2 similar) but the ecology substrate is HEALTHY (260 fauna stocks,
+  157 plant patches, mean depletion 0.13) — this is a coupling/behavior problem, not
+  scarcity. Root finding: the ledger's `totalUsableSupport` (harvest-fraction units,
+  per-trip ≤0.5) was never reconciled with `adultEquivalentDemand` (~25 persons), so
+  rawSupportRatio was pinned at ~0.006 and perCapitaReturn read garbage. Fixed via an
+  explicit, documented `HARVEST_TO_SUPPORT_SCALE=100` in humanFoodSupport.ts (multiplies
+  REAL receipts only; absence still →0; surfaced as `harvestToSupportScale`/
+  `rawUsableHarvest` on the ledger; Phase-A audit still 20/20 PASS; determinism/build/
+  typecheck/graph 207-726-0-0 all green). **BUT** this is a ledger-signal fix, NOT a
+  survival fix: the baseline benchmark is byte-identical at scale ∈ {1,100,1000}, proving
+  survival is currently near-insensitive to the ledger. The binding decline drivers are
+  the ledger-independent `foodEstimate`/foraging/hunger terms in pressure.ts and the
+  ~99.7%-move perpetual-flight pattern (2 stays / 1755 moves / 0 fissions per baseline
+  run). **1B must:** (1) close the §3 chain so demography meaningfully tracks the ledger;
+  (2) calm the movement/trip-success death-spiral (only ~10-30% of food trips return any
+  usable support); (3) build predator–prey + dynamic herbivore–forage coupling;
+  (4) run the full no-human / normal / heavy-pressure / absence calibration across all 3
+  default worlds. Deferred-but-mapped: the `*_placeholder` return-kind rename (8 files;
+  hazard = three load-bearing `.endsWith("_placeholder")` guards at intraSeasonTrips.ts:232
+  & :1206 and foragingAdaptation.ts:470 — convert to an explicit membership set) and dead
+  exports (`applyPlantGatherDepletion`, `summarizeFaunaStocks`,
+  `applyActivityOutcomeToMemoryForAudit`). `hardshipOutcome` bug left isolated/unfixed.

@@ -50,6 +50,7 @@ import {
 import { derivePlantGatherPatchTrace, derivePlantGatherReturnFactor, resolvePlantFoodHarvest, type PlantGatherPatchTraceBase } from "./plantStock";
 import { deriveResourceClassAvailability } from "./resourceClasses";
 import { deriveHuntingSafetyRelief } from "./practicalResponses";
+import { isPhysicalFoodReturnKind } from "./physicalFoodReturn";
 import { effectiveResourceConfidence, updateResourceKnowledgeFromObservation } from "./resourceKnowledge";
 import {
   deriveSeasonalEcologyFactor,
@@ -229,7 +230,7 @@ function resolvePhysicalFoodHarvest(
   const targetTile = world.tiles[record.targetTileId];
   const routeReached = standTileId === record.targetTileId ||
     (targetTile?.isAquatic === true && world.tiles[standTileId]?.neighbors.includes(record.targetTileId) === true);
-  const activityEligible = routeReached && record.resourceReturn.returnedResourceKind.endsWith("_placeholder") &&
+  const activityEligible = routeReached && isPhysicalFoodReturnKind(record.resourceReturn.returnedResourceKind) &&
     record.resourceReturn.estimatedReturnValue > 0;
   const requestedAmount = record.resourceReturn.estimatedReturnValue;
   const transportLossRate = Math.min(0.25, record.roundTripTiles * 0.012);
@@ -854,6 +855,10 @@ function animalArchetypeHint(kind: FaunaStockKind, habitat: FaunaHabitatType): s
       return "upland deer / sheep / goat-like herd prey";
     case "forest_edge_game":
       return habitat === "wet_woodland" || habitat === "dense_cover" ? "boar-like or forest-edge game" : "forest-edge game";
+    case "small_predator":
+      return "small predator";
+    case "large_predator":
+      return "large predator";
     case "lake_fish":
     case "river_reach_fish":
     case "delta_wetland_fish":
@@ -1196,15 +1201,16 @@ function deriveResourceReturnRecord(
   // depletion). Shadow value only — it drives memory yield-trend / talk / movement,
   // never support directly. Water/info kinds are unaffected.
   const baseReturnValue = estimatedPeopleCount * 0.035 + yieldConfidence * 0.22 + presenceConfidence * 0.08;
-  const isFaunaReturn = returnedResourceKind === "hunted_food_placeholder" || returnedResourceKind === "fish_placeholder";
-  const isPlantReturn = returnedResourceKind === "gathered_food_placeholder";
+  const isFaunaReturn = returnedResourceKind === "hunted_fauna_food" || returnedResourceKind === "harvested_aquatic_food";
+  const isPlantReturn = returnedResourceKind === "gathered_plant_food";
   const scaledReturnValue = isFaunaReturn
     ? baseReturnValue * faunaReturnFactor
     : isPlantReturn
       ? baseReturnValue * plantReturnFactor
       : baseReturnValue;
-  const estimatedReturnValue = returnedResourceKind.endsWith("_placeholder")
-    ? round4(Math.min(0.5, scaledReturnValue))
+  const outcomeRealization = outcome === "target_found" ? 0.55 : 1;
+  const estimatedReturnValue = isPhysicalFoodReturnKind(returnedResourceKind)
+    ? round4(Math.min(0.5, scaledReturnValue * outcomeRealization))
     : 0;
 
   return {
@@ -1235,27 +1241,27 @@ function deriveReturnedResourceKind(
   }
 
   if (taskGroupType === "plant_followup_group") {
-    return outcome === "partial_success" ? "gathered_food_placeholder" : "plant_information";
+    return outcome === "partial_success" ? "gathered_plant_food" : "plant_information";
   }
 
   if (taskGroupType === "memory_refresh_group") {
     return "route_information";
   }
 
-  if (outcome === "partial_success") {
+  if (outcome === "partial_success" || outcome === "target_found") {
     if (taskGroupType === "hunting_group") {
-      return "hunted_food_placeholder";
+      return "hunted_fauna_food";
     }
 
     if (taskGroupType === "fishing_group") {
-      return "fish_placeholder";
+      return "harvested_aquatic_food";
     }
 
     if (candidate.memory.resourceClassId === "aquatic_food") {
-      return "fish_placeholder";
+      return "harvested_aquatic_food";
     }
 
-    return "gathered_food_placeholder";
+    return "gathered_plant_food";
   }
 
   if (isFoodClass(candidate.memory.resourceClassId)) {
@@ -1269,9 +1275,7 @@ function summarizeActivityOutcome(
   outcome: IntraSeasonTripActivityResult,
   returnedResourceKind: ActivityReturnResourceKind,
 ): string {
-  const physicalReturn = returnedResourceKind === "gathered_food_placeholder" ||
-    returnedResourceKind === "hunted_food_placeholder" ||
-    returnedResourceKind === "fish_placeholder";
+  const physicalReturn = isPhysicalFoodReturnKind(returnedResourceKind);
   return `deterministic_${outcome}; return=${returnedResourceKind}; ${physicalReturn ? "physical_receipt_feeds_support" : "information_or_zero_return"}`;
 }
 
@@ -1325,11 +1329,11 @@ function deriveShadowReturnKind(
   taskGroupType: IntraSeasonTripTaskGroupType,
 ): ActivityShadowReturnKind {
   switch (returnedResourceKind) {
-    case "hunted_food_placeholder":
+    case "hunted_fauna_food":
       return "hunted_food_shadow";
-    case "fish_placeholder":
+    case "harvested_aquatic_food":
       return "fish_shadow";
-    case "gathered_food_placeholder":
+    case "gathered_plant_food":
       return taskGroupType === "plant_followup_group" ? "plant_food_shadow_uncertain" : "gathered_food_shadow";
     case "water_information":
       return "water_support_shadow";
@@ -1935,7 +1939,7 @@ function updateActivityUseHistory(
   confidence: ResourceConfidenceProfile,
 ): ResourceUseHistory {
   const visited = effectType !== "none";
-  const successfulUse = record.activityOutcome === "partial_success";
+  const successfulUse = (record.physicalFoodHarvest?.usableSupport ?? 0) > 0;
   const failedUse = isFailureOutcome(record.activityOutcome);
   const previousYield = memory.useHistory.lastYieldEstimate;
   const nextYield = successfulUse || failedUse ? confidence.yieldConfidence : previousYield;

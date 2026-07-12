@@ -28,11 +28,12 @@
 // band's own patch memory / scout signs / reports. No band can TARGET a hidden
 // stock it has not discovered.
 //
-// HARD SCOPE LOCK: no individual-animal agents, no predator-prey food web, no
-// domestication/livestock/agriculture/storage. No unseeded randomness, no any,
-// no UI imports. Deterministic same seed ⇒ same stocks ⇒ same dynamics.
+// HARD SCOPE LOCK: no individual-animal agents and no domestication/livestock/
+// agriculture/storage. LIVING-ECOLOGY-1B adds only bounded aggregate forage and
+// predator-prey coupling. No unseeded randomness, no any, no UI imports.
 
 import { getSharedCatchmentIndex } from "./sharedCatchment";
+import { consumePlantForage, forageClassesForTrophicRole, type PlantForageClaim } from "./plantStock";
 import type { TickContextCache } from "./contextCache";
 import { classifyForestCoverForTile, estimateForestSuitability } from "./forestPatches";
 import type { ResourceClassContribution } from "./resourceClasses";
@@ -57,7 +58,11 @@ export type FaunaStockKind =
   | "small_game"
   | "waterfowl"
   | "upland_game"
-  | "forest_edge_game";
+  | "forest_edge_game"
+  | "small_predator"
+  | "large_predator";
+
+export type FaunaTrophicRole = "aquatic_prey" | "herbivore" | "omnivore" | "predator";
 
 export type FaunaHabitatType =
   | "lake"
@@ -102,6 +107,7 @@ export interface FaunaSeasonality {
 export interface FaunaStockGeo {
   readonly id: FaunaStockId;
   readonly faunaClass: FaunaClass;
+  readonly trophicRole: FaunaTrophicRole;
   readonly kind: FaunaStockKind;
   readonly habitat: FaunaHabitatType;
   readonly anchorTileId: TileId;
@@ -136,7 +142,7 @@ export interface FaunaStockGeo {
 // Dynamic, persisted, sparse. `abundance` is a FRACTION of carryingCapacity
 // (1 = full). Absent entry ⇒ treated as baseline { abundance: 1, disturbance: 0 }.
 export interface FaunaStockDynamic {
-  readonly abundance: number; // [ABUNDANCE_FLOOR, 1]
+  readonly abundance: number; // [0, 1]
   readonly disturbance: number; // [0, 1]
   readonly lastPressureTick: TickNumber;
   readonly cumulativePressure: number; // debug only
@@ -151,6 +157,15 @@ export interface FaunaStockDynamic {
   readonly youngProtection?: number;
   readonly reproductiveCondition?: number;
   readonly managementStress?: number;
+  readonly forageSupportRatio?: number;
+  readonly feedingPressure?: number;
+  readonly forageStress?: number;
+  readonly predationPressure?: number;
+  readonly preyRemoved?: number;
+  readonly predatorCondition?: number;
+  readonly preySupportRatio?: number;
+  readonly trophicTargetId?: string;
+  readonly relocationPressure?: number;
 }
 
 export interface FaunaStockGeography {
@@ -219,7 +234,7 @@ const REGION_STOCK_TILES_PER = 14;
 const SUITABILITY_THRESHOLD = 0.34;
 
 // Dynamics.
-const ABUNDANCE_FLOOR = 0.18; // a stock never fully disappears
+const HUMAN_HARVEST_RESERVE = 0.08;
 const DEPLETION_STRENGTH = 0.5; // how hard pressure pulls abundance down per season
 const GENERAL_PRESSURE_WEIGHT = 0.7; // camp/catchment occupation
 const DISTURB_GAIN = 0.5;
@@ -228,7 +243,6 @@ const DISTURB_SUPPRESS = 0.35; // disturbance suppresses realized abundance fact
 // Entries within this of baseline are dropped from the sparse record. MUST stay
 // small: a too-large epsilon would drop sub-epsilon depletion every season and
 // prevent multi-season accumulation toward a depleted equilibrium.
-const DYNAMIC_DROP_EPSILON = 0.004;
 // Mean per-tile catchment claim over a stock zone that ≈ full general (camp/
 // occupation) pressure. A delta core foraged by a large shared band for decades
 // drives sustained fauna decline; an abandoned zone rebounds. The SUPPORT impact
@@ -237,6 +251,12 @@ const DYNAMIC_DROP_EPSILON = 0.004;
 const CLAIM_PRESSURE_NORM = 2.2;
 const TRIP_DEPLETION_PULL = 0.22; // per-trip abundance pull (× sensitivity × intensity)
 const FAUNA_HARVEST_SUPPORT_SCALE = 3.2;
+const FORAGE_DEMAND_SCALE = 0.085;
+const FORAGE_SHORTAGE_LOSS = 0.22;
+const PREDATOR_DEMAND_SCALE = 0.055;
+const PREDATOR_SHORTAGE_LOSS = 0.2;
+const PREDATION_CANDIDATE_CAP = 6;
+const PREDATOR_STOCK_CAP = 24;
 
 // Support coupling.
 const FACTOR_FLOOR = 0.45; // worst-case realized fauna factor for a covered tile
@@ -358,6 +378,29 @@ function computeFaunaStockGeography(world: WorldState): FaunaStockGeography {
       regionCounts.set(tile.regionId, (regionCounts.get(tile.regionId) ?? 0) + 1);
       stocks.push(buildStockGeo(world, tile, candidate, seed));
     }
+  }
+
+  // Sparse predator representation: one stock for selected prey-rich regions,
+  // anchored on an actual terrestrial prey stock. This is physical geography,
+  // not a decorative sign profile, and remains bounded independently of map size.
+  const preyAnchors = stocks
+    .filter((stock) => stock.faunaClass === "animal_food" && stock.trophicRole !== "predator")
+    .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  const predatorRegions = new Set<RegionId>();
+  for (const prey of preyAnchors) {
+    if (predatorRegions.size >= PREDATOR_STOCK_CAP || predatorRegions.has(prey.regionId)) continue;
+    const tile = world.tiles[prey.anchorTileId];
+    if (tile === undefined) continue;
+    const selector = hashUnit(seed, [String(prey.id), "predator-anchor"]);
+    if (selector > 0.42 && prey.carryingCapacity < 0.55) continue;
+    const candidate: StockCandidate = {
+      kind: prey.kind === "large_game" || prey.kind === "medium_game" ? "large_predator" : "small_predator",
+      habitat: prey.habitat,
+      faunaClass: "animal_food",
+      suitability: clamp(0.34 + prey.habitatSuitability * 0.45, 0, 0.82),
+    };
+    stocks.push(buildStockGeo(world, tile, candidate, seed));
+    predatorRegions.add(prey.regionId);
   }
 
   const byId = new Map<FaunaStockId, FaunaStockGeo>();
@@ -513,6 +556,7 @@ function buildStockGeo(world: WorldState, tile: Tile, candidate: StockCandidate,
   return {
     id: `fauna:${candidate.kind}:${tile.id}` as FaunaStockId,
     faunaClass: candidate.faunaClass,
+    trophicRole: trophicRoleForKind(candidate.kind),
     kind: candidate.kind,
     habitat: candidate.habitat,
     anchorTileId: tile.id,
@@ -536,6 +580,15 @@ function buildStockGeo(world: WorldState, tile: Tile, candidate: StockCandidate,
     managementSuitability: traits.managementSuitability,
     reproductiveRate: traits.reproductiveRate,
   };
+}
+
+function trophicRoleForKind(kind: FaunaStockKind): FaunaTrophicRole {
+  if (["lake_fish", "river_reach_fish", "delta_wetland_fish", "seasonal_fish_run", "shellfish_reedbed"].includes(kind)) {
+    return "aquatic_prey";
+  }
+  if (kind === "small_predator" || kind === "large_predator") return "predator";
+  if (kind === "small_game" || kind === "forest_edge_game") return "omnivore";
+  return "herbivore";
 }
 
 function describeHabitatBasis(tile: Tile, candidate: StockCandidate): readonly string[] {
@@ -670,6 +723,7 @@ const aquaticRoutine = { routineProfile: "schooling_aquatic" as const, waterDepe
 const herdRoutine = { routineProfile: "migratory_herd" as const, waterDependence: 0.75, herdTendency: 0.9, flightResponse: 0.82, aggressionDefense: 0.5, habituationPotential: 0.18, managementSuitability: 0.14, reproductiveRate: 0.22 };
 const coverRoutine = { routineProfile: "cover_forager" as const, waterDependence: 0.48, herdTendency: 0.42, flightResponse: 0.58, aggressionDefense: 0.34, habituationPotential: 0.42, managementSuitability: 0.4, reproductiveRate: 0.42 };
 const scavengerRoutine = { routineProfile: "camp_scavenger" as const, waterDependence: 0.4, herdTendency: 0.25, flightResponse: 0.38, aggressionDefense: 0.14, habituationPotential: 0.78, managementSuitability: 0.62, reproductiveRate: 0.72 };
+const predatorRoutine = { routineProfile: "cover_forager" as const, waterDependence: 0.52, herdTendency: 0.12, flightResponse: 0.46, aggressionDefense: 0.82, habituationPotential: 0.08, managementSuitability: 0.01, reproductiveRate: 0.12 };
 
 const KIND_TRAITS: Readonly<Record<FaunaStockKind, KindTraits>> = {
   lake_fish: { ccBase: 0.8, recovery: 0.22, mobility: 0.18, pressureSensitivity: 0.5, detectability: 0.4, risk: 0.08, amplitude: 0.3, defaultPeak: ["summer"], defaultLean: ["winter"], ...aquaticRoutine },
@@ -683,6 +737,8 @@ const KIND_TRAITS: Readonly<Record<FaunaStockKind, KindTraits>> = {
   waterfowl: { ccBase: 0.58, recovery: 0.34, mobility: 0.82, pressureSensitivity: 0.66, detectability: 0.6, risk: 0.16, amplitude: 0.7, defaultPeak: ["spring", "autumn"], defaultLean: ["summer"], ...herdRoutine, aggressionDefense: 0.2, reproductiveRate: 0.5 },
   upland_game: { ccBase: 0.46, recovery: 0.16, mobility: 0.58, pressureSensitivity: 0.56, detectability: 0.5, risk: 0.3, amplitude: 0.4, defaultPeak: ["summer"], defaultLean: ["winter"], ...coverRoutine, managementSuitability: 0.18 },
   forest_edge_game: { ccBase: 0.56, recovery: 0.2, mobility: 0.55, pressureSensitivity: 0.58, detectability: 0.52, risk: 0.24, amplitude: 0.35, defaultPeak: ["autumn"], defaultLean: ["winter"], ...coverRoutine, habituationPotential: 0.55, managementSuitability: 0.52 },
+  small_predator: { ccBase: 0.28, recovery: 0.1, mobility: 0.68, pressureSensitivity: 0.5, detectability: 0.36, risk: 0.48, amplitude: 0.25, defaultPeak: ["winter"], defaultLean: ["summer"], ...predatorRoutine, reproductiveRate: 0.18 },
+  large_predator: { ccBase: 0.22, recovery: 0.07, mobility: 0.78, pressureSensitivity: 0.58, detectability: 0.44, risk: 0.72, amplitude: 0.22, defaultPeak: ["winter"], defaultLean: ["summer"], ...predatorRoutine },
 };
 
 // --- dynamic state read helpers ---
@@ -746,6 +802,7 @@ export function deriveFaunaTileSupportEffect(
 
   if (stocks !== undefined) {
     for (const stock of stocks) {
+      if (stock.trophicRole === "predator") continue;
       const factor = realizedSupportFactor(stock, getFaunaStockDynamic(world, stock.id), season);
 
       if (stock.faunaClass === "animal_food") {
@@ -825,7 +882,7 @@ export function deriveFaunaTripReturnFactor(
   const factor = (0.4 + stock.carryingCapacity * 0.6) * dyn.abundance * seasonal *
     (1 - dyn.disturbance * DISTURB_SUPPRESS) * routineEncounter;
 
-  return clamp(factor, ABUNDANCE_FLOOR, 1.6);
+  return clamp(factor, 0.05, 1.6);
 }
 
 export function deriveFaunaTripStockTrace(
@@ -898,7 +955,7 @@ export function resolveFaunaFoodHarvest(
 
   const dyn = getFaunaStockDynamic(world, stock.id);
   const seasonal = seasonalAvailabilityFactor(stock, season, false);
-  const harvestableAbundance = Math.max(0, dyn.abundance - ABUNDANCE_FLOOR);
+  const harvestableAbundance = Math.max(0, dyn.abundance - HUMAN_HARVEST_RESERVE);
   const physicalAvailability = harvestableAbundance * stock.carryingCapacity * seasonal * FAUNA_HARVEST_SUPPORT_SCALE;
   const processingLossRate = faunaClass === "aquatic_food" ? 0.12 : 0.16;
 
@@ -953,7 +1010,7 @@ export function resolveFaunaFoodHarvest(
 
   const abundanceDraw = harvestedAmount /
     Math.max(0.0001, stock.carryingCapacity * seasonal * FAUNA_HARVEST_SUPPORT_SCALE);
-  const nextAbundance = clamp(dyn.abundance - abundanceDraw, ABUNDANCE_FLOOR, 1);
+  const nextAbundance = clamp(dyn.abundance - abundanceDraw, HUMAN_HARVEST_RESERVE, 1);
   const actualDraw = Math.max(0, dyn.abundance - nextAbundance) *
     stock.carryingCapacity * seasonal * FAUNA_HARVEST_SUPPORT_SCALE;
   const intensity = clamp01(actualDraw / Math.max(0.0001, physicalAvailability));
@@ -1024,7 +1081,7 @@ function bestStockOfClassAt(geo: FaunaStockGeography, tileId: TileId, faunaClass
   let best: FaunaStockGeo | undefined;
 
   for (const stock of stocks) {
-    if (stock.faunaClass !== faunaClass) {
+    if (stock.faunaClass !== faunaClass || stock.trophicRole === "predator") {
       continue;
     }
 
@@ -1064,7 +1121,7 @@ export function applyFaunaTripDepletion(
   const previous = world.faunaStocks ?? {};
   const dyn = previous[stock.id] ?? { abundance: 1, disturbance: 0, lastPressureTick: 0 as TickNumber, cumulativePressure: 0 };
   const pull = clampedIntensity * stock.pressureSensitivity * TRIP_DEPLETION_PULL;
-  const nextAbundance = clamp(dyn.abundance - pull * dyn.abundance, ABUNDANCE_FLOOR, 1);
+  const nextAbundance = clamp(dyn.abundance - pull * dyn.abundance, HUMAN_HARVEST_RESERVE, 1);
   const nextDisturbance = clamp01(dyn.disturbance + clampedIntensity * stock.mobility * 0.18);
 
   return {
@@ -1096,6 +1153,23 @@ export function advanceFaunaStocks(world: WorldState, cache: TickContextCache): 
   const next: Record<string, FaunaStockDynamic> = {};
   const managementByStock = collectManagementPressure(world);
 
+  const forageClaims: PlantForageClaim[] = geo.stocks
+    .filter((stock) => stock.trophicRole === "herbivore" || stock.trophicRole === "omnivore")
+    .map((stock) => {
+      const dyn = getFaunaStockDynamic(world, stock.id);
+      return {
+        consumerId: String(stock.id),
+        tileIds: stock.influenceTileIds,
+        demand: stock.carryingCapacity * dyn.abundance * FORAGE_DEMAND_SCALE *
+          (stock.trophicRole === "omnivore" ? 0.62 : 1),
+        // §10 forage-class compatibility: grazers/browsers take surface forage,
+        // omnivores also root underground-storage organs. Still habitat-bounded
+        // by influenceTileIds above.
+        forageClasses: forageClassesForTrophicRole(stock.trophicRole),
+      };
+    });
+  const forage = consumePlantForage(world, forageClaims, world.time);
+
   for (const stock of geo.stocks) {
     const dyn = previous[stock.id] ?? { abundance: 1, disturbance: 0, lastPressureTick: 0 as TickNumber, cumulativePressure: 0 };
 
@@ -1111,31 +1185,123 @@ export function advanceFaunaStocks(world: WorldState, cache: TickContextCache): 
     const pressure = clamp01(generalPressure * GENERAL_PRESSURE_WEIGHT) * stock.pressureSensitivity;
     const management = managementByStock.get(String(stock.id));
     const routine = deriveRoutineState(stock, dyn, world.time.season, generalPressure, management);
+    const forageReceipt = forage.receipts.get(String(stock.id));
+    const forageSupportRatio = stock.trophicRole === "predator" ? 1 : (forageReceipt?.supportRatio ?? 0);
+    const forageStress = stock.trophicRole === "predator" ? 0 : clamp01(1 - forageSupportRatio);
     const recovery = stock.recoveryRate * (1 - dyn.abundance) * (1 - dyn.disturbance * 0.5) *
-      (0.55 + (routine.reproductiveCondition ?? 0.7) * 0.45);
-    const loss = pressure * DEPLETION_STRENGTH * dyn.abundance;
-    const nextAbundance = clamp(dyn.abundance + recovery - loss, ABUNDANCE_FLOOR, 1);
+      (0.35 + (routine.reproductiveCondition ?? 0.7) * 0.35) *
+      (stock.trophicRole === "predator" ? 0 : forageSupportRatio) *
+      clamp01(dyn.abundance * 4);
+    const loss = pressure * DEPLETION_STRENGTH * dyn.abundance +
+      forageStress * FORAGE_SHORTAGE_LOSS * dyn.abundance;
+    const nextAbundance = stock.trophicRole === "predator"
+      ? dyn.abundance
+      : clamp(dyn.abundance + recovery - loss, 0, 1);
 
     const rested = generalPressure < 0.04 && dyn.lastPressureTick !== tick;
     const nextDisturbance = clamp01(
       dyn.disturbance * (1 - DISTURB_DECAY) + generalPressure * DISTURB_GAIN - (rested ? DISTURB_DECAY * 0.5 : 0),
     );
 
-    // Drop entries that have returned to baseline (sparse record).
-    if (management === undefined && nextAbundance >= 1 - DYNAMIC_DROP_EPSILON && nextDisturbance <= DYNAMIC_DROP_EPSILON) {
-      continue;
-    }
-
     next[stock.id] = {
       abundance: round4(nextAbundance),
       disturbance: round4(nextDisturbance),
       lastPressureTick: generalPressure > 0.02 ? tick : dyn.lastPressureTick,
       cumulativePressure: round4(dyn.cumulativePressure + generalPressure),
+      forageSupportRatio: round4(forageSupportRatio),
+      feedingPressure: round4(forageReceipt?.consumed ?? 0),
+      forageStress: round4(forageStress),
+      relocationPressure: round4(forageStress * stock.mobility),
       ...routine,
     };
   }
 
-  return { ...world, faunaStocks: next as Readonly<Record<FaunaStockId, FaunaStockDynamic>> };
+  // Predators consume actual local prey abundance. Human hunting has already
+  // removed prey earlier in the season, so both consumers compete for the same
+  // stock state. Candidate scans are region/local-overlap bounded and sorted.
+  for (const predator of geo.stocks.filter((stock) => stock.trophicRole === "predator")
+    .sort((a, b) => String(a.id).localeCompare(String(b.id)))) {
+    const priorPredator = previous[predator.id] ?? getFaunaStockDynamic(world, predator.id);
+    const candidates = geo.stocks
+      .filter((prey) => prey.trophicRole !== "predator" && prey.faunaClass === "animal_food" &&
+        prey.regionId === predator.regionId && compatiblePrey(predator, prey))
+      .sort((a, b) => {
+        const abundanceDelta = (next[b.id]?.abundance ?? getFaunaStockDynamic(world, b.id).abundance) -
+          (next[a.id]?.abundance ?? getFaunaStockDynamic(world, a.id).abundance);
+        return abundanceDelta || String(a.id).localeCompare(String(b.id));
+      })
+      .slice(0, PREDATION_CANDIDATE_CAP);
+    const demand = predator.carryingCapacity * priorPredator.abundance * PREDATOR_DEMAND_SCALE;
+    let remaining = demand;
+    let consumed = 0;
+    let targetId: string | undefined;
+    for (const prey of candidates) {
+      if (remaining <= 0) break;
+      const preyDyn = next[prey.id] ?? getFaunaStockDynamic(forage.world, prey.id);
+      const available = preyDyn.abundance * prey.carryingCapacity * 0.18;
+      const take = Math.min(remaining, available);
+      if (take <= 0) continue;
+      const abundanceDraw = take / Math.max(0.0001, prey.carryingCapacity);
+      next[prey.id] = {
+        ...preyDyn,
+        abundance: round4(clamp(preyDyn.abundance - abundanceDraw, 0, 1)),
+        predationPressure: round4(clamp01((preyDyn.predationPressure ?? 0) * 0.6 + abundanceDraw)),
+      };
+      consumed += take;
+      remaining -= take;
+      targetId ??= String(prey.id);
+    }
+    const preySupportRatio = demand <= 0 ? 1 : clamp(consumed / demand, 0, 1);
+    const shortage = 1 - preySupportRatio;
+    const recovery = predator.recoveryRate * (1 - priorPredator.abundance) * preySupportRatio * 0.65;
+    const abundance = clamp(
+      priorPredator.abundance + recovery - shortage * PREDATOR_SHORTAGE_LOSS * priorPredator.abundance,
+      0,
+      1,
+    );
+    const base = next[predator.id] ?? priorPredator;
+    next[predator.id] = {
+      ...base,
+      abundance: round4(abundance),
+      preyRemoved: round4(consumed),
+      preySupportRatio: round4(preySupportRatio),
+      predatorCondition: round4(clamp01((priorPredator.predatorCondition ?? 0.8) * 0.65 + preySupportRatio * 0.35)),
+      trophicTargetId: targetId,
+      relocationPressure: round4(shortage * predator.mobility),
+      reproductiveCondition: round4(clamp01((base.reproductiveCondition ?? 0.7) * 0.65 + preySupportRatio * 0.35)),
+    };
+  }
+
+  transferForageDrivenMovement(geo, next);
+  return { ...forage.world, faunaStocks: next as Readonly<Record<FaunaStockId, FaunaStockDynamic>> };
+}
+
+function compatiblePrey(predator: FaunaStockGeo, prey: FaunaStockGeo): boolean {
+  if (predator.kind === "large_predator") {
+    return prey.kind !== "small_predator" && prey.kind !== "large_predator" && prey.kind !== "shellfish_reedbed";
+  }
+  return prey.kind === "small_game" || prey.kind === "waterfowl" || prey.kind === "forest_edge_game";
+}
+
+function transferForageDrivenMovement(
+  geo: FaunaStockGeography,
+  next: Record<string, FaunaStockDynamic>,
+): void {
+  const stocks = geo.stocks
+    .filter((stock) => stock.trophicRole === "herbivore" || stock.trophicRole === "omnivore")
+    .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  for (const source of stocks) {
+    const sourceDyn = next[source.id];
+    if (sourceDyn === undefined || (sourceDyn.relocationPressure ?? 0) < 0.35 || sourceDyn.abundance <= 0.02) continue;
+    const destination = stocks.find((candidate) => candidate.id !== source.id && candidate.regionId === source.regionId &&
+      candidate.trophicRole === source.trophicRole && (next[candidate.id]?.forageSupportRatio ?? 0) > (sourceDyn.forageSupportRatio ?? 0) + 0.2);
+    if (destination === undefined) continue;
+    const destinationDyn = next[destination.id] ?? { abundance: 1, disturbance: 0, lastPressureTick: 0 as TickNumber, cumulativePressure: 0 };
+    const transfer = Math.min(0.025, sourceDyn.abundance * 0.08, 1 - destinationDyn.abundance);
+    if (transfer <= 0) continue;
+    next[source.id] = { ...sourceDyn, abundance: round4(sourceDyn.abundance - transfer) };
+    next[destination.id] = { ...destinationDyn, abundance: round4(destinationDyn.abundance + transfer) };
+  }
 }
 
 interface ManagementPressure {
@@ -1247,6 +1413,12 @@ export interface FaunaStockSummary {
   readonly meanWariness: number;
   readonly meanHabituation: number;
   readonly meanReproductiveCondition: number;
+  readonly herbivoreCount: number;
+  readonly predatorCount: number;
+  readonly meanForageSupportRatio: number;
+  readonly totalFeedingPressure: number;
+  readonly totalPreyRemoved: number;
+  readonly meanPredatorCondition: number;
 }
 
 export function summarizeFaunaStocks(world: WorldState): FaunaStockSummary {
@@ -1267,6 +1439,12 @@ export function summarizeFaunaStocks(world: WorldState): FaunaStockSummary {
   let warinessSum = 0;
   let habituationSum = 0;
   let reproductiveConditionSum = 0;
+  let herbivoreCount = 0;
+  let predatorCount = 0;
+  let forageSupportSum = 0;
+  let feedingPressureSum = 0;
+  let preyRemovedSum = 0;
+  let predatorConditionSum = 0;
 
   for (const stock of geo.stocks) {
     byKind[stock.kind] = (byKind[stock.kind] ?? 0) + 1;
@@ -1287,6 +1465,16 @@ export function summarizeFaunaStocks(world: WorldState): FaunaStockSummary {
     warinessSum += dyn.humanWariness ?? 0;
     habituationSum += dyn.habituation ?? 0;
     reproductiveConditionSum += dyn.reproductiveCondition ?? 1;
+    if (stock.trophicRole === "herbivore" || stock.trophicRole === "omnivore") {
+      herbivoreCount += 1;
+      forageSupportSum += dyn.forageSupportRatio ?? 1;
+      feedingPressureSum += dyn.feedingPressure ?? 0;
+    }
+    if (stock.trophicRole === "predator") {
+      predatorCount += 1;
+      preyRemovedSum += dyn.preyRemoved ?? 0;
+      predatorConditionSum += dyn.predatorCondition ?? 1;
+    }
     abundanceSum += dyn.abundance;
     minAbundance = Math.min(minAbundance, dyn.abundance);
 
@@ -1320,6 +1508,12 @@ export function summarizeFaunaStocks(world: WorldState): FaunaStockSummary {
     meanWariness: count === 0 ? 0 : round3(warinessSum / count),
     meanHabituation: count === 0 ? 0 : round3(habituationSum / count),
     meanReproductiveCondition: count === 0 ? 1 : round3(reproductiveConditionSum / count),
+    herbivoreCount,
+    predatorCount,
+    meanForageSupportRatio: herbivoreCount === 0 ? 0 : round3(forageSupportSum / herbivoreCount),
+    totalFeedingPressure: round3(feedingPressureSum),
+    totalPreyRemoved: round3(preyRemovedSum),
+    meanPredatorCondition: predatorCount === 0 ? 0 : round3(predatorConditionSum / predatorCount),
   };
 }
 

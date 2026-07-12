@@ -60,6 +60,7 @@ import { getNeighborTiles, getTile } from "../world/generate";
 import { FISSION_TIEBREAK_EPSILON, seededTieBreakJitter } from "../core/seededVariation";
 import { getDepletionAdjustedRichness } from "../world/depletion";
 import { getNomadicScaleClass, NOMADIC_MAX_MOBILE_BANDS_WARNING_COUNT } from "./nomadicScale";
+import { deriveCanonicalNutritionState } from "./seasonalSurvival";
 import {
   getRiverCrossingForMovement,
   makeRiverCrossingKey,
@@ -205,15 +206,8 @@ function computeBandDemography(
   const logisticalInefficiency = band.nomadicScalePressure?.logisticalInefficiencyPenalty ?? getPopulationLogisticalPressure(population);
   const largeBandFissionPressure = band.nomadicScalePressure?.largeBandFissionPressure ?? getPopulationScalePressure(population);
   const seasonalSupport = band.seasonalSupport;
-  const seasonalFoodStress = clamp01(
-    Math.max(
-      seasonalSupport?.currentSeasonSupport.deficitRatio ?? 0,
-      seasonalSupport === undefined ? 0 : Math.max(0, 0.94 - seasonalSupport.currentSeasonSupport.rawSupportRatio) * 0.8,
-      seasonalSupport?.hungerClassification === "seasonal_lean_stress" ? 0.18 : 0,
-      seasonalSupport?.hungerClassification === "chronic_plus_seasonal_stress" ? 0.32 : 0,
-      seasonalSupport?.hungerClassification === "crisis_deficit" ? 0.48 : 0,
-    ),
-  );
+  const nutrition = deriveCanonicalNutritionState(seasonalSupport);
+  const seasonalFoodStress = nutrition.currentFoodStress;
   const seasonalWaterStress = clamp01(
     Math.max(
       seasonalSupport?.currentSeasonSupport.waterStress ?? 0,
@@ -221,18 +215,8 @@ function computeBandDemography(
       seasonalSupport?.hungerClassification === "chronic_water_deficit" ? 0.36 : 0,
     ),
   );
-  const repeatedSeasonalHunger = clamp01(
-    Math.max(
-      (seasonalSupport?.seasonalHungerStreak ?? 0) / 4,
-      (seasonalSupport?.deficitSeasonsLast4 ?? 0) / 4,
-    ),
-  );
-  const chronicSeasonalDeficit = clamp01(
-    Math.max(
-      (seasonalSupport?.chronicDeficitStreak ?? 0) / 8,
-      (seasonalSupport?.deficitSeasonsLast8 ?? 0) / 8,
-    ),
-  );
+  const repeatedSeasonalHunger = nutrition.recentFoodStress;
+  const chronicSeasonalDeficit = nutrition.chronicFoodStress;
   const recentDeathSuppression = band.deathMemory?.fertilitySuppressionFromRecentDeaths ?? 0;
   const acuteRiskEffect = band.acuteRisk?.activeEffect;
   const acuteSeasonalStress = acuteRiskEffect?.extraSeasonalStress ?? 0;
@@ -253,25 +237,8 @@ function computeBandDemography(
     Object.keys(world.bands).length >= MAX_BANDS &&
     population >= 120 &&
     largeBandFissionPressure > 0.34;
-  const chronicDeficitStress = clamp01(
-    (band.carryingCapacity?.perCapitaReturn.supportDebug.deficitRatio ?? band.ecologicalStressCauses?.foodDeficit ?? 0) * 0.58 +
-      (band.ecologicalStressCauses?.poorReturnTrend ?? 0) * 0.2 +
-      (band.ecologicalStressCauses?.resourceDepletion ?? 0) * 0.22,
-  );
-  const foodStress = clamp01(
-    (pressureState?.foodStress ?? 0.24) +
-      currentUsePressure * 0.18 +
-      (band.ecologicalStressCauses?.foodDeficit ?? 0) * 0.22 +
-      (band.ecologicalStressCauses?.resourceDepletion ?? 0) * 0.16 +
-      chronicDeficitStress * 0.28 +
-      seasonalFoodStress * 0.24 +
-      repeatedSeasonalHunger * 0.08 +
-      // ECO-BIOME-1 — sustained reliance on emergency fallback plant food (tubers
-      // /roots) keeps people alive but is a poorer diet: a GENTLE, capped stress
-      // increment (never a collapse spiral; the resource-class fallback already
-      // keeps support from cratering).
-      clamp01(band.ecologicalStressCauses?.fallbackFoodReliance ?? 0) * 0.08,
-  );
+  const chronicDeficitStress = nutrition.chronicFoodStress;
+  const foodStress = nutrition.foodDemographicPressure;
   const waterStress = clamp01((pressureState?.waterStress ?? 0.22) + seasonalWaterStress * 0.18 + acuteSeasonalStress * 0.12);
   const riskStress = clamp01(pressureState?.riskPressure ?? currentRecord?.observedRisk ?? 0.28);
   const comfortablePopulation = getComfortablePopulation(band, currentRecord);
@@ -282,25 +249,24 @@ function computeBandDemography(
       Math.max(0, householdCount - comfortableHouseholds) * 0.055 +
       logisticalInefficiency * 0.34,
   );
-  const foodPerPersonStress = clamp01(
-    foodStress * 0.62 +
-      Math.max(0, population - comfortablePopulation * 0.86) / 58 +
-      currentUsePressure * 0.2 +
-      nomadicScalePressure * 0.34 +
-      (maxBandCapBlockingFragmentation ? 0.12 : 0),
+  // Demand scaling is already inside the canonical adult-equivalent ratio.
+  // Crowding/logistical scale remain independent pressures below; they must not
+  // create a second food system.
+  const foodPerPersonStress = foodStress;
+  const foodFertilitySuppression = clamp01(
+    foodPerPersonStress * 0.22 + chronicDeficitStress * 0.2 + repeatedSeasonalHunger * 0.1,
+  );
+  const foodMortalityContribution = clamp01(
+    foodPerPersonStress * 0.36 + chronicDeficitStress * 0.28,
   );
   const fertilityPressure = clamp01(
-    0.25 +
-      ecologyReliability * 0.28 +
-      (1 - foodPerPersonStress) * 0.18 +
+    0.34 +
+      (1 - foodPerPersonStress) * 0.14 +
       (1 - waterStress) * 0.12 -
       riskStress * 0.14 -
       householdCrowdingPressure * 0.1 -
       nomadicScalePressure * 0.18 -
-      chronicDeficitStress * 0.16 -
-      seasonalFoodStress * 0.12 -
-      repeatedSeasonalHunger * 0.1 -
-      chronicSeasonalDeficit * 0.12 -
+      foodFertilitySuppression -
       seasonalWaterStress * 0.08 -
       (pressureState?.fatiguePressure ?? 0) * 0.08 -
       acuteSeasonalStress * 0.08 -
@@ -309,16 +275,12 @@ function computeBandDemography(
       logisticsCareBurden * 0.08,
   );
   const mortalityPressure = clamp01(
-    foodPerPersonStress * 0.34 +
-      chronicDeficitStress * 0.26 +
+    foodMortalityContribution +
       waterStress * 0.24 +
       riskStress * 0.22 +
-      currentUsePressure * 0.18 +
       nomadicScalePressure * 0.16 +
       logisticalInefficiency * 0.12 +
-      seasonalFoodStress * 0.08 +
       seasonalWaterStress * 0.08 +
-      chronicSeasonalDeficit * 0.1 +
       acuteMortalityRisk * 0.22 +
       acuteActivityPenalty * 0.08 +
       logisticsSicknessMortality * 0.18 +
@@ -462,6 +424,8 @@ function computeBandDemography(
     fertilityPressure: round2(fertilityPressure),
     mortalityPressure: round2(mortalityPressure),
     foodPerPersonStress: round2(foodPerPersonStress),
+    foodMortalityContribution: round2(foodMortalityContribution),
+    foodFertilitySuppression: round2(foodFertilitySuppression),
     householdCrowdingPressure: round2(householdCrowdingPressure),
     splitPressure: round2(splitPressure),
     lastDemographicUpdate: world.time,

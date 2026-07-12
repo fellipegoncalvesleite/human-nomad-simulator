@@ -119,6 +119,140 @@ export interface PlantFoodHarvestResolution {
   readonly failureReason?: "activity_failed" | "physical_source_absent" | "physically_exhausted";
 }
 
+export interface PlantForageClaim {
+  readonly consumerId: string;
+  readonly tileIds: readonly TileId[];
+  readonly demand: number;
+  // LIVING-ECOLOGY-1B forage compatibility (§10). Bounded set of plant-food
+  // classes this consumer can actually forage. Undefined ⇒ all food classes
+  // (backwards-compatible). Feeding is ALSO habitat-bounded by the stock's
+  // influenceTileIds, so this is the class-level refinement on top of geography.
+  readonly forageClasses?: readonly PlantClassId[];
+}
+
+// Forage-class compatibility by trophic role (foraging ecology, conservative).
+// Every food class stays available to at least one role, and each herbivore
+// stock is additionally bounded to the patches physically at its influence
+// tiles, so this only removes the ecologically-implausible universal case
+// (e.g. a pure grazer/browser rooting deep underground-storage organs). USOs
+// (roots/tubers) require rooting/digging — an omnivore (boar-like) behaviour;
+// pure grazers/browsers/waterfowl take surface fruit, mast, seed, greens and
+// wetland forage. Omnivores keep the full food diet.
+const HERBIVORE_FORAGE_CLASSES: readonly PlantClassId[] = [
+  "fruit_berry",
+  "nuts_mast",
+  "wild_grain_seed",
+  "leaf_green",
+  "wetland_plant",
+];
+const OMNIVORE_FORAGE_CLASSES: readonly PlantClassId[] = [
+  "fruit_berry",
+  "nuts_mast",
+  "roots_tubers_uso",
+  "wild_grain_seed",
+  "leaf_green",
+  "wetland_plant",
+];
+
+export function forageClassesForTrophicRole(
+  role: "aquatic_prey" | "herbivore" | "omnivore" | "predator",
+): readonly PlantClassId[] | undefined {
+  if (role === "omnivore") return OMNIVORE_FORAGE_CLASSES;
+  if (role === "herbivore") return HERBIVORE_FORAGE_CLASSES;
+  // aquatic_prey / predator do not submit plant forage claims.
+  return undefined;
+}
+
+export interface PlantForageReceipt {
+  readonly consumerId: string;
+  readonly demand: number;
+  readonly physicalAvailability: number;
+  readonly consumed: number;
+  readonly supportRatio: number;
+  readonly patchIds: readonly string[];
+}
+
+/**
+ * Aggregate animal feeding against the same living patch state used by human
+ * gathering. Claims and candidate patches are sorted, capped, and consumed in
+ * sequence, so overlapping herbivore stocks genuinely compete without an
+ * all-patches scan or individual animal agents.
+ */
+export function consumePlantForage(
+  world: WorldState,
+  claims: readonly PlantForageClaim[],
+  time: WorldTime,
+): { readonly world: WorldState; readonly receipts: ReadonlyMap<string, PlantForageReceipt> } {
+  const nextState: Record<string, PlantPatchState> = { ...(world.plantPatchState ?? {}) };
+  const receipts = new Map<string, PlantForageReceipt>();
+  const orderedClaims = [...claims].sort((a, b) => a.consumerId.localeCompare(b.consumerId));
+
+  for (const claim of orderedClaims) {
+    const demand = Math.max(0, claim.demand);
+    const candidates = new Map<string, { readonly patch: PlantFoodPatch; readonly availability: number }>();
+    for (const tileId of [...claim.tileIds].sort().slice(0, 13)) {
+      const tile = world.tiles[tileId];
+      if (tile === undefined) continue;
+      for (const patch of plantFoodPatchesAt(tile, time)) {
+        if (claim.forageClasses !== undefined && !claim.forageClasses.includes(patch.classId)) continue;
+        const availability = plantHarvestAvailabilityFromState(nextState, patch);
+        const prior = candidates.get(patch.patchId);
+        if (prior === undefined || availability > prior.availability) {
+          candidates.set(patch.patchId, { patch, availability });
+        }
+      }
+    }
+    const ordered = [...candidates.values()]
+      .sort((a, b) => b.availability - a.availability || a.patch.patchId.localeCompare(b.patch.patchId))
+      .slice(0, 6);
+    const physicalAvailability = ordered.reduce((sum, entry) => sum + entry.availability, 0);
+    let remaining = demand;
+    let consumed = 0;
+    const patchIds: string[] = [];
+    for (const entry of ordered) {
+      if (remaining <= 0) break;
+      const take = Math.min(remaining, plantHarvestAvailabilityFromState(nextState, entry.patch));
+      if (take <= 0) continue;
+      const state = nextState[entry.patch.patchId];
+      const fullAvailability = Math.max(
+        0.0001,
+        entry.patch.baseAbundance * entry.patch.naturalAvailability * PLANT_HARVEST_SUPPORT_SCALE,
+      );
+      const depletion = clamp01((state?.depletion ?? 0) + take / fullAvailability);
+      nextState[entry.patch.patchId] = {
+        depletion: round4(depletion),
+        classId: entry.patch.classId,
+        lastUseTick: time.tick,
+        cumulativeUse: round4((state?.cumulativeUse ?? 0) + take),
+      };
+      consumed += take;
+      remaining -= take;
+      patchIds.push(entry.patch.patchId);
+    }
+    receipts.set(claim.consumerId, {
+      consumerId: claim.consumerId,
+      demand: round4(demand),
+      physicalAvailability: round4(physicalAvailability),
+      consumed: round4(consumed),
+      supportRatio: demand <= 0 ? 1 : round4(clamp(consumed / demand, 0, 1)),
+      patchIds,
+    });
+  }
+
+  return {
+    world: { ...world, plantPatchState: nextState },
+    receipts,
+  };
+}
+
+function plantHarvestAvailabilityFromState(
+  state: Readonly<Record<string, PlantPatchState>>,
+  patch: PlantFoodPatch,
+): number {
+  const depletion = state[patch.patchId]?.depletion ?? 0;
+  return Math.max(0, patch.baseAbundance * patch.naturalAvailability * (1 - depletion) * PLANT_HARVEST_SUPPORT_SCALE);
+}
+
 // --- tuning constants (conservative; plants are the dominant food, keep gentle) ---
 
 const PLANT_ABUNDANCE_FLOOR = 0.2; // a patch never fully disappears (fallback floor)
@@ -126,7 +260,6 @@ const PLANT_FACTOR_FLOOR = 0.58;
 const PLANT_LOSS_CAP = 0.1; // max fraction of a tile's food support plant depletion can remove
 const PROCESSING_DRAG_CAP = 0.05; // bounded per-capita labor drag from processing-heavy food
 
-const GATHER_DEPLETION_PULL = 0.2; // per-gather pull (× sensitivity × intensity)
 const GENERAL_PRESSURE_WEIGHT = 0.55; // camp/occupation pressure on plant patches
 const CLAIM_PRESSURE_NORM = 4; // gentler general (occupation) depletion than fauna
 const DEPLETION_STRENGTH = 0.5;
@@ -465,55 +598,6 @@ export function derivePlantGatherPatchTrace(
     safetyRisk: target.safetyRisk,
     rawSource: "plantStock.derivePlantGatherPatchTrace from band-targeted plant activity tile",
     reasonIds: [`reason:plant-gather-trace:${tile.id}:${target.patchId}:${time.tick}` as ReasonId],
-  };
-}
-
-// --- in-season gathering depletion (physical truth write) ---
-
-export function applyPlantGatherDepletion(
-  world: WorldState,
-  tile: Tile,
-  time: WorldTime,
-  intensity: number,
-): WorldState {
-  const patches = plantFoodPatchesAt(tile, time);
-
-  if (patches.length === 0) {
-    return world;
-  }
-
-  const clampedIntensity = clamp01(intensity);
-
-  if (clampedIntensity <= 0) {
-    return world;
-  }
-
-  // Deplete the most abundant generic_plant_food patch at the tile (the one a
-  // gathering party would actually work).
-  let target = patches[0];
-  for (const patch of patches) {
-    if (patch.baseAbundance > target.baseAbundance) {
-      target = patch;
-    }
-  }
-
-  const previous = world.plantPatchState ?? {};
-  const state = previous[target.patchId];
-  const depletion = state?.depletion ?? 0;
-  const pull = clampedIntensity * target.depletionSensitivity * GATHER_DEPLETION_PULL;
-  const nextDepletion = clamp01(depletion + pull * (1 - depletion));
-
-  return {
-    ...world,
-    plantPatchState: {
-      ...previous,
-      [target.patchId]: {
-        depletion: round4(nextDepletion),
-        classId: target.classId,
-        lastUseTick: time.tick,
-        cumulativeUse: round4((state?.cumulativeUse ?? 0) + clampedIntensity),
-      },
-    },
   };
 }
 

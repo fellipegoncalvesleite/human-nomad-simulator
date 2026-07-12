@@ -500,7 +500,11 @@ export function CausalPressureDetails({
         <Detail label="state" value="not evaluated yet" />
       ) : (
         <>
-          <Detail label="food stress" value={formatNumber(pressureState.foodStress)} />
+          <Detail
+            label="food stress (canonical)"
+            value={`${formatNumber(pressureState.foodStress)} · ${pressureState.foodStressSource ?? "legacy/unknown"}`}
+          />
+          <Detail label="food movement contribution" value={formatNumber(pressureState.foodMovementPressure ?? 0)} />
           <Detail label="water stress" value={formatNumber(pressureState.waterStress)} />
           <Detail label="mobility pressure" value={formatNumber(pressureState.mobilityPressure)} />
           <Detail label="fatigue pressure" value={formatNumber(pressureState.fatiguePressure)} />
@@ -620,12 +624,14 @@ export function DemographyFissionDetails({
       />
       <Detail label="fertility pressure" value={formatNumber(band.demography.fertilityPressure)} />
       <Detail label="mortality pressure" value={formatNumber(band.demography.mortalityPressure)} />
+      <Detail label="· food mortality contribution" value={formatNumber(band.demography.foodMortalityContribution ?? 0)} />
       <Detail
         label="recent births / deaths (DEMOGRAPHY-MORTALITY-1)"
         value={`${band.demography.lastBirths ?? 0} born · ${band.demography.lastDeaths ?? 0} died · matured ${band.demography.lastDependentsMatured ?? 0} · aged-to-elder ${band.demography.lastAdultsAged ?? 0} · elders died ${band.demography.lastEldersDied ?? 0}`}
       />
       <Detail label="demographic outlook" value={demographicOutlook(band)} />
       <Detail label="food/person stress" value={formatNumber(band.demography.foodPerPersonStress)} />
+      <Detail label="· food fertility suppression" value={formatNumber(band.demography.foodFertilitySuppression ?? 0)} />
       <Detail label="household crowding" value={formatNumber(band.demography.householdCrowdingPressure)} />
       <Detail label="split pressure" value={formatNumber(band.demography.splitPressure)} />
       <Detail label="fission threshold" value="split >= 0.64 and population >= 46" />
@@ -1903,7 +1909,7 @@ export function DailyTaskGroupDetails({
         label="latest return"
         value={`${latest.resourceReturn.returnedResourceKind}; value=${formatNumber(
           latest.resourceReturn.estimatedReturnValue,
-        )}; conf=${formatNumber(latest.resourceReturn.returnConfidence)}; consumed=no`}
+        )}; conf=${formatNumber(latest.resourceReturn.returnConfidence)}; consumed=${String(latest.resourceReturn.consumedByEconomy)}`}
       />
       <Detail label="latest seasonal" value={formatSeasonalEcology(latest)} />
       <Detail label="latest guard" value={formatTripGuard(latest)} />
@@ -3364,7 +3370,7 @@ export function CarryingCapacityDetails({
         const candidates = summarizePlantUseEligibilityCandidates(band.resourceKnowledgeState, {
           tick: latestMemoryTick,
           season: band.lastResourceScout?.season ?? "spring",
-          foodStress: band.pressureState?.foodStress ?? band.hungerPressure ?? 0,
+          foodStress: band.pressureState?.foodStress ?? band.seasonalSupport?.foodMovementPressure ?? 0,
           perCapitaReturn:
             band.carryingCapacity?.perCapitaReturn.perCapitaReturn ??
             band.perCapitaReturn?.perCapitaReturn ??
@@ -3771,7 +3777,9 @@ export function CarryingCapacityDetails({
         <>
           <Detail
             label="canonical human food ledger"
-            value={`plant ${formatNumber(support.humanFoodLedger.physicalPlantHarvest)} · fauna ${formatNumber(
+            value={`raw usable ${formatNumber(support.humanFoodLedger.rawUsableHarvest)} × ${formatNumber(
+              support.humanFoodLedger.harvestToSupportScale,
+            )} ${support.humanFoodLedger.supportUnit} · plant ${formatNumber(support.humanFoodLedger.physicalPlantHarvest)} · fauna ${formatNumber(
               support.humanFoodLedger.physicalFaunaHarvest,
             )} · aquatic ${formatNumber(support.humanFoodLedger.aquaticHarvest)} · storage ${formatNumber(
               support.humanFoodLedger.storageContribution,
@@ -3785,6 +3793,7 @@ export function CarryingCapacityDetails({
               support.humanFoodLedger.rawSupportRatio,
             )} · stress ${formatNumber(support.humanFoodLedger.foodStress)} · generic catchment consumed=false`}
           />
+          <Detail label="support unit contract" value={support.humanFoodLedger.supportUnitContract} />
           <Detail
             label="physical food receipts (Technical world truth)"
             value={support.humanFoodLedger.sourceReceipts.length === 0

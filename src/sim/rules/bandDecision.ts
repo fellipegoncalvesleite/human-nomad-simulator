@@ -73,6 +73,7 @@ import { deriveBandTendencies } from "../agents/bandTendency";
 import type { BandTendencyProfile } from "../agents/bandTendency";
 import { deriveChronicHardship } from "../agents/chronicHardship";
 import type { ChronicHardshipSignal } from "../agents/chronicHardship";
+import { getCanonicalFoodStress } from "../agents/seasonalSurvival";
 import { deriveCrossingPracticeRelief } from "../agents/crossingPractice";
 import {
   evaluateCareEfficacy,
@@ -885,6 +886,7 @@ export function evaluateBandDecision(
       );
     },
   );
+  const rankedCandidates = applyResidentialRelocationClearance(world, band, candidates);
   const chosen = measureDecision(
     profiler,
     "finalDecisionSelection",
@@ -892,14 +894,14 @@ export function evaluateBandDecision(
       world,
       band,
       decisionId,
-      candidates[0] ?? buildNoOpCandidate(world, band, decisionId),
+      rankedCandidates[0] ?? buildNoOpCandidate(world, band, decisionId),
       decisionCache,
     ),
   );
   const alternativesConsidered = measureDecision(
     profiler,
     "candidateReasonHydration",
-    () => candidates.map((candidate, index) => ({
+    () => rankedCandidates.map((candidate, index) => ({
       action: candidate.action,
       score: candidate.score,
       scoreBreakdown: candidate.scoreBreakdown,
@@ -939,6 +941,28 @@ export function evaluateBandDecision(
     mobilityIntent: intentEvaluation.activeIntent,
     intentStatus: intentEvaluation.status,
   };
+}
+
+function applyResidentialRelocationClearance(
+  world: WorldState,
+  band: Band,
+  candidates: readonly CandidateDecision[],
+): readonly CandidateDecision[] {
+  const top = candidates[0];
+  if (top === undefined || (top.action.type !== "move_to_tile" && top.action.type !== "explore_unknown_neighbor")) {
+    return candidates;
+  }
+  const stay = candidates.find((candidate) => candidate.action.type === "stay");
+  if (stay === undefined) return candidates;
+  const dependency = (band.demography.dependents + band.demography.elders) / Math.max(1, band.demography.population);
+  const clearance = 0.08 +
+    getRecentRelocationSettlementCost(world, band) * 0.42 +
+    (band.pressureState?.fatiguePressure ?? 0) * 0.2 +
+    dependency * 0.05;
+  if (top.score >= stay.score + clearance) return candidates;
+  // The move remains an inspected alternative; a residence-unchanged scout or
+  // stay wins until the known improvement clears whole-band establishment cost.
+  return [stay, ...candidates.filter((candidate) => candidate !== stay)];
 }
 
 function hydrateChosenCandidateReasons(
@@ -2139,7 +2163,7 @@ function buildExploreCandidate(
       frontierCandidate.frontierProbeValue * 0.54 +
       Math.max(0, 12 - knownTileCount) * 0.055 +
       (1 - averageConfidence) * 0.22 +
-      band.hungerPressure * 0.18 +
+      getCanonicalFoodStress(band) * 0.18 +
       pressureState.netMovePressure * 0.18 +
       band.demography.splitPressure * 0.18 +
       daughterDispersal.daughterDispersalPressure * 0.36 +
@@ -2159,7 +2183,7 @@ function buildExploreCandidate(
     waterRefugeSecurity: decisionCache.dryMarginContext?.stayMoveScout?.currentRefugeSecurity ?? 0,
     dryRefugePull: decisionCache.dryMarginContext?.seasonalMode?.dryRefugePull ?? 0,
     aquaticValue: clamp01((currentRecord?.observedAquaticPotential ?? 0.2) * 0.2),
-    movementCost: 0.42,
+    movementCost: clamp01(0.42 + pressureState.fatiguePressure * 0.28 + getRecentRelocationSettlementCost(world, band)),
     riskCost: clamp01(
       frontierCandidate.inferredRisk * 0.44 +
       frontierCandidate.riverCrossingRisk * 0.44 +
@@ -2175,7 +2199,7 @@ function buildExploreCandidate(
     storageValue: band.storageCapacity * 0.12,
     explorationValue,
     socialCost: clamp01((1 - band.cohesion) * 0.16),
-    expectedFutureValue: clamp01(explorationValue + band.hungerPressure * 0.18),
+    expectedFutureValue: clamp01(explorationValue + getCanonicalFoodStress(band) * 0.18),
     intentAlignment: 0,
     movementInertia: 0,
     reversalPenalty: 0,
@@ -2286,7 +2310,7 @@ function buildResourceScoutContext(world: WorldState, band: Band): ResourceScout
   // cooldown has elapsed. When true, selectResourceScoutTarget relaxes the VOI floor so an
   // under-known nearby patch becomes a valid scout target (a stable band learns before a
   // crisis); when false the selector is BYTE-IDENTICAL to pre-INFO-1. Deterministic.
-  const proactiveFoodStress = band.pressureState?.foodStress ?? band.hungerPressure ?? 0;
+  const proactiveFoodStress = getCanonicalFoodStress(band);
   const proactiveMobilityPressure = band.pressureState?.mobilityPressure ?? 0;
   const proactiveLabor = band.carryingCapacity?.populationDemand?.laborCapacity ?? band.size ?? 0;
   const proactiveCooldownOk =
@@ -3331,7 +3355,7 @@ export function applySideEncounteredCautiousTest(
   };
 
   const season = world.time.season;
-  const foodStress = band.pressureState?.foodStress ?? band.hungerPressure ?? 0;
+  const foodStress = getCanonicalFoodStress(band);
   const perCapitaReturn =
     band.carryingCapacity?.perCapitaReturn.perCapitaReturn ?? band.perCapitaReturn?.perCapitaReturn ?? 0.5;
   const eligibility = derivePlantUseEligibility(memoryWithObs, {
@@ -3592,7 +3616,7 @@ function applyResourceScoutObservation(
     : derivePlantUseEligibility(afterScout, {
         tick: world.time.tick,
         season,
-        foodStress: band.pressureState?.foodStress ?? band.hungerPressure ?? 0,
+        foodStress: getCanonicalFoodStress(band),
         perCapitaReturn:
           band.carryingCapacity?.perCapitaReturn.perCapitaReturn ??
           band.perCapitaReturn?.perCapitaReturn ??
@@ -3609,7 +3633,7 @@ function applyResourceScoutObservation(
           season,
           memory: afterScout,
           eligibility: plantUseEligibility,
-          foodStress: band.pressureState?.foodStress ?? band.hungerPressure ?? 0,
+          foodStress: getCanonicalFoodStress(band),
           perCapitaReturn:
             band.carryingCapacity?.perCapitaReturn.perCapitaReturn ??
             band.perCapitaReturn?.perCapitaReturn ??
@@ -4473,10 +4497,16 @@ function applyIntentShaping(
     actionVector === undefined || previousVector === undefined
       ? 0
       : clamp01(-dotVectors(actionVector, previousVector));
+  const currentRecord = band.knowledge.observedTiles[band.position];
+  const successfulCurrentCamp =
+    getCanonicalFoodStress(band) <= 0.3 &&
+    (currentRecord?.observedWaterAccess ?? 0.35) >= 0.48 &&
+    decisionCache.pressureSnapshot.bandPressureState.riskPressure < 0.8;
   const stayContradictsMobilityIntent =
     candidate.action.type === "stay" &&
     intent !== undefined &&
-    intent.kind !== "local_foraging";
+    intent.kind !== "local_foraging" &&
+    !successfulCurrentCamp;
   const stayIntentPenalty = stayContradictsMobilityIntent
     ? clamp01(intent.persistence * (band.consecutiveSeasonsOnTile >= 1 ? 0.74 : 0.38))
     : 0;
@@ -4687,7 +4717,11 @@ function buildKnownTileScoreBreakdown(
   );
   const movementCost = distance === 0
     ? 0
-    : clamp01(((record.observedMovementCost ?? 1.6) * Math.max(1, distance) - 1) / 3);
+    : clamp01(
+        ((record.observedMovementCost ?? 1.6) * Math.max(1, distance) - 1) / 3 +
+          decisionCache.pressureSnapshot.bandPressureState.fatiguePressure * 0.28 +
+          getRecentRelocationSettlementCost(world, band),
+      );
   const baseRiskCost = clamp01(record.observedRisk ?? 0.35);
   const foodValue = clamp01(
     record.observedRichness * 0.62 +
@@ -4856,7 +4890,7 @@ function buildKnownTileScoreBreakdown(
   const depletionPenalty = isStay
     ? clamp01(
         targetUsePressure * 0.78 +
-          pressureState.netMovePressure * 0.28 +
+          pressureState.foodStress * 0.18 +
           (band.ecologicalStressCauses?.resourceDepletion ?? 0) * 0.32 +
           ecologicalMovePressure * 0.2,
       )
@@ -4864,7 +4898,22 @@ function buildKnownTileScoreBreakdown(
   const placeAttachmentPull = isStay
     ? pressureState.placeAttachmentPull
     : clamp01(placeAttachment * 0.22 + returnPlacePull * 0.14);
-  const netMovePressure = isStay ? 0 : pressureState.netMovePressure;
+  // Pressure is a reason to seek relief, not a blanket bonus for any move.
+  // Reward it only when this known destination offers a grounded improvement
+  // (water, food opportunity, rested range, or explicit known opportunity).
+  const currentRecord = band.knowledge.observedTiles[band.position];
+  const currentWaterValue = clamp01(currentRecord?.observedWaterAccess ?? 0.35);
+  const currentFoodValue = clamp01(
+    (currentRecord?.observedRichness ?? 0.35) * 0.62 +
+      (currentRecord?.observedAquaticPotential ?? 0) * 0.12,
+  );
+  const groundedRelief = clamp01(
+    Math.max(0, waterValue - currentWaterValue) * 0.46 +
+      Math.max(0, foodValue - currentFoodValue) * 0.38 +
+      recoveryBenefit * 0.34 +
+      knownOpportunityPull * 0.3,
+  );
+  const netMovePressure = isStay ? 0 : pressureState.netMovePressure * clamp01(0.08 + groundedRelief * 0.92);
   const expectedFutureValue = clamp01(
     foodValue * 0.34 +
       waterValue * 0.24 +
@@ -4995,6 +5044,23 @@ function buildKnownTileScoreBreakdown(
   };
 }
 
+function getRecentRelocationSettlementCost(world: WorldState, band: Band): number {
+  const latest = band.recentResidentialMoveEvents?.[0];
+  if (latest === undefined) return 0;
+  const seasonsSince = Math.max(0, Number(world.time.tick) - Number(latest.tick));
+  if (seasonsSince > 2) return 0;
+  const hardship = latest.hardshipLevel === "severe" ? 0.12
+    : latest.hardshipLevel === "high" ? 0.09
+      : latest.hardshipLevel === "moderate" ? 0.06
+        : 0.03;
+  // A whole-band relocation consumes camp re-establishment and dependent-care
+  // capacity beyond the walking days themselves. The cost decays after one
+  // settled season and never blocks a sufficiently better refuge.
+  const dependentShare = band.demography.dependents / Math.max(1, band.demography.population);
+  const establishmentCost = seasonsSince <= 1 ? 0.22 : 0.07;
+  return clamp01(establishmentCost + hardship + dependentShare * 0.08);
+}
+
 function scoreDecision(scoreBreakdown: ScoreBreakdown): number {
   return round2(
     scoreBreakdown.foodValue * 1.45 +
@@ -5077,11 +5143,11 @@ function buildCommonSecondaryReasons(
 ): readonly Reason[] {
   const reasons: Reason[] = [];
 
-  if (scoreBreakdown.foodValue < 0.34 || band.hungerPressure > 0.55) {
+  if (scoreBreakdown.foodValue < 0.34 || getCanonicalFoodStress(band) > 0.55) {
     reasons.push(
       makeReason(decisionId, "secondary", reasons.length + startIndex, {
         type: "food_scarcity",
-        strength: clamp01(1 - scoreBreakdown.foodValue + band.hungerPressure * 0.28),
+        strength: clamp01(1 - scoreBreakdown.foodValue + getCanonicalFoodStress(band) * 0.28),
         confidence: scoreBreakdown.memoryConfidence,
         relatedTileIds: [tile.id],
         deficit: clamp01(1 - scoreBreakdown.foodValue),
@@ -6367,7 +6433,7 @@ function getDecisionContextSnapshot(
     knownTileCount,
     knownSettlementCount: band.knowledge.knownSettlements.length,
     populationEstimate: band.demography.population,
-    hungerPressure: band.hungerPressure,
+    hungerPressure: getCanonicalFoodStress(band),
     territorialPressure: band.territorialPressure,
   };
 }
@@ -6726,7 +6792,7 @@ function getGridDistance(first: Tile, second: Tile): number {
 
 function getMobilityPressure(band: Band, scoreBreakdown: ScoreBreakdown): number {
   return clamp01(
-    band.hungerPressure * 0.34 +
+    getCanonicalFoodStress(band) * 0.34 +
       band.territorialPressure * 0.14 +
       band.demography.foodPerPersonStress * 0.18 +
       band.demography.splitPressure * 0.12 +

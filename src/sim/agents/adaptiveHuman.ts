@@ -44,6 +44,7 @@ import type {
   RepetitionAffordanceDomain,
   SolutionAttempt,
 } from "./types";
+import { getCanonicalFoodStress } from "./seasonalSurvival";
 
 const ACTIVE_IDEA_CAP = 8;
 const SELECTED_RESPONSE_CAP = 8;
@@ -552,7 +553,7 @@ function deriveDirectAdaptiveIdeas(input: DirectIdeaInput): readonly AdaptiveIde
   const currentTile = getTile(world, band.position);
   const dependentLoad = dependentLoadSignal(band);
   const adultShare = band.demography.workingAdults / Math.max(1, band.demography.population);
-  const foodStress = Math.max(band.hungerPressure, band.pressureState?.foodStress ?? 0);
+  const foodStress = getCanonicalFoodStress(band);
   const waterStress = band.pressureState?.waterStress ?? 0;
   const movePressure = band.pressureState?.netMovePressure ?? band.pressureState?.mobilityPressure ?? 0;
   const routeRepeats = Object.values(band.travelCorridors).reduce((sum, route) => sum + route.useCount, 0);
@@ -1880,8 +1881,7 @@ function activityBasis(band: Band): readonly string[] {
 
 function collapsePressure(band: Band): number {
   return clamp01(Math.max(
-    band.hungerPressure,
-    band.pressureState?.foodStress ?? 0,
+    getCanonicalFoodStress(band),
     band.pressureState?.waterStress ?? 0,
     band.pressureState?.netMovePressure ?? 0,
     band.viability?.viabilityPressure ?? 0,

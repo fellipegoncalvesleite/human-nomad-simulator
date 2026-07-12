@@ -325,9 +325,9 @@ export function deriveCarryingCapacity(
 
   // Raw vs clamped support (2J.1): expose the pre-clamp truth so a hidden surplus or
   // deficit is visible. Existing behaviour keeps using the clamped ratio.
-  // 2K.9: the band-specific learned usable-support is added on top of the shared physical support
-  // (it is band-known competence, not tile richness). The downstream clampedSupportRatio = clamp01
-  // naturally limits a surplus band to no benefit, so this lifts only a deficit band.
+  // Learned-resource support remains a diagnostic opportunity projection only.
+  // Current nourishment below is replaced by the canonical physical receipt
+  // ledger; competence can guide future targets but cannot add calories.
   const adultEquivalentDemand = Math.max(1, demand.adultEquivalentDemand);
   const resourceClassPressureLoss = rawReachableSupport <= 0
     ? 0

@@ -24,6 +24,7 @@ import type {
   TemporaryCampPurpose,
   TemporaryTaskCampRecord,
 } from "./types";
+import { getCanonicalFoodStress } from "./seasonalSurvival";
 
 const LOCAL_SHIFT_CAP = 8;
 const TEMPORARY_CAMP_CAP = 6;
@@ -1267,7 +1268,7 @@ function deriveSignals(band: Band): CampMovementSignals {
   const pressureState = band.pressureState;
   const currentUsePressure = localUsePressure(band, band.position);
   const collapsePressure = clamp01(Math.max(
-    pressureState?.foodStress ?? band.hungerPressure,
+    getCanonicalFoodStress(band),
     pressureState?.waterStress ?? 0,
     pressureState?.riskPressure ?? 0,
     band.viability?.viabilityPressure ?? 0,
@@ -1653,7 +1654,7 @@ function makeSyntheticStayDecision(world: WorldState, band: Band): Decision {
       time: world.time,
       currentTileId: band.position,
       populationEstimate: band.demography.population,
-      hungerPressure: band.hungerPressure,
+      hungerPressure: getCanonicalFoodStress(band),
       territorialPressure: band.territorialPressure,
       knownTileCount: Object.keys(band.knowledge.observedTiles).length,
       knownSettlementCount: 0,

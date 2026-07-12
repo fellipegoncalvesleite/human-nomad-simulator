@@ -30,6 +30,7 @@
 
 import type { Band } from "./types";
 import type { BandTendencyProfile } from "./bandTendency";
+import { deriveCanonicalNutritionState } from "./seasonalSurvival";
 
 // Caps — every downstream effect is bounded by these named constants.
 export const STAY_BIAS_EROSION_CAP = 0.6;
@@ -94,7 +95,7 @@ export function deriveChronicHardship(
     sustainedOverCapacity * 0.6 +
       (band.rangeSaturation?.saturationPressure ?? 0) * 0.2,
   );
-  const foodStressEvidence = clamp01(band.demography.foodPerPersonStress);
+  const foodStressEvidence = deriveCanonicalNutritionState(band.seasonalSupport).foodMovementPressure;
 
   // Only fully escalate once the band has actually stayed through the
   // hardship — this is what makes the signal about REPEATED conditions.

@@ -10,7 +10,7 @@
 // from this summary. This function never mutates the world and never feeds any
 // band decision (it is computed at snapshot time for display only).
 
-import { deriveFaunaStockGeography, getFaunaStockDynamic } from "./faunaStock";
+import { deriveFaunaStockGeography, getFaunaStockDynamic, summarizeFaunaStocks } from "./faunaStock";
 import { summarizePlantPatchState } from "./plantStock";
 import type { WorldState } from "../world/types";
 
@@ -48,6 +48,14 @@ export interface WorldEcologySummary {
     readonly meanWariness: number;
     readonly meanHabituation: number;
     readonly meanReproductiveCondition: number;
+  };
+  readonly trophic: {
+    readonly herbivoreStocks: number;
+    readonly predatorStocks: number;
+    readonly meanForageSupportRatio: number;
+    readonly feedingPressure: number;
+    readonly preyRemoved: number;
+    readonly meanPredatorCondition: number;
   };
   readonly debugTruthOnly: true;
 }
@@ -111,6 +119,7 @@ export function summarizeWorldEcology(world: WorldState): WorldEcologySummary {
   }
 
   const plantState = summarizePlantPatchState(world);
+  const trophic = summarizeFaunaStocks(world);
   const plant: PlantCategorySummary = {
     dynamicRecords: plantState.dynamicRecords,
     overharvested: plantState.overharvestedPatches,
@@ -130,6 +139,14 @@ export function summarizeWorldEcology(world: WorldState): WorldEcologySummary {
       meanWariness: geo.stocks.length === 0 ? 0 : round3(warinessSum / geo.stocks.length),
       meanHabituation: geo.stocks.length === 0 ? 0 : round3(habituationSum / geo.stocks.length),
       meanReproductiveCondition: geo.stocks.length === 0 ? 1 : round3(reproductiveConditionSum / geo.stocks.length),
+    },
+    trophic: {
+      herbivoreStocks: trophic.herbivoreCount,
+      predatorStocks: trophic.predatorCount,
+      meanForageSupportRatio: trophic.meanForageSupportRatio,
+      feedingPressure: trophic.totalFeedingPressure,
+      preyRemoved: trophic.totalPreyRemoved,
+      meanPredatorCondition: trophic.meanPredatorCondition,
     },
     debugTruthOnly: true,
   };

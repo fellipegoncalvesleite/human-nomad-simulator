@@ -7804,3 +7804,111 @@ exception; daughter colours related-but-distinct and never visually confusing.
   & :1206 and foragingAdaptation.ts:470 — convert to an explicit membership set) and dead
   exports (`applyPlantGatherDepletion`, `summarizeFaunaStocks`,
   `applyActivityOutcomeToMemoryForAudit`). `hardshipOutcome` bug left isolated/unfixed.
+- **LIVING ECOLOGY / TROPHIC COUPLING-1B** — canonical consumer + aggregate food web
+  — *integration complete; final gate verification in progress 2026-07-12.*
+  Takeover ancestry was verified (`855434c` and `7d528eb` are ancestors of the clean
+  starting HEAD). The reported disconnect reproduced exactly: the reconstructed baseline
+  omitted daily trips, Map 1 reached 155→0, and 1755/1760 archived choices were moves.
+  Root causes were (a) pressure.ts rebuilt current hunger from remembered opportunity,
+  generic foraging pressure and a never-updated spawn `hungerPressure`; (b)
+  seasonalSurvival fed that stale behavioral stress back into nutritional history; (c)
+  demography counted the same deficit through several legacy paths; (d) `target_found`
+  trips were observation-only; and (e) the instrumented default benchmark never executed
+  the production daily-activity interval, so harvest scale changes could not affect it.
+
+  The authoritative path is now: physical trip receipt → `humanFoodSupport` (raw receipt,
+  recorded losses, explicit ×100 adult-equivalent-season conversion) → bounded 8-season
+  support history → canonical current/recent/chronic nutrition → separate food movement
+  and food demographic contributions → decisions and demography. `foodEstimate`, habitat
+  yield and trip projections remain future-opportunity knowledge only. The legacy
+  `hungerPressure` field is a compatibility mirror of canonical nutrition and has no
+  independent behavioral reader. Controlled raw receipt levels 0/0.12/0.25/0.40 produced
+  ratios 0/0.56/1.16/1.86, food movement pressure 1/0.67/0/0, food mortality
+  0.64/0.55/0/0, and fertility 0/0/0.40/0.40; water and injury perturbations remained
+  independently causal. Scale sensitivity 80/100/120 gives 20/25/30 support for 0.25 raw
+  receipt against demand 25. Scale remains **100**; zero remains exactly zero.
+
+  Seasonal order is explicit: trips operate during interval N at the current residence;
+  boundary N+1 derives ledger/history, then pressure and the residential choice, then
+  demography, then physical ecology advances. Thus completed work informs the boundary
+  choice without a retroactive same-choice trip; ledger source tick N is audited against
+  decision tick N+1. Default benchmark baseline/Map2 paths now run this same activity
+  interval; targeted historical fixtures retain their explicitly reconstructed semantics.
+
+  Movement no longer gets blanket relief credit: candidate move pressure is proportional
+  to known water/food/recovery improvement; current-camp depletion no longer includes
+  global move pressure; relocation pays fatigue, hardship, dependent-care and camp
+  re-establishment cost; whole-band moves must clear the stay alternative by that grounded
+  cost; and successful food/water camps can complete corridor intents and return to local
+  foraging. Chronic real deficit can still drive repeated flight. Activity `target_found`
+  now requests bounded physical harvest, successful memory requires a nonzero receipt, and
+  all three food return placeholders were replaced by typed membership
+  (`physicalFoodReturn.ts`). The dead `applyPlantGatherDepletion` path was removed.
+
+  Aggregate trophic coupling is physical and bounded. Herbivore/omnivore stocks submit
+  sorted local claims (≤13 tiles, ≤6 patches) against `plantPatchState`; consumption writes
+  the same depletion human gathering uses, forage deficit lowers condition/abundance and
+  raises relocation pressure, and reduced pressure permits recovery. Four default-world
+  predator stocks per map rank ≤6 compatible local prey stocks, remove actual prey, and
+  derive condition/reproduction/relocation from prey receipts; zero prey drives decline.
+  Predator signs now require real predator/prey overlap. No individual agents or all-pairs
+  scans were introduced. Map 1/Map 2 no-human y100 remain distinct and bounded (264 stocks
+  each; mean abundance 0.842/0.849; forage ratio 0.990/0.994; mean plant depletion
+  0.257/0.262). Seasonal-run taxonomy exists but neither actual default instantiates it;
+  fish/shellfish/waterfowl receipts are genuinely stock-backed and aquatic absence is zero.
+
+  There are **two** populated actual default worlds (`map1`, `map2`), not three;
+  `map2_single_origin` is a derivative scenario and procedural has no default bands.
+  Production Map 2 retains 3 lineages / 30 people at y100 after starting at 238 while
+  harsh bands may collapse; final deterministic/default/graph/regression verification and
+  the PASS-vs-1C decision remain to be recorded. `hardshipOutcome` remains isolated and
+  untouched.
+
+- **LIVING ECOLOGY / TROPHIC COUPLING-1B — FINAL VERIFICATION (Opus takeover, 2026-07-12)
+  — VERDICT: FAIL → recommend 1C.** The interrupted dirty tree was recovered intact
+  (HEAD `7d528eb`; `855434c` ancestor; emergency patch + untracked manifest saved to
+  /tmp; no orphan benchmark/Vite process). The CORE checkpoint is sound and independently
+  re-verified: the canonical physical-receipt → `humanFoodSupport` (×100 adult-equivalent,
+  documented) → bounded 8-season history → canonical food stress → food movement +
+  explicit food mortality/fertility contributions → decisions/demography chain is the sole
+  current-nourishment authority; every legacy driver (foodEstimate/getKnownFoodEstimate,
+  perCapitaShortfall, seasonal deficitRatio, `hungerPressure`) is removed as a behavioral
+  reader (`hungerPressure` is now a recomputed compatibility mirror only). Controlled
+  perturbations 0/0.12/0.25/0.40 → ratio 0/0.56/1.16/1.86, food-mortality 0.64/0.55/0/0
+  (monotone), fertility 0/0/0.4/0.4; water/injury independently causal; scale 80/100/120 →
+  20/25/30, zero stays zero. A new focused audit (`livingEcologyTrophicCoupling1bFocused
+  Audit.mjs`, 16 checks + determinism) proves: target_found harvest is bounded by the real
+  stock (estimate/×0.55 cannot manufacture food; depletion = real draw; absent/exhausted →
+  0), outcome learning reads the RESOLVED ACTUAL receipt (86/216 zero-actual trips recorded
+  as `none`), predators are never harvestable by generic hunting, and heavy overhunting →
+  reserve 0.08 → trophic collapse below reserve → recovery after abandonment. Long-run
+  gate MET and food-stratified: Map2 238→31 (3 survivors = the 3 best-supported; supp<1.0
+  all collapse from starvation), Map1 155→36; observer parity byte-identical; determinism
+  holds. §10 forage-class compatibility was ADDED (grazers cannot root USOs; omnivores can;
+  verified non-destabilizing) and the plant-stock audit crash (Codex removed
+  `applyPlantGatherDepletion` but the fixture still called it) was fixed to use the real
+  harvest resolver.
+
+  BLOCKING 1C ITEMS (regressions the 1B work introduced — each PASSES at `7d528eb` and
+  FAILS on this tree; independent of the Opus §10/§6 additions, confirmed by re-running the
+  Codex-only patch):
+  (1) `--targeted-fauna-stocks-audit`: **`hiddenKnowledgeViolations` 0 → 208** — a BINDING
+      anti-omniscience violation (animal/aquatic trip-trace / patch-memory source
+      classification); MUST be root-caused (likely the target_found physical-harvest path).
+  (2) `--targeted-routines-2-check`: `live_management_loop_activates` FALSE — the animal
+      management (proto-domestication) loop no longer fires over a 30y baseline; a real
+      cross-system behavioral regression.
+  (3) `--targeted-causal-agency-check`: `hardship_gate_inert_for_comfortable_band` and
+      `scenario_stay_bias_erodes_in_real_decision` FALSE — `chronicHardship` now reads
+      `deriveCanonicalNutritionState(seasonalSupport)`, whose undefined default is a severe
+      0.7; the comfortable fixtures carry no `seasonalSupport`, so they read as stressed.
+      Reconcile the fixtures AND reconsider the aggressive undefined-nutrition default
+      (affects real first-season bands).
+  (4) `--targeted-fauna-stock-audit`: `boundedCount` (264 > stale 260 after 4 predators/map)
+      and `flooredAtOrAbove` (0.18 floor intentionally removed per §12) and `recovered` —
+      stale expectations from intentional changes; update to the new correct behavior.
+  TS (both configs), production build, architecture graph (207/728, 0 dup/dangling),
+  deterministic benchmark, and the food/plant-patch/eligibility/anti-omniscience(resource)/
+  movement/passability/invention/shared-catchment audits are green. faunaAdvance ≈14 ms/tick;
+  state bounded (264 fauna, ~1200 plant records). `hardshipOutcome` left isolated/untouched.
+  Recommendation: **LIVING ECOLOGY / TROPHIC COUPLING-1C** — do not proceed to expeditions.

@@ -33,18 +33,12 @@ const RECEIPT_CAP = 16;
 // trivially exceed — its demand, leaving lean seasons and depleted/absent
 // catchments in real deficit.
 //
-// SCOPE / HONEST LIMITATION: this fixes the LEDGER SIGNAL, not long-run survival.
-// The default worlds still trend to extinction, and measurement shows the
-// population trajectory is nearly INSENSITIVE to this scale (baseline benchmark is
-// byte-identical at scale 1, 100 and 1000). The binding drivers of the decline
-// are OUTSIDE this ledger: the food-pressure term in pressure.ts is dominated by
-// the ledger-independent `foodEstimate` / foraging-pressure / hunger-pressure
-// inputs, and bands are in near-perpetual residential flight (~99.7% of decisions
-// are moves), so they rarely settle to convert the abundant ecology into support.
-// Closing the §3 chain (making demography meaningfully track this ledger) and
-// calming the movement / trip-success death-spiral are deferred to the next
-// checkpoint (LIVING ECOLOGY / TROPHIC COUPLING-1B).
-const HARVEST_TO_SUPPORT_SCALE = 100;
+// LIVING-ECOLOGY-1B closes the consumer chain: bounded history derived from this
+// ledger alone now drives current food pressure and the explicit food terms in
+// demography. The conversion remains visible and parameterized so causal audits
+// test 80/100/120 sensitivity without creating support from zero.
+export const HARVEST_TO_SUPPORT_SCALE = 100;
+export const HUMAN_FOOD_SUPPORT_UNIT = "adult_equivalent_season" as const;
 
 // Canonical human food ledger. It deliberately consumes activity receipts only:
 // habitat yield, resource-class decomposition, memories, inventions, and visible
@@ -53,6 +47,7 @@ const HARVEST_TO_SUPPORT_SCALE = 100;
 export function deriveHumanFoodSupportLedger(
   band: Band,
   populationDemand: number,
+  harvestToSupportScale = HARVEST_TO_SUPPORT_SCALE,
 ): HumanFoodSupportLedger {
   const trips = (band.recentIntraSeasonTrips ?? []).filter((trip) => trip.physicalFoodHarvest !== undefined);
   const sourceSeasonTick = trips.length === 0
@@ -88,7 +83,8 @@ export function deriveHumanFoodSupportLedger(
   }
 
   const rawUsableHarvest = totalUsableSupport;
-  const supportFromHarvest = rawUsableHarvest * HARVEST_TO_SUPPORT_SCALE;
+  const conversionScale = Math.max(0, harvestToSupportScale);
+  const supportFromHarvest = rawUsableHarvest * conversionScale;
   const demand = Math.max(1, populationDemand);
   const rawSupportRatio = supportFromHarvest / demand;
   const foodStress = clamp01(1 - rawSupportRatio);
@@ -108,7 +104,9 @@ export function deriveHumanFoodSupportLedger(
     spoilageLoss: 0,
     accessLoss: 0,
     rawUsableHarvest: round4(rawUsableHarvest),
-    harvestToSupportScale: HARVEST_TO_SUPPORT_SCALE,
+    harvestToSupportScale: conversionScale,
+    supportUnit: HUMAN_FOOD_SUPPORT_UNIT,
+    supportUnitContract: "one raw usable harvest unit equals the declared scale of adult-equivalent seasonal food after recorded losses",
     totalUsableSupport: round4(supportFromHarvest),
     populationDemand: round4(demand),
     rawSupportRatio: round4(rawSupportRatio),

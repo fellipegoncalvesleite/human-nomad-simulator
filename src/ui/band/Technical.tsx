@@ -157,6 +157,10 @@ function WorldEcologyDebugDetails() {
         label="fauna response state (world truth)"
         value={`${ecologySummary.faunaRoutines.managedStocks} contact-affected stocks · wariness ${ecologySummary.faunaRoutines.meanWariness} · habituation ${ecologySummary.faunaRoutines.meanHabituation} · reproductive condition ${ecologySummary.faunaRoutines.meanReproductiveCondition}`}
       />
+      <Detail
+        label="trophic coupling (world truth)"
+        value={`${ecologySummary.trophic.herbivoreStocks} forage consumers · forage ratio ${ecologySummary.trophic.meanForageSupportRatio} · feeding ${ecologySummary.trophic.feedingPressure} · ${ecologySummary.trophic.predatorStocks} predators · prey removed ${ecologySummary.trophic.preyRemoved} · predator condition ${ecologySummary.trophic.meanPredatorCondition}`}
+      />
     </>
   );
 }

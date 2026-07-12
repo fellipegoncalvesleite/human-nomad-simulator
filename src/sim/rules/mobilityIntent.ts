@@ -19,6 +19,7 @@ import type {
 import type { KnownTileRecord } from "../knowledge/types";
 import { getTile } from "../world/generate";
 import type { Tile, WorldState } from "../world/types";
+import { getCanonicalFoodStress } from "../agents/seasonalSurvival";
 import type {
   MobilityIntent,
   MobilityIntentKind,
@@ -419,12 +420,11 @@ function buildIntentCandidates(
     context.currentValue >= 0.56 &&
     currentWater >= 0.52 &&
     currentRisk <= 0.48 &&
-    band.hungerPressure <= 0.42;
+    getCanonicalFoodStress(band) <= 0.42;
 
   if (
     localSufficient &&
     (band.frontierDispersal?.pressure ?? 0) < 0.32 &&
-    band.consecutiveSeasonsOnTile <= 1 &&
     (basis === undefined || basis.dryMarginAffinity < DRY_MARGIN_AFFINITY_THRESHOLD)
   ) {
     candidates.push(createLocalForagingCandidate(world, band, context));
@@ -921,14 +921,15 @@ function getMobilityContext(world: WorldState, band: Band): MobilityContext | un
 
   const currentValue = getKnownTileValue(currentRecord, band.placeMemory[currentRecord.tileId]);
   const waterPressure = 1 - (currentRecord.observedWaterAccess ?? 0.35);
-  const foodPressure = 1 - currentRecord.observedRichness;
+  const foodOpportunityPressure = 1 - currentRecord.observedRichness;
+  const foodPressure = getCanonicalFoodStress(band);
   const riskPressure = currentRecord.observedRisk ?? 0.35;
   const knownTileCount = Object.keys(band.knowledge.observedTiles).length;
   const mobilityPressure = clamp01(
-    band.hungerPressure * 0.25 +
+    foodPressure * 0.25 +
       band.territorialPressure * 0.12 +
       waterPressure * 0.24 +
-      foodPressure * 0.2 +
+      foodOpportunityPressure * 0.12 +
       riskPressure * 0.16 +
       (band.rangeSaturation?.saturationPressure ?? 0) * 0.14 +
       (band.frontierDispersal?.pressure ?? 0) * 0.18 +
@@ -938,8 +939,9 @@ function getMobilityContext(world: WorldState, band: Band): MobilityContext | un
   const survivalPressure = clamp01(
     waterPressure * 0.34 +
       foodPressure * 0.26 +
+      foodOpportunityPressure * 0.08 +
       riskPressure * 0.28 +
-      band.hungerPressure * 0.22,
+      0,
   );
 
   return {
@@ -961,6 +963,16 @@ function hasCompletedIntent(
   context: MobilityContext,
 ): boolean {
   if (intent.targetTileId !== undefined && intent.targetTileId === band.position) {
+    return true;
+  }
+
+  if (
+    (intent.kind === "follow_river_corridor" || intent.kind === "cross_pass") &&
+    getIntentElapsedTicks(world, intent) >= 1 &&
+    context.currentValue >= 0.56 &&
+    (context.currentRecord.observedWaterAccess ?? 0.35) >= 0.48 &&
+    getCanonicalFoodStress(band) <= 0.3
+  ) {
     return true;
   }
 

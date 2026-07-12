@@ -30,6 +30,8 @@ import type {
   RepetitionImprovementPotential,
   TripAdaptationAction,
 } from "./types";
+import { deriveCanonicalNutritionState } from "./seasonalSurvival";
+import { isPhysicalFoodReturnKind } from "./physicalFoodReturn";
 
 const LEARNING_RECORD_CAP = 10;
 const FALLBACK_CANDIDATE_CAP = 6;
@@ -466,8 +468,16 @@ function deriveTripFailureMemory(accumulator: TripFailureAccumulator): ForagingT
   }
 
   const failureCount = accumulator.trips.filter((trip) => isTripFailure(trip.activityOutcome)).length;
+  // §6 outcome learning: this reads the RESOLVED ACTUAL return, not a pre-trip
+  // estimate. resolvePhysicalFoodHarvest overwrites resourceReturn.estimatedReturnValue
+  // with physicalFoodHarvest.usableSupport and sets returnedResourceKind to "none"
+  // when the real patch/stock yielded zero — so a physical-food kind here means the
+  // receipt was actually useful (>0), and a high pre-trip estimate that harvested
+  // nothing is already excluded (kind "none", value 0, counted via failureCount).
+  // Reconstructed audit fixtures set estimatedReturnValue to the intended actual
+  // return directly, so this accessor is correct in both production and fixtures.
   const lowReturnCount = accumulator.trips.filter((trip) =>
-    trip.resourceReturn.returnedResourceKind.endsWith("_placeholder") &&
+    isPhysicalFoodReturnKind(trip.resourceReturn.returnedResourceKind) &&
     trip.resourceReturn.estimatedReturnValue < 0.045,
   ).length;
   const successCount = accumulator.trips.filter((trip) => isTripSuccess(trip.activityOutcome)).length;
@@ -1431,22 +1441,7 @@ function deriveCrisisBreakawayState(
 }
 
 function deriveHungerSeverity(band: Band): number {
-  const seasonalSupport = band.seasonalSupport;
-  const currentSeason = seasonalSupport?.currentSeasonSupport;
-  const seasonalFoodStress = Math.max(
-    currentSeason?.deficitRatio ?? 0,
-    currentSeason === undefined ? 0 : Math.max(0, 0.95 - currentSeason.rawSupportRatio) * 0.8,
-    seasonalSupport?.hungerClassification === "seasonal_lean_stress" ? 0.34 : 0,
-    seasonalSupport?.hungerClassification === "chronic_plus_seasonal_stress" ? 0.48 : 0,
-    seasonalSupport?.hungerClassification === "crisis_deficit" ? 0.72 : 0,
-  );
-
-  return clamp01(Math.max(
-    band.pressureState?.foodStress ?? 0,
-    band.hungerPressure,
-    seasonalFoodStress,
-    band.perCapitaReturn === undefined ? 0 : Math.max(0, 0.58 - band.perCapitaReturn.perCapitaReturn),
-  ));
+  return deriveCanonicalNutritionState(band.seasonalSupport).foodMovementPressure;
 }
 
 function deriveRecoverySignal(band: Band, hungerSeverity: number): number {

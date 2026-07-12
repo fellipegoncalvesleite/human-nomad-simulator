@@ -23,7 +23,7 @@ import type {
 } from "./types";
 import { getNearbyBandPressure } from "./crowding";
 import { deriveCarryingCapacity } from "./carryingCapacity";
-import { updateSeasonalSupportState } from "./seasonalSurvival";
+import { deriveCanonicalNutritionState, updateSeasonalSupportState } from "./seasonalSurvival";
 import {
   deriveInnerFissionState,
   deriveSocialTensionReadabilityState,
@@ -257,6 +257,10 @@ export function applyRangeSaturationContext(
         visibleLandscapeCues,
         returnTrend: returnTrend ?? band.returnTrend,
         seasonalSupport: seasonalSupport ?? band.seasonalSupport,
+        // Compatibility mirror only; all readers of current nourishment use
+        // seasonalSupport directly. This prevents the legacy spawn value from
+        // remaining a contradictory second hunger state in snapshots.
+        hungerPressure: deriveCanonicalNutritionState(seasonalSupport ?? band.seasonalSupport).foodMovementPressure,
         exhaustedRangeAudit: exhaustedRangeAudit ?? band.exhaustedRangeAudit,
         resourceKnowledgeState: resourceKnowledgeState ?? band.resourceKnowledgeState,
       };

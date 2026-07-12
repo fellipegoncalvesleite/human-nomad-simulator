@@ -1544,6 +1544,10 @@ async function main() {
       isWithinSideReachOfCorridor: (await server.ssrLoadModule("/sim/agents/frontierKnowledge.ts")).isWithinSideReachOfCorridor,
       spawnInitialBands: (await server.ssrLoadModule("/sim/agents/spawn.ts")).spawnInitialBands,
       advanceWorldTime: (await server.ssrLoadModule("/sim/tick/time.ts")).advanceWorldTime,
+      getCalendarDay: (await server.ssrLoadModule("/sim/tick/time.ts")).getCalendarDay,
+      runDailyActions: (await server.ssrLoadModule("/sim/agents/dailyActions.ts")).runDailyActions,
+      DEFAULT_DAILY_ACTIONS: (await server.ssrLoadModule("/sim/agents/intraSeasonTrips.ts")).DEFAULT_DAILY_ACTIONS,
+      SEASON_LENGTH_DAYS: (await server.ssrLoadModule("/sim/core/types.ts")).SEASON_LENGTH_DAYS,
       buildTickContextCache: (await server.ssrLoadModule("/sim/agents/contextCache.ts")).buildTickContextCache,
       applyRangeSaturationContext: (await server.ssrLoadModule("/sim/agents/socialContext.ts")).applyRangeSaturationContext,
       applyFrontierOpportunityContext: (await server.ssrLoadModule("/sim/agents/socialContext.ts")).applyFrontierOpportunityContext,
@@ -2742,7 +2746,14 @@ function runBenchmark(modules, request, options) {
     }
 
     const tickStart = performance.now();
-    const tickResult = advanceInstrumentedOneSeason(modules, world, metrics, options, tracker);
+    const tickResult = advanceInstrumentedOneSeason(modules, world, metrics, {
+      ...options,
+      // Baseline/default-world ecology runs must execute the same physical trip
+      // interval as production. Targeted legacy fixtures keep their explicit
+      // reconstructed-season semantics unless they opt in separately.
+      livingEcologyProductionActivities:
+        request.scenario === "baseline" || request.scenario === "map2_varied_migration",
+    }, tracker);
     world = tickResult.world;
     const tickDuration = performance.now() - tickStart;
     metrics.ticksSimulated += 1;
@@ -8243,7 +8254,7 @@ function makeControlledAnimalTrip(world, band, tileId, trace, activityOutcome, d
     activityOutcomeReasonIds: [`reason:fauna-stocks-audit:activity:${String(band.id)}:${String(tileId)}:${dayOffset}`],
     activityOutcomeSummary: `controlled_${activityOutcome}; fauna_stocks_audit`,
     resourceReturn: {
-      returnedResourceKind: activityOutcome === "target_not_found" ? "none" : "hunted_food_placeholder",
+      returnedResourceKind: activityOutcome === "target_not_found" ? "none" : "hunted_fauna_food",
       estimatedReturnValue: trace.actualReturnValue,
       returnConfidence: trace.confidence,
       consumedByEconomy: false,
@@ -12237,7 +12248,7 @@ function makeRelationshipTrip(world, band, taskGroupType, resourceClassId, activ
     activityOutcomeReasonIds: [reasonId],
     activityOutcomeSummary: activityOutcome,
     resourceReturn: {
-      returnedResourceKind: resourceClassId === "aquatic_food" ? "fish_placeholder" : resourceClassId === "animal_food" ? "hunted_food_placeholder" : "gathered_food_placeholder",
+      returnedResourceKind: resourceClassId === "aquatic_food" ? "harvested_aquatic_food" : resourceClassId === "animal_food" ? "hunted_fauna_food" : "gathered_plant_food",
       estimatedReturnValue: activityOutcome === "target_found" || activityOutcome === "partial_success" ? 0.48 : 0.12,
       returnConfidence: activityOutcome === "target_found" || activityOutcome === "partial_success" ? 0.62 : 0.28,
       consumedByEconomy: false,
@@ -14908,8 +14919,8 @@ function buildBandIdentityActivityFixture(modules, world, sourceBand) {
     activityOutcomeSummary: {
       ...(sourceBand.activityOutcomeSummary ?? {}),
       returnsByResourceKind: [
-        { returnedResourceKind: "gathered_food_placeholder", count: 2, estimatedReturnValueTotal: 0.4 },
-        { returnedResourceKind: "fish_placeholder", count: 1, estimatedReturnValueTotal: 0.2 },
+        { returnedResourceKind: "gathered_plant_food", count: 2, estimatedReturnValueTotal: 0.4 },
+        { returnedResourceKind: "harvested_aquatic_food", count: 1, estimatedReturnValueTotal: 0.2 },
       ],
     },
   };
@@ -15470,7 +15481,7 @@ function buildKnowledgeEcologyFixtures(modules, world, sourceBand) {
   const routeId = `route:knowledge-fixture:${String(sourceBand.id)}`;
   const tileA = sourceBand.position;
   const tileB = sourceBand.currentCampTileId ?? sourceBand.position;
-  const activityTrip = makeKnowledgeFixtureTrip(sourceBand, world, tileB, "plant_gathering_group", "gathered_food_placeholder", "successful_observation", "confidence_refreshed");
+  const activityTrip = makeKnowledgeFixtureTrip(sourceBand, world, tileB, "plant_gathering_group", "gathered_plant_food", "successful_observation", "confidence_refreshed");
   const waterTrip = makeKnowledgeFixtureTrip(sourceBand, world, tileA, "water_group", "water_information", "returned_with_information", "water_reliability_refreshed");
   const routeTrip = makeKnowledgeFixtureTrip(sourceBand, world, tileB, "memory_refresh_group", "route_information", "returned_with_information", "route_memory_refreshed");
   const riskTrip = makeKnowledgeFixtureTrip(sourceBand, world, tileA, "memory_refresh_group", "none", "failed_due_to_water_risk", "risk_suspicion_added");
@@ -15539,7 +15550,7 @@ function buildKnowledgeEcologyFixtures(modules, world, sourceBand) {
       failedCount: 1,
       informationCount: 2,
       returnsByResourceKind: [
-        { returnedResourceKind: "gathered_food_placeholder", count: 1, estimatedReturnValueTotal: 0.3 },
+        { returnedResourceKind: "gathered_plant_food", count: 1, estimatedReturnValueTotal: 0.3 },
         { returnedResourceKind: "water_information", count: 1, estimatedReturnValueTotal: 0 },
         { returnedResourceKind: "route_information", count: 1, estimatedReturnValueTotal: 0 },
       ],
@@ -16311,7 +16322,7 @@ function buildMaterialAffordanceFixtures(modules, world, sourceBand) {
     world,
     targetTileId,
     "plant_gathering_group",
-    "gathered_food_placeholder",
+    "gathered_plant_food",
     "successful_observation",
     "confidence_refreshed",
   );
@@ -16325,7 +16336,7 @@ function buildMaterialAffordanceFixtures(modules, world, sourceBand) {
       season: world.time.season,
       outcomesByType: [{ outcome: "successful_observation", count: 1 }],
       outcomesByTaskType: [{ taskGroupType: "plant_gathering_group", outcome: "successful_observation", count: 1 }],
-      returnsByResourceKind: [{ returnedResourceKind: "gathered_food_placeholder", count: 1, estimatedReturnValueTotal: 0.24 }],
+      returnsByResourceKind: [{ returnedResourceKind: "gathered_plant_food", count: 1, estimatedReturnValueTotal: 0.24 }],
       successCount: 1,
       partialCount: 0,
       failedCount: 0,
@@ -16998,7 +17009,7 @@ function buildProblemPracticeFixtures(modules, world, sourceBand) {
     world,
     targetTileId,
     "plant_gathering_group",
-    "gathered_food_placeholder",
+    "gathered_plant_food",
     "failed_due_to_distance",
     "confidence_lowered",
   );
@@ -17032,7 +17043,7 @@ function buildProblemPracticeFixtures(modules, world, sourceBand) {
       season: now.season,
       outcomesByType: [{ outcome: "failed_due_to_distance", count: 1 }],
       outcomesByTaskType: [{ taskGroupType: "plant_gathering_group", outcome: "failed_due_to_distance", count: 1 }],
-      returnsByResourceKind: [{ returnedResourceKind: "gathered_food_placeholder", count: 1, estimatedReturnValueTotal: 0.08 }],
+      returnsByResourceKind: [{ returnedResourceKind: "gathered_plant_food", count: 1, estimatedReturnValueTotal: 0.08 }],
       successCount: 0,
       partialCount: 1,
       failedCount: 1,
@@ -25694,7 +25705,7 @@ function makeForagingFixtureTrip(world, band, tileId, outcome, returnValue, dist
     activityOutcome: outcome,
     activityResult: outcome,
     resourceReturn: {
-      returnedResourceKind: resourceClassId === "animal_food" ? "hunted_food_placeholder" : "gathered_food_placeholder",
+      returnedResourceKind: resourceClassId === "animal_food" ? "hunted_fauna_food" : "gathered_plant_food",
       estimatedReturnValue: returnValue,
       returnConfidence: 0.28,
       consumedByEconomy: false,
@@ -29172,7 +29183,7 @@ function makeResourceEcologyFixtureTrip(world, band, trip, index) {
     activityOutcomeReasonIds: [reasonId],
     activityOutcomeSummary: trip.outcome === "partial_success" ? "resource activity partially succeeded" : "resource activity failed",
     resourceReturn: {
-      returnedResourceKind: trip.taskGroupType === "fishing_group" ? "fish_placeholder" : "gathered_food_placeholder",
+      returnedResourceKind: trip.taskGroupType === "fishing_group" ? "harvested_aquatic_food" : "gathered_plant_food",
       estimatedReturnValue: trip.outcome === "partial_success" ? 0.62 : 0.12,
       returnConfidence: trip.outcome === "partial_success" ? 0.68 : 0.24,
       consumedByEconomy: false,
@@ -33065,7 +33076,11 @@ function runPlantStockFixtureAudit(modules) {
     let w = world;
     depletionTrace = [plant.summarizePlantPatchState(w).maxDepletion];
     for (let i = 0; i < 30; i += 1) {
-      w = plant.applyPlantGatherDepletion(w, plantTile, time, 0.9);
+      // LIVING-ECOLOGY-1B: the standalone applyPlantGatherDepletion path was
+      // removed; physical gathering depletion is now written by the real harvest
+      // resolver (same living patch state humans and herbivores share). Request a
+      // large draw each iteration so the encountered patch is worked repeatedly.
+      w = plant.resolvePlantFoodHarvest(w, plantTile, time, 0.9, true).world;
       depletionTrace.push(plant.summarizePlantPatchState(w).maxDepletion);
     }
     returnDepleted = plant.derivePlantGatherReturnFactor(w, plantTile, time);
@@ -33113,7 +33128,7 @@ function runPlantStockFixtureAudit(modules) {
     scenario: "map2_varied_migration (plant patch unit dynamics)",
     notes: [
       "Directly exercises plantStock.ts pure dynamics (no sim tick loop, no trips run); deterministic, no random.",
-      "Gathering depletion is bounded; rested recovery rebounds at class regrowth rate; materials contribute 0 calories.",
+      "Gathering depletion via the LIVING-ECOLOGY-1B physical harvest resolver is bounded; rested recovery rebounds at class regrowth rate; materials contribute 0 calories.",
     ],
     checks,
     depletion: {
@@ -53821,7 +53836,19 @@ function formatScoutRingEntry(entry) {
 
 function advanceInstrumentedOneSeason(modules, world, metrics, options, tracker) {
   let start = performance.now();
-  const timeAdvancedWorld = modules.advanceWorldTime(world);
+  const activityWorld = options.livingEcologyProductionActivities === true
+    ? modules.runDailyActions(
+        world,
+        modules.getCalendarDay(world.time),
+        modules.SEASON_LENGTH_DAYS,
+        modules.DEFAULT_DAILY_ACTIONS,
+      )
+    : world;
+  if (options.livingEcologyProductionActivities === true) {
+    addPhase(metrics, "intraSeasonActivities", start);
+    start = performance.now();
+  }
+  const timeAdvancedWorld = modules.advanceWorldTime(activityWorld);
   addPhase(metrics, "time", start);
 
   const beforeContext = advanceInstrumentedContext(

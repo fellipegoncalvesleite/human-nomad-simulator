@@ -299,9 +299,9 @@ export function deriveCampLifeDisplay(
   );
   const returnedFoodKind = latestTrip?.resourceReturn.returnedResourceKind;
   const returnedFood =
-    returnedFoodKind === "fish_placeholder" ||
-    returnedFoodKind === "hunted_food_placeholder" ||
-    returnedFoodKind === "gathered_food_placeholder";
+    returnedFoodKind === "harvested_aquatic_food" ||
+    returnedFoodKind === "hunted_fauna_food" ||
+    returnedFoodKind === "gathered_plant_food";
   const waterWork =
     latestTrip?.taskGroupType === "water_group" ||
     (band.pressureState?.waterStress ?? 0) >= 0.36;
@@ -588,13 +588,13 @@ function deriveTripReason(
 
 function summarizeReturn(trip: IntraSeasonTripRecord): string {
   switch (trip.resourceReturn.returnedResourceKind) {
-    case "gathered_food_placeholder":
+    case "gathered_plant_food":
       return trip.plantPatchTrace === undefined
         ? "some gathered food"
         : `${humanizeInline(trip.plantPatchTrace.plantClassId)} worked (${humanizeInline(trip.plantPatchTrace.seasonalAvailability)})`;
-    case "fish_placeholder":
+    case "harvested_aquatic_food":
       return "fish found";
-    case "hunted_food_placeholder":
+    case "hunted_fauna_food":
       return "animals taken";
     case "water_information":
       return "water checked";

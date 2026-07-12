@@ -651,21 +651,28 @@ function derivePredatorSignCards(
     return [];
   }
 
-  const hash = hashUnit(String(world.seed), [String(band.id), prey.stockId, "predator_sign"]);
+  const geography = deriveFaunaStockGeography(world);
+  const predator = geography.stocks
+    .filter((stock) => stock.trophicRole === "predator" &&
+      (stock.regionId === world.tiles[prey.anchorTileId]?.regionId || stock.influenceTileIds.some((tileId) => prey.seenTileIds.includes(tileId))))
+    .sort((left, right) => String(left.id).localeCompare(String(right.id)))[0];
+  if (predator === undefined) return [];
+
+  const hash = hashUnit(String(world.seed), [String(band.id), String(predator.id), prey.stockId, "predator_sign"]);
   if (hash < 0.28 && prey.risk < 0.34) {
     return [];
   }
 
   const risk = round2(clamp01(0.32 + prey.confidence * 0.24 + prey.risk * 0.2));
   return [{
-    stockId: `predator-sign:${prey.stockId}`,
-    derivedFromStockId: prey.stockId,
+    stockId: `predator-sign:${String(predator.id)}`,
+    derivedFromStockId: String(predator.id),
     faunaClass: "animal_food",
     archetype: "wolves",
     label: "wolf-like predator signs",
     sourceKind: "predator_sign",
-    habitat: prey.habitat,
-    anchorTileId: prey.anchorTileId,
+    habitat: predator.habitat,
+    anchorTileId: predator.anchorTileId,
     seenTileIds: prey.seenTileIds.slice(0, 3),
     tags: ["pack_predator", "scavenger", "camp_follower_candidate", "seasonal_mover", "high_risk", "trackable"],
     knowledgeState: risk >= 0.48 ? "dangerous" : "inferred_from_tracks",
@@ -679,12 +686,12 @@ function derivePredatorSignCards(
     risk,
     wariness: 0.36,
     humanTolerance: 0.18,
-    habitatSuitability: prey.habitatSuitability,
-    habitatReason: `predator signs inferred from prey route; ${prey.habitatReason}`,
+    habitatSuitability: predator.habitatSuitability,
+    habitatReason: `signs from a physical predator stock overlapping a known prey route; ${prey.habitatReason}`,
     recentEvidence: ["predator signs near visible prey route"],
     perception: risk >= 0.48 ? ["feared", "dangerous", "watched"] : ["watched", "unpredictable"],
-    topReasons: ["predator signs derived from visible prey route", "risk only: no predator agents or attack story"],
-    rawSource: "VisibleNatureState fauna prey card + deterministic predator-sign gate",
+    topReasons: ["physical predator and visible prey overlap", "sign confidence remains uncertain"],
+    rawSource: "VisibleNatureState actual predator stock overlap + band-known prey route + deterministic sign gate",
     noExactHiddenLocation: true,
   }];
 }
@@ -1127,6 +1134,15 @@ function deriveAcuteEpisodes(
 }
 
 function classifyFaunaArchetype(world: WorldState, stock: FaunaStockGeo): FaunaArchetypeProfile {
+  if (stock.trophicRole === "predator") {
+    return {
+      archetype: "wolves",
+      label: stock.kind === "large_predator" ? "large pack-predator stock" : "small predator stock",
+      tags: stock.kind === "large_predator"
+        ? ["pack_predator", "high_risk", "seasonal_mover", "trackable"]
+        : ["lone_predator", "scavenger", "seasonal_mover", "trackable"],
+    };
+  }
   if (stock.faunaClass === "aquatic_food") {
     return {
       archetype: "fish_waterfowl_shellfish",

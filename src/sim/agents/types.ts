@@ -320,9 +320,9 @@ export type IntraSeasonTripActivityResult =
 export type ActivityReturnResourceKind =
   | "none"
   | "food_observation_only"
-  | "gathered_food_placeholder"
-  | "fish_placeholder"
-  | "hunted_food_placeholder"
+  | "gathered_plant_food"
+  | "harvested_aquatic_food"
+  | "hunted_fauna_food"
   | "water_information"
   | "plant_information"
   | "route_information";
@@ -1083,6 +1083,11 @@ export interface BandDemography extends PopulationAccountingState {
   readonly fertilityPressure: NormalizedIntensity;
   readonly mortalityPressure: NormalizedIntensity;
   readonly foodPerPersonStress: NormalizedIntensity;
+  // ECO-TROPHIC-1B: food-only demographic terms derived from the canonical
+  // physical-receipt history. Kept separate from water, exposure, sickness,
+  // injury, crowding, and movement hardship for Technical causal proof.
+  readonly foodMortalityContribution?: NormalizedIntensity;
+  readonly foodFertilitySuppression?: NormalizedIntensity;
   readonly householdCrowdingPressure: NormalizedIntensity;
   readonly splitPressure: NormalizedIntensity;
   readonly lastDemographicUpdate: WorldTime;
@@ -1164,6 +1169,14 @@ export interface SeasonalSupportState {
   readonly waterStressSeasonsLast8: number;
   readonly hungerClassification: SeasonalHungerClassification;
   readonly chronicDeficitClassification: SeasonalHungerClassification;
+  // Canonical bounded nutrition consequences. These contain no calories: they
+  // summarize only the physical-support samples in `recentSamples`.
+  readonly currentFoodStress?: NormalizedIntensity;
+  readonly recentFoodStress?: NormalizedIntensity;
+  readonly chronicFoodStress?: NormalizedIntensity;
+  readonly recoveryRelief?: NormalizedIntensity;
+  readonly foodMovementPressure?: NormalizedIntensity;
+  readonly foodDemographicPressure?: NormalizedIntensity;
   readonly populationStableDespiteRecurringHunger: boolean;
   readonly topSeasonalSupportReasons: readonly string[];
   readonly reasonIds: readonly ReasonId[];
@@ -2013,6 +2026,8 @@ export interface HumanFoodSupportLedger {
   readonly accessLoss: number;
   readonly rawUsableHarvest: number;
   readonly harvestToSupportScale: number;
+  readonly supportUnit: "adult_equivalent_season";
+  readonly supportUnitContract: string;
   readonly totalUsableSupport: number;
   readonly populationDemand: number;
   readonly rawSupportRatio: number;
@@ -2530,6 +2545,8 @@ export interface BandPressureState {
   readonly tick: TickNumber;
   readonly time: WorldTime;
   readonly foodStress: NormalizedIntensity;
+  readonly foodMovementPressure?: NormalizedIntensity;
+  readonly foodStressSource?: "canonical_physical_support_history";
   readonly waterStress: NormalizedIntensity;
   readonly mobilityPressure: NormalizedIntensity;
   readonly fatiguePressure: NormalizedIntensity;

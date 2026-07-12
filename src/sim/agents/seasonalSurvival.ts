@@ -11,6 +11,58 @@ import type { ReasonId, WorldTime } from "../core/types";
 const SEASONAL_MEMORY_WINDOW = 8;
 const SHORT_WINDOW = 4;
 
+export interface CanonicalNutritionState {
+  readonly currentFoodStress: number;
+  readonly recentFoodStress: number;
+  readonly chronicFoodStress: number;
+  readonly recoveryRelief: number;
+  readonly foodMovementPressure: number;
+  readonly foodDemographicPressure: number;
+}
+
+// One authoritative translation from physical-support history into nutritional
+// consequences. It never adds support and never reads habitat potential,
+// remembered richness, projected trips, or the legacy hungerPressure field.
+export function deriveCanonicalNutritionState(
+  support: SeasonalSupportState | undefined,
+): CanonicalNutritionState {
+  if (support === undefined) {
+    return {
+      currentFoodStress: 1,
+      recentFoodStress: 1,
+      chronicFoodStress: 0,
+      recoveryRelief: 0,
+      foodMovementPressure: 0.7,
+      foodDemographicPressure: 0.65,
+    };
+  }
+
+  const currentFoodStress = clamp01(support.currentSeasonSupport.foodStress);
+  const recentFoodStress = clamp01(1 - support.rolling4SeasonSupport);
+  const chronicFoodStress = clamp01(
+    (support.chronicDeficitStreak / SEASONAL_MEMORY_WINDOW) * 0.58 +
+      (support.deficitSeasonsLast8 / SEASONAL_MEMORY_WINDOW) * 0.42,
+  );
+  const recoveryRelief = clamp01(support.seasonalRecoveryStreak / SHORT_WINDOW);
+
+  return {
+    currentFoodStress: round2(currentFoodStress),
+    recentFoodStress: round2(recentFoodStress),
+    chronicFoodStress: round2(chronicFoodStress),
+    recoveryRelief: round2(recoveryRelief),
+    foodMovementPressure: round2(clamp01(
+      currentFoodStress * 0.42 + recentFoodStress * 0.34 + chronicFoodStress * 0.34 - recoveryRelief * 0.16,
+    )),
+    foodDemographicPressure: round2(clamp01(
+      currentFoodStress * 0.38 + recentFoodStress * 0.26 + chronicFoodStress * 0.48 - recoveryRelief * 0.14,
+    )),
+  };
+}
+
+export function getCanonicalFoodStress(band: Band): number {
+  return deriveCanonicalNutritionState(band.seasonalSupport).foodMovementPressure;
+}
+
 export function updateSeasonalSupportState(
   previous: SeasonalSupportState | undefined,
   carrying: CarryingCapacityState | undefined,
@@ -26,7 +78,10 @@ export function updateSeasonalSupportState(
   const seasonalModifier = round2(
     yieldState.basePotential <= 0 ? 1 : yieldState.effectiveYield / yieldState.basePotential,
   );
-  const foodStress = clamp01(Math.max(band.pressureState?.foodStress ?? 0, support.deficitRatio));
+  // Current nourishment is owned by the canonical physical ledger. Do not feed
+  // last tick's behavioral pressure back into food history: that stale loop made
+  // a good harvest unable to clear hunger.
+  const foodStress = clamp01(support.humanFoodLedger?.foodStress ?? support.deficitRatio);
   const waterStress = clamp01(band.pressureState?.waterStress ?? 0);
   const sample: SeasonalSupportSample = {
     tick: time.tick,
@@ -92,7 +147,7 @@ export function updateSeasonalSupportState(
     seasonalRecoveryStreak,
   });
 
-  return {
+  const baseState: SeasonalSupportState = {
     bandId: band.id,
     lastUpdatedTick: time.tick,
     currentSeasonSupport: sample,
@@ -116,6 +171,12 @@ export function updateSeasonalSupportState(
     populationStableDespiteRecurringHunger: hasStablePopulationButRecurringHunger(band, deficitSeasonsLast8),
     topSeasonalSupportReasons: getTopSeasonalSupportReasons(carrying, sample),
     reasonIds: makeSeasonalSupportReasonIds(band, time, hungerClassification),
+  };
+  const nutrition = deriveCanonicalNutritionState(baseState);
+
+  return {
+    ...baseState,
+    ...nutrition,
   };
 }
 

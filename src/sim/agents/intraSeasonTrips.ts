@@ -47,6 +47,7 @@ import {
 } from "./faunaStock";
 import { applyPlantGatherDepletion, derivePlantGatherPatchTrace, derivePlantGatherReturnFactor, type PlantGatherPatchTraceBase } from "./plantStock";
 import { deriveResourceClassAvailability } from "./resourceClasses";
+import { deriveHuntingSafetyRelief } from "./practicalResponses";
 import { effectiveResourceConfidence, updateResourceKnowledgeFromObservation } from "./resourceKnowledge";
 import {
   deriveSeasonalEcologyFactor,
@@ -650,10 +651,18 @@ function buildTripRecord(
         outcomeDetail.resourceReturn.estimatedReturnValue,
         candidate,
         estimatedPeopleCount,
+        band,
+        Number(tick),
       );
   const aquaticActivityTrace = aquaticTraceBase === undefined
     ? undefined
     : finalizeAquaticActivityTrace(aquaticTraceBase, outcomeDetail.activityOutcome);
+  const effectiveResourceReturn = animalActivityTrace === undefined
+    ? outcomeDetail.resourceReturn
+    : {
+        ...outcomeDetail.resourceReturn,
+        estimatedReturnValue: animalActivityTrace.actualReturnValue,
+      };
 
   return {
     day,
@@ -679,7 +688,7 @@ function buildTripRecord(
     activityOutcome: outcomeDetail.activityOutcome,
     activityOutcomeReasonIds: outcomeDetail.activityOutcomeReasonIds,
     activityOutcomeSummary: outcomeDetail.activityOutcomeSummary,
-    resourceReturn: outcomeDetail.resourceReturn,
+    resourceReturn: effectiveResourceReturn,
     shadowSubsistence: deriveShadowSubsistenceRecord(
       candidate,
       taskGroupType,
@@ -688,7 +697,7 @@ function buildTripRecord(
       roundTripTiles,
       outcome,
       outcomeDetail.activityOutcome,
-      outcomeDetail.resourceReturn,
+      effectiveResourceReturn,
       season,
       tick,
       band.id,
@@ -750,6 +759,8 @@ function finalizeAnimalActivityTrace(
   actualReturnValue: number,
   candidate: TripCandidate,
   estimatedPeopleCount: number,
+  band: Band,
+  currentTick: number,
 ): AnimalActivityTrace {
   const depletionApplied = isSuccessfulFaunaOutcome(outcome);
   const pressureApplied = depletionApplied
@@ -761,7 +772,18 @@ function finalizeAnimalActivityTrace(
       : isFailureOutcome(outcome)
         ? "failure"
         : "information";
-  const dangerRisk = round4(clamp01(base.risk + base.disturbance * 0.18 + base.pressure * 0.2 + (outcomeClass === "failure" ? 0.08 : 0)));
+  const rawDangerRisk = round4(clamp01(base.risk + base.disturbance * 0.18 + base.pressure * 0.2 + (outcomeClass === "failure" ? 0.08 : 0)));
+  // INVENTION-3: a practiced hunting-method response (striking from reach,
+  // snare lines) relieves a bounded share of the danger this trip pays —
+  // never more than 60% of it; defended/pressed game still turns hunts back.
+  const hunting = deriveHuntingSafetyRelief(band, currentTick, { faunaKind: base.kind, habitat: base.habitat });
+  const huntingReliefApplied = hunting.active && hunting.contextMatched && !hunting.materialFailed
+    ? round4(Math.min(hunting.relief, rawDangerRisk * 0.6))
+    : 0;
+  const dangerRisk = round4(clamp01(rawDangerRisk - huntingReliefApplied));
+  if (hunting.active && hunting.returnShift > 0) {
+    actualReturnValue = round4(clamp01(actualReturnValue * (1 + hunting.returnShift)));
+  }
   const knowledgeUpdate: AnimalActivityTrace["knowledgeUpdate"] =
     dangerRisk >= 0.52 && outcomeClass === "failure"
       ? "danger_caution_added"
@@ -803,9 +825,22 @@ function finalizeAnimalActivityTrace(
     warinessChange: round4(clamp01(pressureApplied * base.mobility * 0.18)),
     dangerRisk,
     dangerClass: dangerRisk >= 0.58 ? "high" : dangerRisk >= 0.32 ? "moderate" : "low",
+    ...(hunting.attempted
+      ? {
+          dangerRiskBeforeLearning: rawDangerRisk,
+          huntingReliefApplied,
+          huntingResponseId: hunting.responseId,
+          huntingVariantKey: hunting.variantKey,
+          huntingContextMatched: hunting.contextMatched && !hunting.materialFailed,
+          huntingPreparationLabor: hunting.laborShift,
+          huntingReturnShiftApplied: round4(Math.max(0, actualReturnValue - actualReturnValue / Math.max(1, 1 + hunting.returnShift))),
+        }
+      : {}),
     distanceTiles: candidate.distanceTiles,
     travelCost: round4(clamp01(candidate.distanceTiles / MAX_TRIP_DISTANCE_TILES)),
-    laborAccessCost: base.laborAccessCost,
+    laborAccessCost: hunting.active && hunting.laborShift > 0
+      ? round4(clamp01(base.laborAccessCost + hunting.laborShift))
+      : base.laborAccessCost,
     activityOutcome: outcome,
     outcomeClass,
     depletionApplied,

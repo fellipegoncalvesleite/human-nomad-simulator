@@ -4,7 +4,10 @@ import { useSimulationStore } from "../store";
 import { getTile } from "../sim/world/generate";
 import type { Band } from "../sim/agents/types";
 import type { StepMode, TickNumber } from "../sim/core/types";
-import type { SimSelectedBandPanelProjection } from "../sim/runner/simRunner";
+import type {
+  SimSelectedBandLiveSummary,
+  SimSelectedBandPanelProjection,
+} from "../sim/runner/simRunner";
 import type { Decision } from "../sim/rules/types";
 import type { Tile, WorldState } from "../sim/world/types";
 
@@ -16,10 +19,13 @@ import { Food } from "./band/Food";
 import { Nature } from "./band/Nature";
 import { Place } from "./band/Place";
 import { CampFootholds } from "./band/CampFootholds";
+import { CampMovement } from "./band/CampMovement";
 import { People } from "./band/People";
 import { Affordances } from "./band/Affordances";
 import { ProblemsAndTrials } from "./band/ProblemsAndTrials";
 import { PracticeFeedback } from "./band/PracticeFeedback";
+import { BetweenBands } from "./band/BetweenBands";
+import { IdeasSolutions } from "./band/IdeasSolutions";
 import { Identity } from "./band/Identity";
 import { Events } from "./band/Events";
 import { Knowledge } from "./band/Knowledge";
@@ -35,10 +41,13 @@ type BandDetailView =
   | "nature"
   | "place"
   | "camp"
+  | "movementCamp"
   | "people"
   | "affordances"
   | "problems"
   | "feedback"
+  | "between"
+  | "ideas"
   | "knowledge"
   | "identity"
   | "events"
@@ -59,10 +68,13 @@ const BAND_DETAIL_VIEWS: readonly {
   { id: "nature", label: "Nature" },
   { id: "place", label: "Place" },
   { id: "camp", label: "Camp & Footholds" },
+  { id: "movementCamp", label: "Movement & Camp" },
   { id: "people", label: "People" },
   { id: "affordances", label: "Affordances" },
   { id: "problems", label: "Problems & Trials" },
   { id: "feedback", label: "Practice Feedback" },
+  { id: "between", label: "Between Bands" },
+  { id: "ideas", label: "Ideas & Solutions" },
   { id: "knowledge", label: "Knowledge" },
   { id: "identity", label: "Identity" },
   { id: "events", label: "Events" },
@@ -92,6 +104,10 @@ export function BandPanel({ stepMode }: { readonly stepMode: StepMode }) {
     (world === null || Number(selectedProjection.time.tick) >= Number(world.time.tick))
       ? selectedProjection
       : null;
+  const liveSelectedBand = useMemo(
+    () => mergeLiveBandSummary(selectedBand, liveProjection?.band),
+    [liveProjection?.band, selectedBand],
+  );
 
   const selectBand = useCallback((band: Band) => {
     setSelectedBandId(band.id);
@@ -108,7 +124,7 @@ export function BandPanel({ stepMode }: { readonly stepMode: StepMode }) {
         bands={bands}
         selectedBandId={selectedBandId}
         currentTick={currentTick}
-        liveSelectedBand={liveProjection?.band}
+        liveSelectedBand={liveSelectedBand}
         liveSelectedTick={liveProjection?.time.tick}
         stepMode={stepMode}
         onSelect={selectBand}
@@ -140,39 +156,21 @@ function LiveBandDetails({
   readonly stepMode: StepMode;
 }) {
   const selectedActivityTripId = useSimulationStore((state) => state.selectedActivityTripId);
-  const band = liveProjection?.band ?? snapshotBand;
-  const world = useMemo(
-    () =>
-      snapshotWorld === null
-        ? null
-        : liveProjection === null
-          ? snapshotWorld
-          : { ...snapshotWorld, time: liveProjection.time },
-    [liveProjection, snapshotWorld],
+  const liveBand = useMemo(
+    () => mergeLiveBandSummary(snapshotBand, liveProjection?.band),
+    [liveProjection?.band, snapshotBand],
   );
-  if (band === undefined) {
+
+  if (snapshotBand === undefined && liveBand === undefined) {
     return <p className="empty-panel">Waiting for selected band detail...</p>;
   }
-  const currentTile =
-    snapshotWorld === null
-      ? undefined
-      : getTile(snapshotWorld, band.position);
-  const latestDecisionId =
-    band.decisionHistory.length === 0
-      ? undefined
-      : band.decisionHistory[band.decisionHistory.length - 1];
-  const latestDecision =
-    liveProjection?.latestDecision ??
-    (latestDecisionId === undefined || snapshotWorld === null
-      ? undefined
-      : snapshotWorld.decisions[latestDecisionId]);
 
   return (
     <BandDetails
-      band={band}
-      world={world}
-      currentTile={currentTile}
-      latestDecision={latestDecision}
+      snapshotBand={snapshotBand}
+      liveBand={liveBand}
+      snapshotWorld={snapshotWorld}
+      liveProjection={liveProjection}
       selectedActivityTripId={selectedActivityTripId}
       stepMode={stepMode}
     />
@@ -180,17 +178,17 @@ function LiveBandDetails({
 }
 
 function BandDetails({
-  band,
-  world,
-  currentTile,
-  latestDecision,
+  snapshotBand,
+  liveBand,
+  snapshotWorld,
+  liveProjection,
   selectedActivityTripId,
   stepMode,
 }: {
-  readonly band: Band;
-  readonly world: WorldState | null;
-  readonly currentTile: Tile | undefined;
-  readonly latestDecision: Decision | undefined;
+  readonly snapshotBand: Band | undefined;
+  readonly liveBand: Band | undefined;
+  readonly snapshotWorld: WorldState | null;
+  readonly liveProjection: SimSelectedBandPanelProjection | null;
   readonly selectedActivityTripId: string | null;
   readonly stepMode: StepMode;
 }) {
@@ -201,6 +199,31 @@ function BandDetails({
   const [chroniclePageRequest, setChroniclePageRequest] = useState<string | null>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
   const firstTabRender = useRef(true);
+  const liveDetailView = detailView === "overview" || detailView === "doing";
+  const band = liveDetailView ? liveBand ?? snapshotBand : snapshotBand ?? liveBand;
+  const activeTime = liveDetailView ? liveProjection?.time : undefined;
+  const world = useMemo(
+    () =>
+      snapshotWorld === null
+        ? null
+        : activeTime === undefined
+          ? snapshotWorld
+          : { ...snapshotWorld, time: activeTime },
+    [activeTime, snapshotWorld],
+  );
+  const currentTile =
+    band === undefined || snapshotWorld === null
+      ? undefined
+      : getTile(snapshotWorld, band.position);
+  const latestDecisionId =
+    band === undefined || band.decisionHistory.length === 0
+      ? undefined
+      : band.decisionHistory[band.decisionHistory.length - 1];
+  const latestDecision =
+    (liveDetailView ? liveProjection?.latestDecision : undefined) ??
+    (latestDecisionId === undefined || snapshotWorld === null
+      ? undefined
+      : snapshotWorld.decisions[latestDecisionId]);
   const seasonRaw = world?.time.season ?? "";
   const season = seasonRaw === "" ? "—" : seasonRaw.charAt(0).toUpperCase() + seasonRaw.slice(1);
   const currentTick = world?.time.tick ?? (0 as TickNumber);
@@ -214,10 +237,14 @@ function BandDetails({
   // wherever the previous band's panel was tabbed or scrolled to. Declared
   // before the activity-trip effect so a trip click still wins to Doing.
   useEffect(() => {
+    if (band === undefined) {
+      return;
+    }
+
     setDetailView("overview");
     setChroniclePageRequest(null);
     tabsRef.current?.scrollIntoView({ block: "start" });
-  }, [band.id]);
+  }, [band?.id]);
 
   useEffect(() => {
     if (selectedActivityTripId !== null) {
@@ -235,6 +262,10 @@ function BandDetails({
     }
     tabsRef.current?.scrollIntoView({ block: "start" });
   }, [detailView]);
+
+  if (band === undefined) {
+    return <p className="empty-panel">Waiting for selected band detail...</p>;
+  }
 
   return (
     <>
@@ -293,10 +324,13 @@ function BandDetails({
           <Place band={band} world={world} currentTick={currentTick} onOpenChronicle={openChroniclePage} />
         ) : null}
         {detailView === "camp" ? <CampFootholds band={band} world={world} /> : null}
+        {detailView === "movementCamp" ? <CampMovement band={band} world={world} /> : null}
         {detailView === "people" ? <People band={band} world={world} onOpenChronicle={openChroniclePage} /> : null}
         {detailView === "affordances" ? <Affordances band={band} world={world} /> : null}
         {detailView === "problems" ? <ProblemsAndTrials band={band} world={world} /> : null}
         {detailView === "feedback" ? <PracticeFeedback band={band} world={world} /> : null}
+        {detailView === "between" ? <BetweenBands band={band} world={world} /> : null}
+        {detailView === "ideas" ? <IdeasSolutions band={band} world={world} /> : null}
         {detailView === "knowledge" ? (
           <Knowledge
             band={band}
@@ -334,4 +368,22 @@ function BandDetails({
       </div>
     </>
   );
+}
+
+function mergeLiveBandSummary(
+  snapshotBand: Band | undefined,
+  liveSummary: SimSelectedBandLiveSummary | undefined,
+): Band | undefined {
+  if (snapshotBand === undefined) {
+    return undefined;
+  }
+
+  if (liveSummary === undefined || String(snapshotBand.id) !== String(liveSummary.id)) {
+    return snapshotBand;
+  }
+
+  return {
+    ...snapshotBand,
+    ...liveSummary,
+  };
 }

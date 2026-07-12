@@ -173,6 +173,7 @@ export interface SimDynamicSnapshot {
   readonly decisionArchive: WorldState["decisionArchive"];
   readonly currentClimateStress: WorldState["currentClimateStress"];
   readonly tileDepletion: WorldState["tileDepletion"];
+  readonly faunaStocks: WorldState["faunaStocks"];
   // SIM-TOOLS-1 — tiny world-TRUTH ecology aggregate for the explicitly-labelled
   // DEBUG ecology view only (never used by the selected-band view, which derives
   // from band knowledge). Bounded to a few dozen numbers, so it rides the snapshot
@@ -188,6 +189,7 @@ export function takeDynamicSnapshot(world: WorldState): SimDynamicSnapshot {
     decisionArchive: world.decisionArchive,
     currentClimateStress: world.currentClimateStress,
     tileDepletion: world.tileDepletion,
+    faunaStocks: world.faunaStocks,
     ecologySummary: summarizeWorldEcology(world),
   };
 }
@@ -204,6 +206,7 @@ export function mergeDynamicSnapshot(
     decisionArchive: snapshot.decisionArchive,
     currentClimateStress: snapshot.currentClimateStress,
     tileDepletion: snapshot.tileDepletion,
+    faunaStocks: snapshot.faunaStocks,
   };
 }
 
@@ -243,6 +246,9 @@ export interface SimLiveMarker {
   readonly color: string;
   readonly isDaughter: boolean;
   readonly separationActive: boolean;
+  // CAUSAL-REPAIR-2 — true while the RESIDENTIAL band is displayed mid-route on
+  // its recorded seasonal travel (sub-season playback only). Render-only.
+  readonly traveling?: boolean;
   // Bounded, render-only recent activity for THIS band, newest first. Same fresh
   // tick as `position`, so the map draws marker + activity consistently at speed.
   readonly recentActivity: readonly SimLiveActivityTrip[];
@@ -267,10 +273,91 @@ export interface SimLiveOverlay {
 export interface SimSelectedBandPanelProjection {
   readonly selectedBandId: string;
   readonly time: WorldState["time"];
-  readonly band: Band;
+  readonly detailMode: "live-summary";
+  readonly band: SimSelectedBandLiveSummary;
   readonly latestDecisionId?: string;
   readonly latestDecision?: Decision;
+  readonly diagnostics: SimSelectedBandProjectionDiagnostics;
 }
+
+export interface SimSelectedBandProjectionDiagnostics {
+  readonly projectionKey: string;
+  readonly selectedBandOnly: true;
+  readonly rawBandBytesEstimate: number;
+  readonly compactBandBytesEstimate: number;
+  readonly detailMode: "live-summary";
+  readonly caps: {
+    readonly recentTrips: number;
+    readonly activityPathTiles: number;
+    readonly residentialMoves: number;
+    readonly residentialMovePathTiles: number;
+    readonly movementHistory: number;
+    readonly eventHistory: number;
+    readonly campTalk: number;
+    readonly campTalkLedger: number;
+    readonly decisionHistory: number;
+  };
+}
+
+export interface SimSelectedBandLiveSummary {
+  readonly id: Band["id"];
+  readonly name: Band["name"];
+  readonly color: Band["color"];
+  readonly position: Band["position"];
+  readonly size: Band["size"];
+  readonly status: Band["status"];
+  readonly mobilityStrategy: Band["mobilityStrategy"];
+  readonly subsistenceModes: Band["subsistenceModes"];
+  readonly technologies: Band["technologies"];
+  readonly parentBandId?: Band["parentBandId"];
+  readonly daughterBandIds: Band["daughterBandIds"];
+  readonly lineage?: Band["lineage"];
+  readonly currentIntent?: Band["currentIntent"];
+  readonly intentHistory?: Band["intentHistory"];
+  readonly movementHistory: Band["movementHistory"];
+  readonly decisionHistory: Band["decisionHistory"];
+  readonly consecutiveSeasonsOnTile: Band["consecutiveSeasonsOnTile"];
+  readonly cohesion: Band["cohesion"];
+  readonly hungerPressure: Band["hungerPressure"];
+  readonly territorialPressure: Band["territorialPressure"];
+  readonly demography: Band["demography"];
+  readonly biomeAdaptation: Band["biomeAdaptation"];
+  readonly socialPressure: Band["socialPressure"];
+  readonly health: Band["health"];
+  readonly pressureState?: Band["pressureState"];
+  readonly viability?: Band["viability"];
+  readonly disposition?: Band["disposition"];
+  readonly temporarySeparation?: Band["temporarySeparation"];
+  readonly conditionProfile?: Band["conditionProfile"];
+  readonly eventHistory?: Band["eventHistory"];
+  readonly campRumors?: Band["campRumors"];
+  readonly lastIntraSeasonTrip?: Band["lastIntraSeasonTrip"];
+  readonly recentIntraSeasonTrips?: Band["recentIntraSeasonTrips"];
+  readonly activityLaborSummary?: Band["activityLaborSummary"];
+  readonly recentResidentialMoveEvents?: Band["recentResidentialMoveEvents"];
+  readonly seasonalSupport?: Band["seasonalSupport"];
+  readonly carryingCapacity?: Band["carryingCapacity"];
+  readonly perCapitaReturn?: Band["perCapitaReturn"];
+  readonly daughterColonization?: Band["daughterColonization"];
+  readonly rangeSaturation?: Band["rangeSaturation"];
+  readonly residentialAnchor?: Band["residentialAnchor"];
+  readonly protoCampMemory?: Band["protoCampMemory"];
+  readonly protoAccessMemory?: Band["protoAccessMemory"];
+  readonly bodyCampLogistics?: Band["bodyCampLogistics"];
+  readonly visibleNature?: Band["visibleNature"];
+  readonly reportedKnowledge?: Band["reportedKnowledge"];
+}
+
+const SELECTED_PANEL_RECENT_TRIP_CAP = 8;
+const SELECTED_PANEL_ACTIVITY_PATH_CAP = 12;
+const SELECTED_PANEL_RESIDENTIAL_MOVE_CAP = 4;
+const SELECTED_PANEL_RESIDENTIAL_MOVE_PATH_CAP = 16;
+const SELECTED_PANEL_MOVEMENT_HISTORY_CAP = 8;
+const SELECTED_PANEL_EVENT_CAP = 10;
+const SELECTED_PANEL_EVENT_WINDOW_CAP = 12;
+const SELECTED_PANEL_CAMP_TALK_CAP = 8;
+const SELECTED_PANEL_CAMP_TALK_LEDGER_CAP = 8;
+const SELECTED_PANEL_DECISION_HISTORY_CAP = 8;
 
 function projectRecentActivity(band: Band): readonly SimLiveActivityTrip[] {
   const trips = band.recentIntraSeasonTrips;
@@ -315,19 +402,202 @@ export function takeSelectedBandPanelProjection(
       : band.decisionHistory[band.decisionHistory.length - 1];
   const latestDecision =
     latestDecisionId === undefined ? undefined : world.decisions[latestDecisionId];
+  const compactBand = projectSelectedBandLiveSummary(band);
+  const rawBandBytesEstimate = estimateJsonBytes(band);
+  const compactBandBytesEstimate = estimateJsonBytes(compactBand);
 
   return {
     selectedBandId: String(band.id),
     time: world.time,
-    band,
+    detailMode: "live-summary",
+    band: compactBand,
     ...(latestDecisionId === undefined ? {} : { latestDecisionId: String(latestDecisionId) }),
     ...(latestDecision === undefined ? {} : { latestDecision }),
+    diagnostics: {
+      projectionKey: selectedBandProjectionKey(world, band),
+      selectedBandOnly: true,
+      rawBandBytesEstimate,
+      compactBandBytesEstimate,
+      detailMode: "live-summary",
+      caps: {
+        recentTrips: SELECTED_PANEL_RECENT_TRIP_CAP,
+        activityPathTiles: SELECTED_PANEL_ACTIVITY_PATH_CAP,
+        residentialMoves: SELECTED_PANEL_RESIDENTIAL_MOVE_CAP,
+        residentialMovePathTiles: SELECTED_PANEL_RESIDENTIAL_MOVE_PATH_CAP,
+        movementHistory: SELECTED_PANEL_MOVEMENT_HISTORY_CAP,
+        eventHistory: SELECTED_PANEL_EVENT_CAP,
+        campTalk: SELECTED_PANEL_CAMP_TALK_CAP,
+        campTalkLedger: SELECTED_PANEL_CAMP_TALK_LEDGER_CAP,
+        decisionHistory: SELECTED_PANEL_DECISION_HISTORY_CAP,
+      },
+    },
   };
 }
 
-export function takeLiveOverlay(world: WorldState): SimLiveOverlay {
+function selectedBandProjectionKey(world: WorldState, band: Band): string {
+  return [
+    String(world.seed),
+    String(world.runSeed ?? ""),
+    String(world.time.tick),
+    String(world.time.day),
+    world.time.season,
+    String(band.id),
+    String(band.position),
+    String(band.decisionHistory[band.decisionHistory.length - 1] ?? ""),
+  ].join("|");
+}
+
+function projectSelectedBandLiveSummary(band: Band): SimSelectedBandLiveSummary {
+  return {
+    id: band.id,
+    name: band.name,
+    color: band.color,
+    position: band.position,
+    size: band.size,
+    status: band.status,
+    mobilityStrategy: band.mobilityStrategy,
+    subsistenceModes: band.subsistenceModes,
+    technologies: band.technologies,
+    ...(band.parentBandId === undefined ? {} : { parentBandId: band.parentBandId }),
+    daughterBandIds: band.daughterBandIds,
+    ...(band.lineage === undefined ? {} : { lineage: band.lineage }),
+    ...(band.currentIntent === undefined ? {} : { currentIntent: band.currentIntent }),
+    ...(band.intentHistory === undefined ? {} : { intentHistory: band.intentHistory.slice(-SELECTED_PANEL_MOVEMENT_HISTORY_CAP) }),
+    movementHistory: band.movementHistory.slice(-SELECTED_PANEL_MOVEMENT_HISTORY_CAP),
+    decisionHistory: band.decisionHistory.slice(-SELECTED_PANEL_DECISION_HISTORY_CAP),
+    consecutiveSeasonsOnTile: band.consecutiveSeasonsOnTile,
+    cohesion: band.cohesion,
+    hungerPressure: band.hungerPressure,
+    territorialPressure: band.territorialPressure,
+    demography: band.demography,
+    biomeAdaptation: band.biomeAdaptation,
+    socialPressure: band.socialPressure,
+    health: band.health,
+    ...(band.pressureState === undefined ? {} : { pressureState: band.pressureState }),
+    ...(band.viability === undefined ? {} : { viability: band.viability }),
+    ...(band.disposition === undefined ? {} : { disposition: band.disposition }),
+    ...(band.temporarySeparation === undefined ? {} : { temporarySeparation: band.temporarySeparation }),
+    ...(band.conditionProfile === undefined ? {} : { conditionProfile: band.conditionProfile }),
+    ...(band.eventHistory === undefined ? {} : { eventHistory: projectEventHistory(band.eventHistory) }),
+    ...(band.campRumors === undefined ? {} : { campRumors: projectCampRumors(band.campRumors) }),
+    ...(band.lastIntraSeasonTrip === undefined ? {} : { lastIntraSeasonTrip: projectActivityTrip(band.lastIntraSeasonTrip) }),
+    ...(band.recentIntraSeasonTrips === undefined
+      ? {}
+      : { recentIntraSeasonTrips: band.recentIntraSeasonTrips.slice(0, SELECTED_PANEL_RECENT_TRIP_CAP).map(projectActivityTrip) }),
+    ...(band.activityLaborSummary === undefined ? {} : { activityLaborSummary: band.activityLaborSummary }),
+    ...(band.recentResidentialMoveEvents === undefined
+      ? {}
+      : {
+          recentResidentialMoveEvents: band.recentResidentialMoveEvents
+            .slice(0, SELECTED_PANEL_RESIDENTIAL_MOVE_CAP)
+            .map(projectResidentialMove),
+        }),
+    ...(band.seasonalSupport === undefined ? {} : { seasonalSupport: band.seasonalSupport }),
+    ...(band.carryingCapacity === undefined ? {} : { carryingCapacity: band.carryingCapacity }),
+    ...(band.perCapitaReturn === undefined ? {} : { perCapitaReturn: band.perCapitaReturn }),
+    ...(band.daughterColonization === undefined ? {} : { daughterColonization: band.daughterColonization }),
+    ...(band.rangeSaturation === undefined ? {} : { rangeSaturation: band.rangeSaturation }),
+    ...(band.residentialAnchor === undefined ? {} : { residentialAnchor: band.residentialAnchor }),
+    ...(band.protoCampMemory === undefined ? {} : { protoCampMemory: band.protoCampMemory }),
+    ...(band.protoAccessMemory === undefined ? {} : { protoAccessMemory: band.protoAccessMemory }),
+    ...(band.bodyCampLogistics === undefined ? {} : { bodyCampLogistics: band.bodyCampLogistics }),
+    ...(band.visibleNature === undefined ? {} : { visibleNature: band.visibleNature }),
+    ...(band.reportedKnowledge === undefined ? {} : { reportedKnowledge: band.reportedKnowledge }),
+  };
+}
+
+function projectActivityTrip(
+  trip: NonNullable<Band["recentIntraSeasonTrips"]>[number],
+): NonNullable<Band["recentIntraSeasonTrips"]>[number] {
+  return {
+    ...trip,
+    pathTiles: trip.pathTiles.slice(0, SELECTED_PANEL_ACTIVITY_PATH_CAP),
+  };
+}
+
+function projectResidentialMove(
+  move: NonNullable<Band["recentResidentialMoveEvents"]>[number],
+): NonNullable<Band["recentResidentialMoveEvents"]>[number] {
+  return {
+    ...move,
+    pathTiles: move.pathTiles.slice(0, SELECTED_PANEL_RESIDENTIAL_MOVE_PATH_CAP),
+  };
+}
+
+function projectEventHistory(
+  eventHistory: NonNullable<Band["eventHistory"]>,
+): NonNullable<Band["eventHistory"]> {
+  return {
+    ...eventHistory,
+    recentEvents: eventHistory.recentEvents.slice(0, SELECTED_PANEL_EVENT_CAP),
+    last10Years: eventHistory.last10Years.slice(0, SELECTED_PANEL_EVENT_WINDOW_CAP),
+    last25Years: eventHistory.last25Years.slice(0, SELECTED_PANEL_EVENT_WINDOW_CAP),
+  };
+}
+
+function projectCampRumors(
+  campRumors: NonNullable<Band["campRumors"]>,
+): NonNullable<Band["campRumors"]> {
+  return {
+    ...campRumors,
+    items: campRumors.items.slice(0, SELECTED_PANEL_CAMP_TALK_CAP),
+    repetitionLedger: campRumors.repetitionLedger.slice(0, SELECTED_PANEL_CAMP_TALK_LEDGER_CAP),
+  };
+}
+
+function estimateJsonBytes(value: unknown): number {
+  return JSON.stringify(value).length;
+}
+
+// CAUSAL-REPAIR-2 — where the RESIDENTIAL marker should be drawn mid-season.
+// The sim's `band.position` remains the seasonal base (one update per seasonal
+// decision — sim semantics untouched). But the season's relocation is already
+// a RECORDED journey (ResidentialMoveEvent: departure day, arrival day, and a
+// passability-aware route), so at sub-season playback the map walks the marker
+// along that recorded route across those recorded days instead of teleporting
+// it at the boundary and freezing it otherwise. Presentation-only: reads the
+// explanatory record it was built for; no behavior, no new state.
+function deriveInTransitDisplay(
+  world: WorldState,
+  band: Band,
+): { readonly position: string; readonly traveling: boolean } {
+  const settled = { position: String(band.position), traveling: false };
+  const move = band.recentResidentialMoveEvents?.[0];
+
+  if (
+    move === undefined ||
+    Number(move.tick) !== Number(world.time.tick) ||
+    move.pathTiles.length < 2
+  ) {
+    return settled;
+  }
+
+  const dayOfSeason = world.time.dayOfSeason;
+
+  if (dayOfSeason === undefined || dayOfSeason >= move.endDay) {
+    return settled;
+  }
+
+  if (dayOfSeason <= move.startDay) {
+    return { position: String(move.pathTiles[0]), traveling: move.startDay > 0 ? false : true };
+  }
+
+  const progress = (dayOfSeason - move.startDay) / Math.max(1, move.endDay - move.startDay);
+  const index = Math.min(
+    move.pathTiles.length - 1,
+    Math.round(progress * (move.pathTiles.length - 1)),
+  );
+
+  return { position: String(move.pathTiles[index]), traveling: true };
+}
+
+export function takeLiveOverlay(
+  world: WorldState,
+  options?: { readonly subSeasonPlayback?: boolean },
+): SimLiveOverlay {
   const bands = Object.values(world.bands);
   const markers: SimLiveMarker[] = [];
+  const subSeasonPlayback = options?.subSeasonPlayback === true;
   let absorbed = 0;
   let extinct = 0;
   let population = 0;
@@ -349,12 +619,17 @@ export function takeLiveOverlay(world: WorldState): SimLiveOverlay {
       continue;
     }
 
+    const display = subSeasonPlayback
+      ? deriveInTransitDisplay(world, band)
+      : { position: String(band.position), traveling: false };
+
     markers.push({
       id: String(band.id),
-      position: String(band.position),
+      position: display.position,
       color: band.color,
       isDaughter: band.parentBandId !== undefined,
       separationActive: band.temporarySeparation?.active === true,
+      ...(display.traveling ? { traveling: true } : {}),
       recentActivity: projectRecentActivity(band),
     });
   }

@@ -7,6 +7,8 @@ import type {
   BodyCampLogisticsMode,
   BodyCampSurvivalLogisticsState,
   CampCleanlinessState,
+  CampExposureKind,
+  CampExposureState,
   CareTravelBurdenState,
   FireUseState,
   FoodSharingPressureState,
@@ -22,6 +24,7 @@ import type {
   WeatherMemoryTrend,
 } from "./types";
 import type { ResourceStorageSuitabilityCard } from "./storageSuitability";
+import { deriveShelterExposureRelief } from "./practicalResponses";
 
 const WEATHER_MEMORY_CAP = 5;
 const MATERIAL_WEAR_CAP = 7;
@@ -83,8 +86,9 @@ export function deriveBodyCampSurvivalLogistics(
   const reasonSeed = makeLogisticsReasonId(band.id, world.time.tick, "current");
   const weatherMemories = deriveWeatherMemories(world, band, loads);
   const campCleanliness = deriveCampCleanliness(world, band, cards, loads);
+  const campExposure = deriveCampExposureState(world, band, campCleanliness);
   const fire = deriveFireUseState(world, band, cards, weatherMemories, campCleanliness, loads);
-  const sickness = deriveSicknessWaveState(world, band, cards, weatherMemories, campCleanliness, loads);
+  const sickness = deriveSicknessWaveState(world, band, cards, weatherMemories, campCleanliness, loads, campExposure);
   const careTravelBurden = deriveCareTravelBurden(world, band, sickness, weatherMemories, loads);
   const materialWear = deriveMaterialWear(world, band, cards, weatherMemories, fire, loads);
   const logisticCapacity = deriveLogisticCapacity(world, band, cards, careTravelBurden, sickness, materialWear, loads);
@@ -119,6 +123,7 @@ export function deriveBodyCampSurvivalLogistics(
     weatherMemories,
     fire,
     sickness,
+    campExposure,
     careTravelBurden,
     logisticCapacity,
     materialWear,
@@ -388,6 +393,66 @@ function deriveFireUseState(
   };
 }
 
+// INVENTION-3 — the bounded physical camp-exposure coefficient (§14). Raw
+// exposure reads the residence tile's own risk profile, terrain, season and
+// climate regime (the camp physically stands there — no hidden truth); a
+// practiced shelter response then relieves a capped share of the MATCHING
+// exposure kinds. Downstream: sickness-wave severity (cold/heat causes) and
+// through it the existing demography mortality/fertility bumps.
+export function deriveCampExposureState(
+  world: WorldState,
+  band: Band,
+  cleanliness: CampCleanlinessState,
+): CampExposureState {
+  const tile = world.tiles[band.position];
+  const season = world.time.season;
+  const droughtRisk = tile?.riskProfile.droughtRisk ?? world.climateRegime.aridity;
+  const floodRisk = tile?.riskProfile.floodRisk ?? 0;
+  const harshness = world.climateRegime.seasonalHarshness ?? 0.4;
+  const terrain = tile?.terrainKind ?? "plains";
+  const coldTerrain = terrain === "tundra" || terrain === "mountains";
+  const openTerrain = terrain === "desert" || terrain === "hills" || terrain === "mountains" || terrain === "plains" || terrain === "tundra";
+
+  const heat = clamp01(droughtRisk * (season === "summer" ? 1 : season === "autumn" ? 0.4 : 0.15));
+  const cold = clamp01(
+    (season === "winter" ? 0.45 : season === "autumn" ? 0.12 : 0) * (0.6 + harshness * 0.8) +
+      (coldTerrain ? 0.18 : 0) * (season === "winter" ? 1 : 0.4),
+  );
+  const wet = clamp01(cleanliness.wetCampLoad * 0.7 + floodRisk * (season === "spring" ? 0.4 : 0.16));
+  const wind = clamp01((openTerrain ? 0.3 : 0.08) + (season === "winter" ? 0.14 : 0));
+
+  const components: readonly (readonly [CampExposureKind, number])[] = [
+    ["heat", heat], ["cold", cold], ["wet", wet], ["wind", wind],
+  ];
+  const sorted = [...components].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]));
+  const rawExposure = round2(clamp01(sorted[0][1] + sorted[1][1] * 0.3));
+  const dominantKind: CampExposureKind = rawExposure < 0.2 ? "mild"
+    : sorted[0][1] - sorted[1][1] < 0.08 ? "mixed"
+      : sorted[0][0];
+
+  const presentKinds = components
+    .filter(([, value]) => value >= 0.22)
+    .map(([kind]) => kind as "heat" | "cold" | "wet" | "wind");
+  const relief = deriveShelterExposureRelief(band, Number(world.time.tick), presentKinds);
+  const applied = relief.active ? round2(Math.min(relief.relief, rawExposure)) : 0;
+
+  return {
+    tileId: band.position,
+    rawExposure,
+    effectiveExposure: round2(clamp01(rawExposure - applied)),
+    dominantKind,
+    heat: round2(heat),
+    cold: round2(cold),
+    wet: round2(wet),
+    wind: round2(wind),
+    shelterReliefApplied: applied,
+    shelterResponseId: relief.responseId,
+    shelterVariantKey: relief.variantKey,
+    shelterContextMatched: relief.active && relief.matchedKinds.length > 0,
+    reliefReason: relief.reason,
+  };
+}
+
 function deriveSicknessWaveState(
   world: WorldState,
   band: Band,
@@ -395,6 +460,7 @@ function deriveSicknessWaveState(
   weatherMemories: readonly WeatherMemoryRecord[],
   cleanliness: CampCleanlinessState,
   loads: LoadSignals,
+  campExposure?: CampExposureState,
 ): SicknessWaveState {
   const causes: SicknessCauseKind[] = [];
   const reasonIds: ReasonId[] = [];
@@ -455,6 +521,17 @@ function deriveSicknessWaveState(
     causes.push("wetland_insects");
     severity = Math.max(severity, (weatherMemories.find((memory) => memory.kind === "floodplain_wetland")?.strength ?? 0) * 0.38);
     reasonIds.push(...weatherMemories.flatMap((memory) => memory.sourceReasonIds));
+  }
+  // INVENTION-3: the EFFECTIVE camp exposure (after any practiced shelter
+  // relief) feeds sickness like the other lived causes — a working shelter
+  // measurably lowers this term; an unsheltered exposed camp pays it.
+  if (campExposure !== undefined && campExposure.effectiveExposure >= 0.4) {
+    if (campExposure.heat >= campExposure.cold) {
+      causes.push("heat_stress");
+    } else {
+      causes.push("cold_exposure");
+    }
+    severity = Math.max(severity, (campExposure.effectiveExposure - 0.2) * 0.5);
   }
 
   const prior = band.bodyCampLogistics?.sickness;

@@ -21,6 +21,7 @@ import type { WorldState } from "../world/types";
 
 const MAX_FOOTPRINT_TILES = 16;
 const FOOTPRINT_FALLBACK_RADIUS = 2;
+const fallbackFootprintCandidateIdsByTiles = new WeakMap<WorldState["tiles"], Map<TileId, readonly TileId[]>>();
 
 export interface TileClaim {
   readonly totalWeight: number;
@@ -200,6 +201,28 @@ function collectFootprintCandidateIds(
     return [...candidates];
   }
 
+  return getFallbackFootprintCandidateIds(world, originTileId);
+}
+
+function getFallbackFootprintCandidateIds(
+  world: WorldState,
+  originTileId: TileId,
+): readonly TileId[] {
+  let cachedByOrigin = fallbackFootprintCandidateIdsByTiles.get(world.tiles);
+
+  if (cachedByOrigin === undefined) {
+    cachedByOrigin = new Map<TileId, readonly TileId[]>();
+    fallbackFootprintCandidateIdsByTiles.set(world.tiles, cachedByOrigin);
+  }
+
+  const cached = cachedByOrigin.get(originTileId);
+
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  const candidates = new Set<TileId>([originTileId]);
+
   // Fallback foraging range before an anchor forms: a bounded ring-walk outward
   // over grid topology to FOOTPRINT_FALLBACK_RADIUS (O(radius^2), independent of
   // how many tiles the band knows). Only known tiles are scored later.
@@ -226,7 +249,9 @@ function collectFootprintCandidateIds(
     frontier = next;
   }
 
-  return [...candidates];
+  const result = [...candidates];
+  cachedByOrigin.set(originTileId, result);
+  return result;
 }
 
 // Foraging draw approximates how hard the band pulls on its catchment. Matches the

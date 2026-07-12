@@ -17,6 +17,9 @@ import type {
   TravelCorridorMemory,
 } from "./types";
 import { createDaughterDeepHistory } from "./bandHistory";
+import { inheritAdaptiveHumanForDaughter } from "./adaptiveHuman";
+import { inheritPracticalAdaptationForDaughter } from "./practicalResponses";
+import { inheritAnimalPatternKnowledgeForDaughter } from "./animalLearning";
 import { inheritResourceKnowledgeForDaughter } from "./resourceKnowledge";
 import { deriveReportedKnowledgeTargetBias } from "./reportedKnowledge";
 import { deriveDaughterColor } from "./lineageColor";
@@ -545,6 +548,8 @@ const DAUGHTER_NON_CLONEABLE_FIELDS = [
   "resourceKnowledgeState", // inherit: partial + degraded (inheritResourceKnowledgeForDaughter)
   "resourceEcology", // reset/recompute: derived from current support, activity, and inherited resource knowledge
   "visibleNature", // reset/recompute: visible animals/plants require the daughter's own known range and trips
+  "animalPatternKnowledge", // inherit: bounded degraded observations only, never current hidden stock state
+  "animalManagement", // reset: management depends on the daughter's own contact, labor, water, and camp
   "acuteRisk", // reset: acute short-run hardship is the parent's recent embodied risk memory, not inherited wholesale
   "usePressure", // reset: own use pressure accrues
   "encounterRecords", // reset
@@ -573,6 +578,7 @@ const DAUGHTER_NON_CLONEABLE_FIELDS = [
   "protoAccessMemory", // reset/recompute: access expectations require the daughter's own observed place/contact memory
   "foragingAdaptation", // reset/recompute: empirical learning/desperation is current-band lived experience
   "bodyCampLogistics", // reset/recompute: weather, sickness, carry, material, and camp-waste pressure are current-band lived logistics
+  "technologies", // legacy display tags are not inherited as complex competence
   "relationshipMemory", // reset/recompute: practice, reputation, route, and place-character memory is current-band lived relationship state
   "recentResidentialMoveEvents", // reset: a daughter does not inherit the parent's relocation events (RESIDENTIAL-MOVE-1)
   "activityLaborSummary", // reset: labor allocation is a current-day parent snapshot, not inherited history
@@ -594,6 +600,8 @@ const DAUGHTER_NON_CLONEABLE_FIELDS = [
   "sideProbeMemory", // reset: side-country probe cadence/budget is the daughter's OWN; never inherit a parent's cooldown/lifetime count (M0.16B)
   "proactiveInfoMemory", // reset: proactive-info cadence is the daughter's OWN; never inherit a parent's cooldown (2K.6B/INFO-1)
   "corridorHeading", // reset: directional heading is EARNED from the daughter's own realized motion; never inherited (M0.9)
+  "adaptiveHuman", // inherit/reset: daughters carry partial hints only, never tested attempts or routines
+  "campMovement", // reset: daughters establish their own camp-place state and do not inherit parent-tested establishment
   "seasonalRoute", // reset
   "daughterBandIds", // reset
   "causalTraces", // reset to [own trace]
@@ -767,6 +775,8 @@ function createDaughterBand(
     protoAccessMemory: undefined,
     foragingAdaptation: undefined,
     bodyCampLogistics: undefined,
+    technologies: parent.technologies.filter((technology) => technology === "basic_foraging"),
+    storageCapacity: 0.16,
     relationshipMemory: undefined,
     recentResidentialMoveEvents: undefined,
     activityLaborSummary: undefined,
@@ -817,11 +827,22 @@ function createDaughterBand(
     // Directional heading (M0.9): never inherited — a daughter earns her own bearing from
     // her own realized motion (reset to undefined). No clear inherited-route reason in v0.
     corridorHeading: undefined,
+    // ADAPTIVE-HUMAN-1: daughters may carry a few partial ideas/variants as hints,
+    // but never parent-tested attempts, routines, or local adaptations.
+    adaptiveHuman: inheritAdaptiveHumanForDaughter(parent.adaptiveHuman, daughterBandId, world.time.tick),
+    // INVENTION-1: daughters inherit a few WEAKENED practical fragments (basis
+    // "inherited", must be re-proven locally); composed responses never travel.
+    practicalAdaptation: inheritPracticalAdaptationForDaughter(parent.practicalAdaptation, daughterBandId, world.time.tick),
+    // CAMP-MOVEMENT-1: daughter establishment starts as local lived evidence only
+    // after her own first seasons; never clone parent camp-shift or old-anchor state.
+    campMovement: undefined,
     placeMemory: inheritedMemory,
     // Override the wholesale `...parent` clone with the partial degraded inheritance.
     resourceKnowledgeState: inheritedResourceKnowledge,
     resourceEcology: undefined,
     visibleNature: undefined,
+    animalPatternKnowledge: inheritAnimalPatternKnowledgeForDaughter(parent.animalPatternKnowledge, daughterBandId, world.time.tick),
+    animalManagement: undefined,
     acuteRisk: undefined,
     travelCorridors: inheritedCorridors,
     crossingMemories: inheritedCrossings,

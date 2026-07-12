@@ -1356,6 +1356,29 @@ export type Reason =
       // key on this to advance the proactive-info cadence governor and count the actions.
       readonly isProactiveInfo?: true;
     })
+  | (BaseReason<"adaptive_response_selected"> & {
+      readonly bandId: BandId;
+      readonly ideaId: string;
+      readonly responseId: string;
+      readonly family: string;
+      readonly responseType: string;
+      readonly expectedBenefit: string;
+      readonly risk: string;
+      readonly behaviorEffectScope: string;
+      readonly scoreDelta: number;
+      readonly basis: readonly string[];
+    })
+  | (BaseReason<"camp_movement_response_selected"> & {
+      readonly bandId: BandId;
+      readonly scale: string;
+      readonly status: string;
+      readonly expectedBenefit: string;
+      readonly risk: string;
+      readonly behaviorEffectScope: string;
+      readonly scoreDelta: number;
+      readonly basis: readonly string[];
+      readonly targetTileId?: TileId;
+    })
   | (BaseReason<"return_to_known_good_area"> & {
       readonly currentTileId: TileId;
       readonly targetTileId: TileId;

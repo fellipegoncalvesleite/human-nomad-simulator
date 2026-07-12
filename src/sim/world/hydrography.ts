@@ -1,4 +1,4 @@
-import type { RiverId, Season, TileId } from "../core/types";
+import type { RiverId, Season, TileId, WorldTime } from "../core/types";
 import type {
   RiverCrossingClass,
   RiverCrossingProfile,
@@ -20,6 +20,9 @@ export interface RiverCrossingCapability {
   readonly canUseShallowCrossings: boolean;
   readonly canAttemptBasicRaftCrossing: boolean;
 }
+
+const movementCrossingMemo = new WeakMap<WorldState["tiles"], Map<string, RiverCrossingProfile | null>>();
+const seasonalCrossingStateMemo = new WeakMap<WorldTime, Map<string, SeasonalRiverCrossingState>>();
 
 export function makeRiverId(id: string): RiverId {
   return `river:${id}` as RiverId;
@@ -45,9 +48,24 @@ export function getRiverCrossingForMovement(
   fromTileId: TileId,
   toTileId: TileId,
 ): RiverCrossingProfile | undefined {
+  let cachedByEdge = movementCrossingMemo.get(world.tiles);
+
+  if (cachedByEdge === undefined) {
+    cachedByEdge = new Map<string, RiverCrossingProfile | null>();
+    movementCrossingMemo.set(world.tiles, cachedByEdge);
+  }
+
+  const cacheKey = `${String(fromTileId)}->${String(toTileId)}`;
+  const cached = cachedByEdge.get(cacheKey);
+
+  if (cached !== undefined) {
+    return cached ?? undefined;
+  }
+
   const directCrossing = getRiverCrossing(world, fromTileId, toTileId);
 
   if (directCrossing !== undefined) {
+    cachedByEdge.set(cacheKey, directCrossing);
     return directCrossing;
   }
 
@@ -60,6 +78,7 @@ export function getRiverCrossingForMovement(
     fromTile.isAquatic ||
     toTile.isAquatic
   ) {
+    cachedByEdge.set(cacheKey, null);
     return undefined;
   }
 
@@ -70,6 +89,7 @@ export function getRiverCrossingForMovement(
     .sort((left, right) => String(left.id).localeCompare(String(right.id)))[0]?.id;
 
   if (sharedRiverTileId === undefined) {
+    cachedByEdge.set(cacheKey, null);
     return undefined;
   }
 
@@ -81,10 +101,11 @@ export function getRiverCrossingForMovement(
     secondCrossing === undefined ||
     firstCrossing.riverId !== secondCrossing.riverId
   ) {
+    cachedByEdge.set(cacheKey, null);
     return undefined;
   }
 
-  return {
+  const synthesized: RiverCrossingProfile = {
     fromTileId,
     toTileId,
     riverId: firstCrossing.riverId,
@@ -95,6 +116,9 @@ export function getRiverCrossingForMovement(
     knownFord: firstCrossing.knownFord && secondCrossing.knownFord,
     confidence: round2(Math.min(firstCrossing.confidence, secondCrossing.confidence) * 0.86),
   };
+
+  cachedByEdge.set(cacheKey, synthesized);
+  return synthesized;
 }
 
 export function getAdjacentRiverCrossings(
@@ -128,6 +152,26 @@ export function getSeasonalRiverCrossingState(
   crossing: RiverCrossingProfile,
   capability: RiverCrossingCapability,
 ): SeasonalRiverCrossingState {
+  let cachedByCrossing = seasonalCrossingStateMemo.get(world.time);
+
+  if (cachedByCrossing === undefined) {
+    cachedByCrossing = new Map<string, SeasonalRiverCrossingState>();
+    seasonalCrossingStateMemo.set(world.time, cachedByCrossing);
+  }
+
+  const cacheKey = [
+    `${String(crossing.fromTileId)}->${String(crossing.toTileId)}`,
+    crossing.crossingClass,
+    capability.canUseFords ? "f" : "-",
+    capability.canUseShallowCrossings ? "s" : "-",
+    capability.canAttemptBasicRaftCrossing ? "r" : "-",
+  ].join("|");
+  const cached = cachedByCrossing.get(cacheKey);
+
+  if (cached !== undefined) {
+    return cached;
+  }
+
   const river = world.rivers[crossing.riverId];
   const isFloodSeason = river?.floodSeason === world.time.season;
   const seasonMultiplier = getCrossingSeasonMultiplier(world.time.season, crossing.crossingClass, isFloodSeason);
@@ -144,7 +188,7 @@ export function getSeasonalRiverCrossingState(
     clamp01(seasonalRisk * getCapabilityRiskModifier(crossing.crossingClass, capability)),
   );
 
-  return {
+  const state: SeasonalRiverCrossingState = {
     crossing,
     season: world.time.season,
     effectiveCrossingCost,
@@ -152,6 +196,9 @@ export function getSeasonalRiverCrossingState(
     isFloodSeason,
     isBlockedWithoutCapability: isCrossingBlocked(crossing.crossingClass, capability, effectiveRisk),
   };
+
+  cachedByCrossing.set(cacheKey, state);
+  return state;
 }
 
 function getCrossingSeasonMultiplier(

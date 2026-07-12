@@ -271,7 +271,9 @@ export function groupSkills(band: Band): {
     };
   });
 
-  const crafts = band.technologies.map((tech): SkillChip => {
+  const staticCrafts = band.technologies
+    .filter((tech) => tech !== "basic_storage" && tech !== "ceramic_storage")
+    .map((tech): SkillChip => {
     const entry = TECH_SKILL[tech];
 
     return {
@@ -280,7 +282,16 @@ export function groupSkills(band: Band): {
       icon: entry?.icon ?? "craft",
       tip: entry?.tip ?? "",
     };
-  });
+    });
+  const learnedStorage = (band.practicalAdaptation?.responses ?? [])
+    .filter((response) => response.family === "water_storage" && response.status !== "abandoned" && response.status !== "dormant")
+    .map((response): SkillChip => ({
+      id: response.id,
+      label: response.publicLabel,
+      icon: "storage",
+      tip: `${response.status}; leakage and carrying burden remain context dependent`,
+    }));
+  const crafts = [...learnedStorage, ...staticCrafts];
 
   return { subsistence, crafts };
 }

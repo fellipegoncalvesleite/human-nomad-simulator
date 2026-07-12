@@ -358,7 +358,8 @@ export function deriveCarryingCapacity(
     recoveryBuffer,
     highRankPersistence,
     overlapCount: overlappingBandIds.length,
-    activeBandCount: Object.values(world.bands).filter((candidate) => candidate.status !== "dispersed").length,
+    activeBandCount: cache?.nonDispersedBandCount ??
+      Object.values(world.bands).filter((candidate) => candidate.status !== "dispersed").length,
     time,
   });
   const abstractSupportFloor =

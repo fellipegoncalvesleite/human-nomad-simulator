@@ -4566,15 +4566,19 @@ export function getCombinedUsePressure(pressure: LocalUsePressureRecord | undefi
 }
 
 export function getBandCrossingCapability(band: Band) {
-  const hasFishing = band.technologies.includes("fishing") || band.technologies.includes("improved_fishing");
-  const hasBasketry = band.technologies.includes("basketry");
-  const hasStorageCraft = band.technologies.includes("drying_smoking") || band.technologies.includes("basic_storage");
-  const aquaticSubsistence = band.subsistenceModes.includes("aquatic");
+  const practicedCrossing = Object.values(band.crossingMemories).some((memory) =>
+    memory.useCount >= 2 && memory.successConfidence >= 0.5);
+  const aquaticPractice = (band.recentIntraSeasonTrips ?? []).filter((trip) =>
+    trip.taskGroupType === "fishing_group" || trip.taskGroupType === "water_group").length >= 3;
+  const engineering = (band.practicalAdaptation?.responses ?? []).some((response) =>
+    response.family === "engineering_structure" && (response.status === "forming" || response.status === "active"));
+  const subjects = new Set((band.practicalAdaptation?.fragments ?? []).map((fragment) => fragment.subject));
 
   return {
     canUseFords: true,
-    canUseShallowCrossings: hasFishing || hasBasketry || aquaticSubsistence,
-    canAttemptBasicRaftCrossing: aquaticSubsistence && hasFishing && (hasBasketry || hasStorageCraft),
+    canUseShallowCrossings: practicedCrossing || aquaticPractice || engineering,
+    canAttemptBasicRaftCrossing: engineering && subjects.has("buoyancy_under_load") &&
+      subjects.has("binding_under_load") && subjects.has("staged_shuttle_crossing"),
   };
 }
 

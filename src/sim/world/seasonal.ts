@@ -13,10 +13,25 @@ export interface SeasonalTileConditions {
   readonly currentMovementDifficulty: number;
 }
 
+const seasonalTileConditionsByTime = new WeakMap<WorldTime, Map<TileId, SeasonalTileConditions>>();
+
 export function getSeasonalTileConditions(
   world: WorldState,
   tile: Tile,
 ): SeasonalTileConditions {
+  let cachedByTile = seasonalTileConditionsByTime.get(world.time);
+
+  if (cachedByTile === undefined) {
+    cachedByTile = new Map<TileId, SeasonalTileConditions>();
+    seasonalTileConditionsByTime.set(world.time, cachedByTile);
+  }
+
+  const cached = cachedByTile.get(tile.id);
+
+  if (cached !== undefined) {
+    return cached;
+  }
+
   const seasonalAvailability = getSeasonalAvailability(world, tile);
   const riverProfile = getRiverProfile(world, tile.riverSegmentId);
   const isRiverFloodSeason = riverProfile?.floodSeason === world.time.season;
@@ -51,7 +66,7 @@ export function getSeasonalTileConditions(
         (tile.isMarshChannel ? 0.12 : 0)),
   );
 
-  return {
+  const result: SeasonalTileConditions = {
     tileId: tile.id,
     time: world.time,
     currentFoodEstimate: Math.max(0, currentFoodEstimate),
@@ -61,6 +76,9 @@ export function getSeasonalTileConditions(
     currentAquaticReliability,
     currentMovementDifficulty,
   };
+
+  cachedByTile.set(tile.id, result);
+  return result;
 }
 
 function getSeasonalAvailability(world: WorldState, tile: Tile): number {

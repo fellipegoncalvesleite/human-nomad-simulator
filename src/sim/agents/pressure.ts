@@ -13,6 +13,9 @@ import {
   getNearbyBandPressure,
 } from "./crowding";
 import type { TickContextCache } from "./contextCache";
+import { deriveBandTendencies } from "./bandTendency";
+import { deriveChronicHardship } from "./chronicHardship";
+import { deriveWaterWorksRelief } from "./practicalResponses";
 import { deriveForestTileEffect, getForestPatchState } from "./forestPatches";
 import type { ReasonId, TileId } from "../core/types";
 import type { KnownTileRecord } from "../knowledge/types";
@@ -203,6 +206,9 @@ export function deriveBandPressureState(
   const relationshipFailureCautionBias = relationshipBehavior?.failureCautionBias ?? 0;
   const relationshipPlaceCharacterPull = relationshipBehavior?.placeCharacterPull ?? 0;
   const relationshipRouteConfidenceBias = relationshipBehavior?.routeConfidenceBias ?? 0;
+  // CAUSAL-REPAIR-1: repeated low-support evidence escalates the push to act
+  // (the inverse of the old population/86 de-escalation). Bounded, band-known.
+  const chronicHardship = deriveChronicHardship(band, deriveBandTendencies(band));
   const foodStress = clamp01(
     (1 - foodEstimate) * 0.5 +
       (currentPressure?.foragingPressure ?? 0) * 0.34 +
@@ -216,13 +222,22 @@ export function deriveBandPressureState(
       logisticsOpportunisticFoodBias * 0.08 -
       relationshipPracticeEfficiencyBias * 0.04,
   );
+  // INVENTION-3: the band's own built waterworks (dug seep/lined well) at
+  // THIS tile relieve a bounded share of the residence water stress while
+  // they still yield this season (practicalResponses.deriveWaterWorksRelief;
+  // cap 0.15, 0 for dry holes/collapses/other tiles).
+  const waterWorksRelief = deriveWaterWorksRelief(band, band.position, String(world.time.season));
+  const waterWorksLabor = band.practicalAdaptation?.waterWorks?.tileId === band.position
+    ? band.practicalAdaptation.waterWorks.lastLaborCost
+    : 0;
   const waterStress = clamp01(
     (1 - waterAccess) * 0.52 +
       (currentPressure?.waterPressure ?? 0) * 0.38 +
       leanSeasonStress * 0.45 +
       seasonalWaterStress * 0.18 +
       acuteStress * 0.18 -
-      forestShelter * 0.02,
+      forestShelter * 0.02 -
+      (waterWorksRelief.active ? waterWorksRelief.relief : 0),
   );
   const fatiguePressure = clamp01(
     getRecentMovementFatigue(band) +
@@ -232,7 +247,8 @@ export function deriveBandPressureState(
       logisticsSicknessActivityPenalty * 0.26 +
       logisticsCareTravelBurdenBias * 0.18 +
       logisticsMaterialWearPenalty * 0.12 +
-      logisticsCarryConstraintBias * 0.1 -
+      logisticsCarryConstraintBias * 0.1 +
+      waterWorksLabor * 0.42 -
       logisticsFireExposureReliefBias * 0.08 -
       relationshipPracticeEfficiencyBias * 0.08 -
       relationshipRouteConfidenceBias * 0.06,
@@ -313,10 +329,12 @@ export function deriveBandPressureState(
       relationshipFailureCautionBias * 0.14 -
       relationshipPracticeEfficiencyBias * 0.05 -
       relationshipRouteConfidenceBias * 0.08 -
-      relationshipAggregationToleranceBias * 0.04,
+      relationshipAggregationToleranceBias * 0.04 +
+      chronicHardship.movePressureBoost * 0.5,
   );
   const netMovePressure = clamp01(
     mobilityPressure +
+      chronicHardship.movePressureBoost +
       fatiguePressure * 0.08 +
       daughterDispersal.daughterDispersalPressure * 0.18 +
       band.mobilityCostTolerance * 0.06 -
@@ -365,6 +383,7 @@ export function deriveBandPressureState(
     riskPressure: round2(riskPressure),
     placeAttachmentPull: round2(placeAttachmentPull),
     netMovePressure: round2(netMovePressure),
+    chronicHardshipEscalation: chronicHardship.movePressureBoost,
     nearbyBandPressure: nearbyPressure.weightedCrowding,
     parentCoreOverlap: daughterDispersal.parentCoreOverlap,
     daughterDispersalPressure: daughterDispersal.daughterDispersalPressure,

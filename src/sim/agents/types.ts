@@ -36,6 +36,7 @@ import type {
   PlantSafetyRisk,
 } from "./plantPatches";
 import type { FaunaHabitatType, FaunaStockKind } from "./faunaStock";
+import type { AnimalPatternKnowledgeState, ProtoAnimalManagementState } from "./animalLearning";
 import type { CauseSpecificEvent, CauseSpecificEventRingEntry } from "./causeSpecificEvent";
 import type { ExploitationSkillState } from "./exploitationSkill";
 import type {
@@ -813,6 +814,17 @@ export interface AnimalActivityTrace {
   readonly warinessChange: number;
   readonly dangerRisk: number;
   readonly dangerClass: "low" | "moderate" | "high";
+  // INVENTION-3: a practiced hunting-method response (distance strike, snare
+  // line) bounds part of the danger actually paid on this trip. Proof fields:
+  // dangerRiskBeforeLearning is the unrelieved value; dangerRisk above is what
+  // was paid. Absent when no hunting response was exercised.
+  readonly dangerRiskBeforeLearning?: number;
+  readonly huntingReliefApplied?: number;
+  readonly huntingResponseId?: string;
+  readonly huntingVariantKey?: string;
+  readonly huntingContextMatched?: boolean;
+  readonly huntingPreparationLabor?: number;
+  readonly huntingReturnShiftApplied?: number;
   readonly distanceTiles: number;
   readonly travelCost: number;
   readonly laborAccessCost: number;
@@ -922,6 +934,17 @@ export interface AcuteRiskEpisode {
   readonly confidence: NormalizedIntensity;
   readonly effect: AcuteRiskEffect;
   readonly remainingRecoverySeasons: number;
+  // INVENTION-3: a practiced care/treatment response can bound part of an
+  // episode's recovery and mortality weight. Proof fields; absent when no
+  // care response was exercised on this episode.
+  readonly careReliefApplied?: number;
+  readonly careResponseId?: string;
+  readonly careNote?: string;
+  readonly careAttempted?: boolean;
+  readonly careMatched?: boolean;
+  readonly careHarmApplied?: number;
+  readonly careRecoverySeasonsSaved?: number;
+  readonly careTreatmentBurden?: number;
   readonly affectedStress: boolean;
   readonly affectedActivityEfficiency: boolean;
   readonly affectedMortalityPressure: boolean;
@@ -2500,6 +2523,10 @@ export interface BandPressureState {
   readonly relationshipFailureCautionBias?: NormalizedIntensity;
   readonly relationshipPlaceCharacterPull?: NormalizedIntensity;
   readonly relationshipRouteConfidenceBias?: NormalizedIntensity;
+  // CAUSAL-REPAIR-1 — bounded escalation from repeated low-support evidence
+  // (chronicHardship.ts). Raises mobility/net move pressure so a declining band
+  // gets MORE push to act, not less. Capped by MOVE_PRESSURE_BOOST_CAP.
+  readonly chronicHardshipEscalation?: NormalizedIntensity;
   readonly crowdingBandIds: readonly BandId[];
   readonly confidence: NormalizedIntensity;
   readonly sourceReasonIds: readonly ReasonId[];
@@ -2948,6 +2975,31 @@ export interface BodyCampLogisticsBehavior {
   readonly noPermanentPenalty: true;
 }
 
+// INVENTION-3 — bounded physical camp-exposure coefficient. Derived each
+// season at the residence from tile risk profile, terrain, season, climate
+// regime and the band's own camp state; a practiced shelter response relieves
+// a capped share of the MATCHING exposure kind. Downstream: sickness-wave
+// severity and child/elder weather risk (both already feed demography).
+export type CampExposureKind = "heat" | "cold" | "wet" | "wind" | "mixed" | "mild";
+
+export interface CampExposureState {
+  readonly tileId: TileId;
+  // Raw physical exposure before any shelter practice (0..1).
+  readonly rawExposure: NormalizedIntensity;
+  // Exposure actually experienced after the shelter relief (0..1).
+  readonly effectiveExposure: NormalizedIntensity;
+  readonly dominantKind: CampExposureKind;
+  readonly heat: NormalizedIntensity;
+  readonly cold: NormalizedIntensity;
+  readonly wet: NormalizedIntensity;
+  readonly wind: NormalizedIntensity;
+  readonly shelterReliefApplied: NormalizedIntensity;
+  readonly shelterResponseId?: string;
+  readonly shelterVariantKey?: string;
+  readonly shelterContextMatched: boolean;
+  readonly reliefReason: string;
+}
+
 export interface BodyCampSurvivalLogisticsState {
   readonly bandId: BandId;
   readonly lastUpdatedTick: TickNumber;
@@ -2955,6 +3007,9 @@ export interface BodyCampSurvivalLogisticsState {
   readonly weatherMemories: readonly WeatherMemoryRecord[];
   readonly fire: FireUseState;
   readonly sickness: SicknessWaveState;
+  // INVENTION-3: optional only for pre-pass fixtures; live derivation always
+  // populates it.
+  readonly campExposure?: CampExposureState;
   readonly careTravelBurden: CareTravelBurdenState;
   readonly logisticCapacity: LogisticCapacityState;
   readonly materialWear: readonly MaterialWearRecord[];
@@ -4636,6 +4691,949 @@ export interface CausalTrace {
   readonly decisionId?: DecisionId;
 }
 
+export type AdaptiveIdeaFamily =
+  | "carrying_logistics"
+  | "food_work"
+  | "route_crossing"
+  | "camp_care"
+  | "fire_fuel"
+  | "water_edge"
+  | "social_copy";
+
+export type AdaptiveIdeaSource =
+  | "locally_inferred"
+  | "inherited"
+  | "copied_seen"
+  | "repeated_habit"
+  | "desperate_improvisation"
+  | "old_routine_variant";
+
+export type AdaptiveIdeaStatus =
+  | "considered"
+  | "chosen"
+  | "rejected"
+  | "copied"
+  | "inherited"
+  | "desperate"
+  | "blocked";
+
+export type AdaptiveResponseType =
+  | "stay_endure"
+  | "rest_recover"
+  | "minor_camp_shift"
+  | "temporary_task_camp"
+  | "scout_probe"
+  | "try_local_solution"
+  | "fallback_work_shift"
+  | "adjust_carrying"
+  | "delay_move"
+  | "risky_relocation"
+  | "abandon_route"
+  | "return_refuge"
+  | "copy_trace"
+  | "reject_idea"
+  | "postpone";
+
+export type AdaptiveTaskGroup =
+  | "whole_band"
+  | "small_scout_group"
+  | "foraging_party"
+  | "crossing_party"
+  | "camp_care_group"
+  | "water_edge_group"
+  | "adult_heavy_group"
+  | "mixed_camp_group";
+
+export type AdaptiveAttemptOutcome =
+  | "clear_success"
+  | "clear_failure"
+  | "partial_success"
+  | "mixed_feedback"
+  | "low_feedback"
+  | "delayed_feedback"
+  | "dangerous_feedback"
+  | "local_only_success"
+  | "contradicted_by_event"
+  | "false_confidence"
+  | "dead_end"
+  | "blocked_before_attempt"
+  | "too_labor_heavy";
+
+export type AdaptiveFeedbackType = AdaptiveAttemptOutcome;
+
+export type AdaptiveFeedbackQuality =
+  | "clear"
+  | "usable"
+  | "mixed"
+  | "weak"
+  | "delayed"
+  | "dangerous"
+  | "blocked"
+  | "contradicted";
+
+export type AdaptiveRoutineConfidenceBand =
+  | "fragile"
+  | "promising"
+  | "locally_reliable"
+  | "contradicted";
+
+export type AdaptiveTransferDifficulty = "low" | "medium" | "high" | "unknown";
+
+export type AdaptiveBehaviorEffectScope =
+  | "none"
+  | "candidate_score_bias"
+  | "movement_response_bias"
+  | "camp_response_bias"
+  | "scout_response_bias";
+
+export type AdaptiveEvidenceSourceSystem =
+  | "problem_practice"
+  | "practice_feedback"
+  | "material_affordance"
+  | "knowledge_ecology"
+  | "social_diffusion"
+  | "camp_foothold"
+  | "activity_party"
+  | "repetition_familiarity"
+  | "movement_memory"
+  | "route_memory"
+  | "crossing_memory"
+  | "place_memory"
+  | "demography"
+  | "pressure_state"
+  | "decision";
+
+export type AdaptiveEvidenceKind =
+  | "problem"
+  | "practice_candidate"
+  | "feedback_readiness"
+  | "affordance"
+  | "knowledge"
+  | "social_exposure"
+  | "foothold"
+  | "activity"
+  | "repetition"
+  | "memory"
+  | "demography"
+  | "pressure"
+  | "decision";
+
+export type AdaptiveBasis = "lived" | "inherited" | "copied_seen" | "mixed" | "unknown";
+
+export interface AdaptiveEvidenceRef {
+  readonly kind: AdaptiveEvidenceKind;
+  readonly sourceSystem: AdaptiveEvidenceSourceSystem;
+  readonly label: string;
+  readonly sourceId: string;
+  readonly confidence: NormalizedIntensity;
+  readonly basis: AdaptiveBasis;
+  readonly problemFrameId?: string;
+  readonly practiceCandidateId?: string;
+  readonly practiceFeedbackId?: string;
+  readonly affordanceId?: string;
+  readonly knowledgeId?: string;
+  readonly socialDiffusionId?: string;
+  readonly footholdId?: string;
+  readonly activityId?: string;
+  readonly repetitionId?: string;
+  readonly eventId?: EventId;
+  readonly tileId?: TileId;
+  readonly relatedBandId?: BandId;
+  readonly reasonIds: readonly ReasonId[];
+}
+
+export interface AdaptiveIdea {
+  readonly id: string;
+  readonly family: AdaptiveIdeaFamily;
+  readonly publicLabel: string;
+  readonly meaning: string;
+  readonly sourceProblemFrameId?: string;
+  readonly linkedPracticeCandidateId?: string;
+  readonly proposedResponse: AdaptiveResponseType;
+  readonly materialBasis: readonly string[];
+  readonly knowledgeBasis: readonly string[];
+  readonly activityBasis: readonly string[];
+  readonly campFootholdBasis: readonly string[];
+  readonly socialSource?: string;
+  readonly expectedBenefit: string;
+  readonly expectedCost: string;
+  readonly risk: string;
+  readonly uncertainty: string;
+  readonly feasibility: NormalizedIntensity;
+  readonly noveltySource: AdaptiveIdeaSource;
+  readonly status: AdaptiveIdeaStatus;
+  readonly rejectionReason?: string;
+  readonly linkedAffordanceIds: readonly string[];
+  readonly linkedKnowledgeIds: readonly string[];
+  readonly linkedPracticeFeedbackIds: readonly string[];
+  readonly linkedFootholdIds: readonly string[];
+  readonly linkedSocialDiffusionIds: readonly string[];
+  readonly evidence: readonly AdaptiveEvidenceRef[];
+  readonly noTechTree: true;
+  readonly noGlobalUnlock: true;
+}
+
+export interface AdaptiveResponse {
+  readonly id: string;
+  readonly selectedIdeaId: string;
+  readonly responseType: AdaptiveResponseType;
+  readonly selectedByProblem: string;
+  readonly whyChosen: string;
+  readonly rejectedIdeaIds: readonly string[];
+  readonly alternativesRejected: readonly string[];
+  readonly expectedCostRisk: string;
+  readonly laborRequirement: "low" | "moderate" | "high" | "blocked";
+  readonly involvedGroup: AdaptiveTaskGroup;
+  readonly season: Season;
+  readonly contextTileId: TileId;
+  readonly decisionId: DecisionId;
+  readonly decisionTrace: string;
+  readonly behaviorEffectScope: AdaptiveBehaviorEffectScope;
+  readonly scoreDelta: NormalizedIntensity;
+}
+
+export interface SolutionAttempt {
+  readonly id: string;
+  readonly ideaId: string;
+  readonly responseId: string;
+  readonly attemptType: AdaptiveResponseType;
+  readonly participants: AdaptiveTaskGroup;
+  readonly participantEstimate: number;
+  readonly placeTileId: TileId;
+  readonly targetTileId?: TileId;
+  readonly materialUsed: readonly string[];
+  readonly feedbackType: AdaptiveFeedbackType;
+  readonly feedbackQuality: AdaptiveFeedbackQuality;
+  readonly outcome: AdaptiveAttemptOutcome;
+  readonly eventRefs: readonly EventId[];
+  readonly memoryRefs: readonly string[];
+  readonly costPaid: "none" | "low" | "moderate" | "high";
+  readonly riskRealized: "none" | "low" | "moderate" | "high";
+  readonly helpedEscapeOrSurvive: boolean;
+  readonly blockedReason?: string;
+  readonly noAutomaticImprovement: true;
+}
+
+export interface AdaptivePracticeVariant {
+  readonly id: string;
+  readonly parentIdeaId?: string;
+  readonly parentRoutineId?: string;
+  readonly publicLabel: string;
+  readonly variantCause:
+    | "material_difference"
+    | "place_difference"
+    | "copied_source"
+    | "contradictory_feedback"
+    | "labor_change"
+    | "season_change"
+    | "partial_inheritance"
+    | "misread_trace";
+  readonly status: "untested_variant" | "failed_variant" | "promising_variant" | "local_only_variant";
+  readonly evidenceRefs: readonly string[];
+  readonly noGlobalUnlock: true;
+}
+
+export interface LocalRoutine {
+  readonly id: string;
+  readonly sourceIdeaId: string;
+  readonly domain: AdaptiveIdeaFamily;
+  readonly publicLabel: string;
+  readonly contextWhereItWorks: string;
+  readonly contextWhereItFails: string;
+  readonly confidence: NormalizedIntensity;
+  readonly confidenceBand: AdaptiveRoutineConfidenceBand;
+  readonly carrierBasis: string;
+  readonly repetitionCount: number;
+  readonly successfulFeedbackCount: number;
+  readonly failureCount: number;
+  readonly lastUsedTick: TickNumber;
+  readonly transferDifficulty: AdaptiveTransferDifficulty;
+  readonly decayRisk: "low" | "moderate" | "high";
+  readonly mutationHookIds: readonly string[];
+  readonly behaviorInfluenceAllowed: boolean;
+  readonly behaviorEffectScope: AdaptiveBehaviorEffectScope;
+  readonly notGlobalSkill: true;
+}
+
+export interface ContextBoundAdaptation {
+  readonly id: string;
+  readonly sourceRoutineId: string;
+  readonly domain: AdaptiveIdeaFamily;
+  readonly bandLocal: true;
+  readonly publicLabel: string;
+  readonly carriers: string;
+  readonly confidence: NormalizedIntensity;
+  readonly limitations: readonly string[];
+  readonly transferDifficulty: AdaptiveTransferDifficulty;
+  readonly failureConditions: readonly string[];
+  readonly decayRisk: "low" | "moderate" | "high";
+  readonly decisionInfluence: AdaptiveBehaviorEffectScope;
+  readonly noGlobalUnlock: true;
+  readonly noTechTree: true;
+}
+
+export interface AdaptivePassiveCollapseAudit {
+  readonly bandId: BandId;
+  readonly tick: TickNumber;
+  readonly status: "not_under_collapse_pressure" | "attempted_response" | "blocked_response" | "suspicious_passive";
+  readonly collapsePressure: NormalizedIntensity;
+  readonly recentAttemptCount: number;
+  readonly blockedReasons: readonly string[];
+  readonly lastAttemptId?: string;
+}
+
+export interface AdaptiveDecisionTrace {
+  readonly decisionId: DecisionId;
+  readonly actionType: Action["type"];
+  readonly selectedIdeaId?: string;
+  readonly responseId?: string;
+  readonly scoreDelta: NormalizedIntensity;
+  readonly behaviorEffectScope: AdaptiveBehaviorEffectScope;
+  readonly reasonId?: ReasonId;
+}
+
+// ENVIRONMENT-READING PRACTICAL ADAPTATION / INVENTION-1 — compositional
+// practical-learning substrate. Bands learn small PRACTICAL FRAGMENTS
+// (material properties, techniques, place/route readings) from repeated lived
+// evidence, and may compose them into PRACTICAL RESPONSES when a real
+// experienced condition makes the response worth attempting. Responses affect
+// real coefficients (never prose), earn or lose confidence only through
+// response-specific efficacy, and can be weak, partial, revised, dormant, or
+// abandoned. Fragments/responses are bounded, deterministic, band-local,
+// material- and context-dependent — never inventory items, technology
+// unlocks, or identity labels.
+
+export type PracticalFragmentDomain =
+  | "material_property"
+  | "technique"
+  | "place_route"
+  | "animal_behavior"
+  | "structure"
+  // INVENTION-3: abstract practical patterns (counting, pacing, dimension
+  // matching) earned only from repeated lived task evidence — never a
+  // "mathematics" unlock.
+  | "abstract_pattern";
+
+export type PracticalFragmentBasis = "lived" | "inherited" | "copied" | "inferred";
+
+export type PracticalFragmentKnowledgeState =
+  | "tentative"
+  | "confident"
+  | "partial"
+  | "contradicted"
+  | "stale"
+  | "dormant"
+  | "incorrect";
+
+export interface PracticalFragment {
+  readonly id: string;
+  readonly domain: PracticalFragmentDomain;
+  // What was learned about (e.g. "fiber_cordage", "load_staging").
+  readonly subject: string;
+  // The practical property observed (e.g. "holds_tension_when_dry").
+  readonly property: string;
+  readonly publicLabel: string;
+  readonly basis: PracticalFragmentBasis;
+  readonly strength: NormalizedIntensity;
+  readonly failureCount: number;
+  readonly lastReinforcedTick: TickNumber;
+  readonly evidenceRefs: readonly string[];
+  // ROUTINES-2: epistemic state is separate from raw strength. Optional for
+  // backward-compatible audit fixtures; live fragments always populate it.
+  readonly knowledgeState?: PracticalFragmentKnowledgeState;
+  readonly observationCount?: number;
+  readonly contradictionCount?: number;
+  readonly contextKeys?: readonly string[];
+}
+
+export type PracticalResponseFamily =
+  | "carrying_load"
+  | "dry_route_water"
+  | "hunting_distance"
+  | "temporary_shelter"
+  | "water_storage"
+  // Declared extension family (registry-documented, not yet implementable):
+  | "animal_proximity"
+  | "engineering_structure"
+  // INVENTION-3 families:
+  | "groundwater_seek"
+  | "care_treatment"
+  | "proto_measure";
+
+export type PracticalResponseStatus =
+  | "forming"
+  | "active"
+  | "dormant"
+  | "abandoned";
+
+export interface PracticalResponseState {
+  readonly id: string;
+  readonly family: PracticalResponseFamily;
+  // Composition signature — WHICH configuration of fragments this variant uses
+  // (e.g. "fiber_sling" vs "load_staging" vs "carrying_frame"). Two variants
+  // with the same family differ in required fragments, caps, and history.
+  readonly variantKey: string;
+  readonly publicLabel: string;
+  readonly status: PracticalResponseStatus;
+  readonly confidence: NormalizedIntensity;
+  readonly successCount: number;
+  readonly partialCount: number;
+  readonly failureCount: number;
+  readonly formedAtTick: TickNumber;
+  readonly lastActiveTick: TickNumber;
+  readonly lastEfficacy?: AdaptiveEfficacyClassification;
+  readonly requiredFragmentIds: readonly string[];
+  // Locality/context restriction in plain terms (proof surface, not behavior).
+  readonly contextNote: string;
+  // Variant lineage when a failed configuration was revised into this one.
+  readonly revisionOf?: string;
+  // INVENTION-3 canonical causal history links: the problem frame, idea
+  // candidate and experiment this response formed through. Optional only for
+  // pre-INVENTION-3 fixture state; live formation always populates them.
+  readonly problemId?: string;
+  readonly ideaId?: string;
+  readonly experimentId?: string;
+}
+
+// ---------------------------------------------------------------------------
+// INVENTION-3 — canonical causal chain state. One bounded history:
+//   lived problem/opportunity → problem frame → idea candidates → selected
+//   experiment → attempts (the forming response's real practice) → observed
+//   result → fragments → response → real coefficient → efficacy → refinement.
+// UI derives cards from this state; the cards are never the state.
+// ---------------------------------------------------------------------------
+
+export type PracticalProblemFamily =
+  | "carrying_burden"
+  | "water_route_shortage"
+  | "camp_water_shortage"
+  | "vessel_water_loss"
+  | "camp_exposure"
+  | "hunting_danger"
+  | "sickness_injury"
+  | "journey_misjudgment"
+  | "crossing_blocked";
+
+export type PracticalProblemOrigin = "lived" | "inherited" | "copied" | "opportunity";
+
+export type PracticalProblemStatus = "active" | "dormant" | "resolved" | "revised";
+
+export interface PracticalProblemFrame {
+  readonly id: string;
+  readonly family: PracticalProblemFamily;
+  readonly publicLabel: string;
+  // What the band believes causes the problem. May be WRONG (misread=true):
+  // the competing interpretation is then the better reading, and idea
+  // selection is biased toward the misread until contradiction revises it.
+  readonly interpretation: string;
+  readonly competingInterpretation?: string;
+  readonly misread: boolean;
+  readonly severity: NormalizedIntensity;
+  readonly confidence: NormalizedIntensity;
+  readonly repetitionCount: number;
+  readonly origin: PracticalProblemOrigin;
+  readonly status: PracticalProblemStatus;
+  readonly evidenceRefs: readonly string[];
+  readonly contextKey?: string;
+  readonly framedAtTick: TickNumber;
+  readonly lastEvidenceTick: TickNumber;
+}
+
+export type PracticalIdeaStatus = "considered" | "selected" | "rejected" | "postponed";
+
+export type PracticalIdeaSource = "local_inference" | "copied" | "inherited" | "accident";
+
+export interface PracticalIdeaCandidate {
+  readonly id: string;
+  readonly problemId: string;
+  readonly family: PracticalResponseFamily;
+  readonly variantKey: string;
+  readonly publicLabel: string;
+  // The mechanism the band believes would help (from the variant spec).
+  readonly mechanismBelief: string;
+  readonly basisFragmentIds: readonly string[];
+  readonly basisScore: NormalizedIntensity;
+  readonly status: PracticalIdeaStatus;
+  readonly statusReason: string;
+  readonly source: PracticalIdeaSource;
+  readonly consideredAtTick: TickNumber;
+}
+
+export type PracticalExperimentStatus =
+  | "underway"
+  | "concluded_success"
+  | "concluded_partial"
+  | "concluded_failure"
+  | "abandoned";
+
+export interface PracticalExperiment {
+  readonly id: string;
+  readonly problemId: string;
+  readonly ideaId: string;
+  readonly responseId: string;
+  readonly family: PracticalResponseFamily;
+  readonly variantKey: string;
+  // The real coefficient the experiment expects to change, and how.
+  readonly expectedEffect: string;
+  readonly materials: readonly string[];
+  readonly procedure: string;
+  readonly laborCost: NormalizedIntensity;
+  readonly riskCost: NormalizedIntensity;
+  readonly opportunityCost: string;
+  readonly observationBasis: "direct" | "inferred";
+  readonly observedOutcome?: string;
+  readonly attemptSeasons: number;
+  readonly status: PracticalExperimentStatus;
+  readonly contextKey?: string;
+  readonly fragmentsLearned: readonly string[];
+  readonly fragmentsContradicted: readonly string[];
+  readonly startedAtTick: TickNumber;
+  readonly concludedAtTick?: TickNumber;
+}
+
+// INVENTION-3 — groundwater works at a specific tile. The band's own built
+// seep/well state: place-bound, maintained, seasonal, collapsible. Never
+// inherited by daughters (it stays with the ground, and the parent band).
+export type PracticalWaterWorksStatus =
+  | "digging"
+  | "damp_seep"
+  | "contaminated_seep"
+  | "seasonal_seep"
+  | "shallow_well"
+  | "dry_hole"
+  | "collapsed"
+  | "abandoned";
+
+export interface PracticalWaterWorks {
+  readonly tileId: TileId;
+  readonly status: PracticalWaterWorksStatus;
+  readonly responseId: string;
+  // Realized yield 0..1 — the bounded water-stress relief the works currently
+  // provide at this tile (0 for dry holes/collapses).
+  readonly yieldLevel: NormalizedIntensity;
+  readonly digSeasons: number;
+  readonly laborPaid: NormalizedIntensity;
+  readonly lastLaborCost: NormalizedIntensity;
+  readonly builtAtTick: TickNumber;
+  readonly lastMaintainedTick: TickNumber;
+  readonly outcomeNote: string;
+}
+
+export interface PracticalAdaptationState {
+  readonly bandId: BandId;
+  readonly lastUpdatedTick: TickNumber;
+  readonly fragments: readonly PracticalFragment[];
+  readonly responses: readonly PracticalResponseState[];
+  readonly efficacyRecords: readonly AdaptiveEfficacyRecord[];
+  // INVENTION-3 canonical causal chain (optional only for pre-pass fixtures;
+  // the live advance always populates the arrays, possibly empty).
+  readonly problems?: readonly PracticalProblemFrame[];
+  readonly ideas?: readonly PracticalIdeaCandidate[];
+  readonly experiments?: readonly PracticalExperiment[];
+  readonly waterWorks?: PracticalWaterWorks;
+  readonly caps: {
+    readonly fragmentCap: number;
+    readonly responseCap: number;
+    readonly recordCap: number;
+    readonly problemCap?: number;
+    readonly ideaCap?: number;
+    readonly experimentCap?: number;
+    readonly held: boolean;
+  };
+}
+
+// ADAPTIVE EFFICACY FEEDBACK-1 — how a practical response's attempt was judged:
+// by its OWN measured effect on a real coefficient/outcome (specific), or by the
+// generic movement fallback when no response-specific evidence exists. Broad
+// movement success must never be recorded as specific practice success.
+export type AdaptiveEfficacyClassification =
+  | "clear_success_specific"
+  | "partial_success_specific"
+  | "failure_or_danger_specific"
+  | "matching_use_without_practice"
+  | "irrelevant_movement"
+  | "context_mismatch"
+  | "low_or_no_feedback_specific";
+
+// One bounded, compact proof record per response-specific efficacy evaluation
+// (Technical reads these; the sim writes them from the same evidence it acted on).
+export interface AdaptiveEfficacyRecord {
+  readonly id: string;
+  readonly tick: TickNumber;
+  readonly responseId: string;
+  readonly family: AdaptiveIdeaFamily | PracticalResponseFamily;
+  readonly classification: AdaptiveEfficacyClassification;
+  readonly outcome: AdaptiveFeedbackType;
+  // Matching place/route/ford context key (crossing key or camp tile id).
+  readonly contextKey?: string;
+  // Whether the practiced response was actually active in the decision.
+  readonly responseActive: boolean;
+  // The real coefficient the response affects (e.g. riverCrossingRisk).
+  readonly coefficient: string;
+  readonly preEffectValue: number;
+  readonly effectAmount: number;
+  readonly effectCap: number;
+  // Remembered-danger change at the matching context (riskMemory delta).
+  readonly dangerDelta: number;
+  // Practice-evidence change at the matching context (successConfidence delta).
+  readonly practiceDelta: number;
+  // Local routine confidence / failure-evidence change caused by this outcome.
+  readonly confidenceDelta: number;
+  readonly failureDelta: number;
+  readonly futureInfluenceChanged: boolean;
+  readonly localityNote: string;
+  readonly reason: string;
+}
+
+export interface AdaptiveHumanState {
+  readonly bandId: BandId;
+  readonly lastUpdatedTick: TickNumber;
+  readonly activeIdeas: readonly AdaptiveIdea[];
+  readonly selectedResponses: readonly AdaptiveResponse[];
+  readonly recentAttempts: readonly SolutionAttempt[];
+  readonly localRoutines: readonly LocalRoutine[];
+  readonly contextBoundAdaptations: readonly ContextBoundAdaptation[];
+  readonly variants: readonly AdaptivePracticeVariant[];
+  readonly passiveCollapseAudit?: AdaptivePassiveCollapseAudit;
+  readonly latestDecisionTrace?: AdaptiveDecisionTrace;
+  // ADAPTIVE EFFICACY FEEDBACK-1: newest-first, capped, absent before the pass.
+  readonly efficacyRecords?: readonly AdaptiveEfficacyRecord[];
+  readonly caps: {
+    readonly activeIdeaCap: number;
+    readonly selectedResponseCap: number;
+    readonly attemptCap: number;
+    readonly routineCap: number;
+    readonly adaptationCap: number;
+    readonly variantCap: number;
+    readonly evidencePerItemCap: number;
+    readonly capsHeld: boolean;
+  };
+  readonly integrity: {
+    readonly behaviorActive: true;
+    readonly boundedBehaviorInfluence: true;
+    readonly noTechTree: true;
+    readonly noGlobalUnlock: true;
+    readonly noNewEcology: true;
+    readonly noCultureSettlementTerritoryTradeWar: true;
+    readonly noAutomaticImprovement: true;
+    readonly antiOmniscient: true;
+  };
+}
+
+export type CampMovementScale =
+  | "local_camp_shift"
+  | "temporary_task_camp"
+  | "new_place_establishment"
+  | "hard_move_recovery"
+  | "old_anchor_decay"
+  | "pressure_relief_move"
+  | "relief_scout_probe"
+  | "stagnation_escape";
+
+export type CampMovementStatus =
+  | "established"
+  | "establishing"
+  | "recovering"
+  | "shifting"
+  | "probing"
+  | "stagnant"
+  | "unstable";
+
+export type TemporaryCampPurpose =
+  | "food_work"
+  | "water_edge_work"
+  | "crossing_prep"
+  | "scout_probe"
+  | "recovery"
+  | "refuge_check";
+
+export type EstablishmentOutcome = "strengthened" | "weak" | "failed" | "still_testing";
+
+export type CampMovementEvidenceSystem =
+  | "adaptive_human"
+  | "camp_foothold"
+  | "activity"
+  | "place_memory"
+  | "movement"
+  | "event"
+  | "demography"
+  | "pressure"
+  | "route_crossing";
+
+export interface CampMovementEvidenceRef {
+  readonly sourceSystem: CampMovementEvidenceSystem;
+  readonly label: string;
+  readonly sourceId: string;
+  readonly confidence: NormalizedIntensity;
+  readonly tileId?: TileId;
+  readonly eventId?: string;
+  readonly activityId?: string;
+  readonly reasonIds: readonly ReasonId[];
+}
+
+export type PressureReliefCandidateRelation =
+  | "same_local_cluster"
+  | "nearby_known_range"
+  | "edge_of_familiar_country";
+
+export type PressureReliefCandidateStatus =
+  | "chosen"
+  | "good_enough"
+  | "scout_probe"
+  | "rejected"
+  | "blocked";
+
+export type PressureReliefCandidateActionStrategy =
+  | "move_to_tile"
+  | "scout_probe"
+  | "blocked";
+
+export interface PressureReliefCandidate {
+  readonly id: string;
+  readonly tileId: TileId;
+  readonly distanceTiles: number;
+  readonly relationToCurrentCluster: PressureReliefCandidateRelation;
+  readonly knownness: NormalizedIntensity;
+  readonly supportAdequacy: NormalizedIntensity;
+  readonly waterRefugeAdequacy: NormalizedIntensity;
+  readonly pressureReliefScore: NormalizedIntensity;
+  readonly usePressureDifference: NormalizedIntensity;
+  readonly campSicknessWearRelief: NormalizedIntensity;
+  readonly crossingTravelCost: NormalizedIntensity;
+  readonly oldCampPullPenalty: NormalizedIntensity;
+  readonly uncertainty: NormalizedIntensity;
+  readonly supportDelta: number;
+  readonly betterThanCurrent: boolean;
+  readonly strictFoodBetter: boolean;
+  readonly goodEnoughRelief: boolean;
+  readonly familiarCountry: boolean;
+  readonly sameRiverCountry: boolean;
+  readonly actionStrategy: PressureReliefCandidateActionStrategy;
+  readonly status: PressureReliefCandidateStatus;
+  readonly reasonLabel: string;
+  readonly blockedReason?: string;
+  readonly evidenceRefs: readonly CampMovementEvidenceRef[];
+}
+
+export interface LocalOrbitTrapState {
+  readonly detected: boolean;
+  readonly currentLocalClusterId: string;
+  readonly recentMicroShiftCount: number;
+  readonly recentDistinctTileCount: number;
+  readonly sameClusterLoop: boolean;
+  readonly pressure: NormalizedIntensity;
+  readonly escalation: "none" | "relief_move" | "scout_probe" | "blocked";
+  readonly basis: readonly string[];
+}
+
+export interface EscapeTargetIntegrityState {
+  readonly escapeResponsesWithTarget: number;
+  readonly escapeResponsesBlocked: number;
+  readonly targetlessAttempts: number;
+  readonly repeatedTargetlessAttempts: number;
+  readonly latestBlockedReason?: string;
+}
+
+export type EstablishmentScope =
+  | "continued_place"
+  | "same_cluster_shift"
+  | "pressure_relief_shift"
+  | "new_cluster_establishment"
+  | "outward_relocation";
+
+export interface EstablishmentScopeState {
+  readonly currentLocalClusterId: string;
+  readonly previousLocalClusterId?: string;
+  readonly scope: EstablishmentScope;
+  readonly sameClusterShift: boolean;
+  readonly newClusterMove: boolean;
+  readonly carriedOver: boolean;
+  readonly carryOverAmount: NormalizedIntensity;
+  readonly resetReason?: string;
+}
+
+export interface RangeRotationPressureReliefState {
+  readonly currentLocalClusterId: string;
+  readonly currentLocalRangeId: string;
+  readonly currentUsePressure: NormalizedIntensity;
+  readonly rangeSaturationPressure: NormalizedIntensity;
+  readonly candidates: readonly PressureReliefCandidate[];
+  readonly chosenCandidate?: PressureReliefCandidate;
+  readonly rejectedCandidates: readonly PressureReliefCandidate[];
+  readonly blockedReason?: string;
+  readonly localOrbitTrap: LocalOrbitTrapState;
+  readonly scoutProbeBridge?: PressureReliefCandidate;
+  readonly targetIntegrity: EscapeTargetIntegrityState;
+  readonly establishmentScope: EstablishmentScopeState;
+  readonly counts: {
+    readonly reliefCandidates: number;
+    readonly goodEnoughCandidates: number;
+    readonly chosenReliefMoves: number;
+    readonly rejectedReliefCandidates: number;
+    readonly blockedReliefMoves: number;
+    readonly scoutProbeBridges: number;
+    readonly sameClusterShifts: number;
+    readonly newClusterEstablishments: number;
+    readonly establishmentCarryOverCases: number;
+    readonly establishmentResetCases: number;
+  };
+  readonly caps: {
+    readonly candidateCap: number;
+    readonly rejectedCandidateCap: number;
+    readonly searchRadiusTiles: number;
+    readonly capsHeld: boolean;
+  };
+  readonly integrity: {
+    readonly goodEnoughSeparateFromBetterThanCurrent: boolean;
+    readonly boundedBehaviorInfluence: true;
+    readonly noLongDistanceMigrationForced: true;
+    readonly riverFollowingRetained: true;
+    readonly noFissionBehaviorChange: true;
+    readonly noNewEcology: true;
+  };
+}
+
+export interface LocalCampShiftRecord {
+  readonly id: string;
+  readonly tick: TickNumber;
+  readonly fromTileId: TileId;
+  readonly toTileId: TileId;
+  readonly distance: number;
+  readonly reason: string;
+  readonly outcome: EstablishmentOutcome;
+  readonly confidence: NormalizedIntensity;
+  readonly evidenceRefs: readonly CampMovementEvidenceRef[];
+  readonly noSettlement: true;
+}
+
+export interface TemporaryTaskCampRecord {
+  readonly id: string;
+  readonly tick: TickNumber;
+  readonly originTileId: TileId;
+  readonly targetTileId: TileId;
+  readonly purpose: TemporaryCampPurpose;
+  readonly status: "active" | "completed" | "failed" | "expired";
+  readonly confidence: NormalizedIntensity;
+  readonly expiresAfterTick: TickNumber;
+  readonly evidenceRefs: readonly CampMovementEvidenceRef[];
+  readonly noSettlement: true;
+  readonly noInventory: true;
+}
+
+export interface NewPlaceEstablishmentState {
+  readonly id: string;
+  readonly tileId: TileId;
+  readonly localClusterId: string;
+  readonly startedTick: TickNumber;
+  readonly ageTicks: number;
+  readonly confidence: NormalizedIntensity;
+  readonly status: "new" | "testing" | "holding" | "failing" | "established";
+  readonly scope: EstablishmentScope;
+  readonly sameClusterShift: boolean;
+  readonly establishmentCarriedOver: boolean;
+  readonly carryOverFromTileId?: TileId;
+  readonly resetReason?: string;
+  readonly knownBasis: readonly string[];
+  readonly recoveryNeed: NormalizedIntensity;
+  readonly oldCampPull: NormalizedIntensity;
+  readonly localFamiliarity: NormalizedIntensity;
+  readonly localProblemPressure: NormalizedIntensity;
+  readonly retreatRisk: NormalizedIntensity;
+  readonly commitHoldTendency: NormalizedIntensity;
+  readonly blockedReasons: readonly string[];
+  readonly evidenceRefs: readonly CampMovementEvidenceRef[];
+  readonly noSettlement: true;
+}
+
+export interface OldCampAnchorDecayRecord {
+  readonly id: string;
+  readonly tick: TickNumber;
+  readonly tileId: TileId;
+  readonly pullBefore: NormalizedIntensity;
+  readonly pullAfter: NormalizedIntensity;
+  readonly decayAmount: NormalizedIntensity;
+  readonly reason: string;
+  readonly canRecover: true;
+}
+
+export interface StagnationEscapeRecord {
+  readonly id: string;
+  readonly tick: TickNumber;
+  readonly status: "trying" | "blocked" | "helped" | "failed";
+  readonly response:
+    | "minor_camp_shift"
+    | "pressure_relief_move"
+    | "temporary_task_camp"
+    | "scout_probe"
+    | "risky_relocation"
+    | "recovery_hold"
+    | "use_local_routine"
+    | "no_viable_response";
+  readonly actionType: Action["type"];
+  readonly targetTileId?: TileId;
+  readonly reason: string;
+  readonly blockedReasons: readonly string[];
+  readonly evidenceRefs: readonly CampMovementEvidenceRef[];
+}
+
+export interface CampMovementPassiveCollapseAudit {
+  readonly bandId: BandId;
+  readonly tick: TickNumber;
+  readonly status: "not_under_collapse_pressure" | "attempted_escape" | "blocked_escape" | "suspicious_passive";
+  readonly collapsePressure: NormalizedIntensity;
+  readonly recentEscapeCount: number;
+  readonly blockedReasons: readonly string[];
+  readonly lastEscapeId?: string;
+}
+
+export interface CampMovementDecisionTrace {
+  readonly decisionId: DecisionId;
+  readonly actionType: Action["type"];
+  readonly scale: CampMovementScale;
+  readonly targetTileId?: TileId;
+  readonly scoreDelta: NormalizedIntensity;
+  readonly reasonId?: ReasonId;
+  readonly basis: readonly string[];
+}
+
+export interface CampMovementState {
+  readonly bandId: BandId;
+  readonly lastUpdatedTick: TickNumber;
+  readonly status: CampMovementStatus;
+  readonly currentEstablishment?: NewPlaceEstablishmentState;
+  readonly recentLocalShifts: readonly LocalCampShiftRecord[];
+  readonly temporaryTaskCamps: readonly TemporaryTaskCampRecord[];
+  readonly oldCampPullScore: NormalizedIntensity;
+  readonly oldCampDecay: readonly OldCampAnchorDecayRecord[];
+  readonly stagnationFlags: readonly string[];
+  readonly stagnationEscapes: readonly StagnationEscapeRecord[];
+  readonly passiveCollapseAudit?: CampMovementPassiveCollapseAudit;
+  readonly latestDecisionTrace?: CampMovementDecisionTrace;
+  readonly rangeRotation?: RangeRotationPressureReliefState;
+  readonly oscillationGuard: {
+    readonly recentBacktrackCount: number;
+    readonly blockedOscillationCount: number;
+    readonly lastBlockedPair?: readonly [TileId, TileId];
+  };
+  readonly caps: {
+    readonly localShiftCap: number;
+    readonly temporaryCampCap: number;
+    readonly oldCampDecayCap: number;
+    readonly stagnationEscapeCap: number;
+    readonly evidencePerItemCap: number;
+    readonly capsHeld: boolean;
+  };
+  readonly integrity: {
+    readonly behaviorActive: true;
+    readonly boundedBehaviorInfluence: true;
+    readonly noSettlement: true;
+    readonly noInventoryPropertyStorageEconomy: true;
+    readonly noNewEcology: true;
+    readonly noCultureTerritoryTradeWar: true;
+    readonly antiOmniscient: true;
+  };
+}
+
 export interface Band {
   readonly id: BandId;
   readonly name: string;
@@ -4716,6 +5714,11 @@ export interface Band {
   readonly resourceKnowledgeState?: ResourceKnowledgeState;
   readonly resourceEcology?: ResourceEcologyBandState;
   readonly visibleNature?: VisibleNatureState;
+  // ROUTINES-2: persisted animal knowledge comes only from bounded observations
+  // (trip traces, tracks, sightings, camp approaches, and management outcomes),
+  // never from the current hidden stock snapshot projected by visibleNature.
+  readonly animalPatternKnowledge?: AnimalPatternKnowledgeState;
+  readonly animalManagement?: ProtoAnimalManagementState;
   readonly acuteRisk?: AcuteRiskState;
   readonly travelCorridors: Readonly<Record<RouteId, TravelCorridorMemory>>;
   readonly crossingMemories: Readonly<Record<string, KnownCrossingMemory>>;
@@ -4812,6 +5815,11 @@ export interface Band {
   readonly protoAccessMemory?: ProtoAccessMemoryState;
   readonly exhaustedRangeAudit?: ExhaustedRangeAudit;
   readonly anchorActionTrace?: AnchorActionTrace;
+  readonly adaptiveHuman?: AdaptiveHumanState;
+  // ENVIRONMENT-READING PRACTICAL ADAPTATION / INVENTION-1: bounded learned
+  // fragments + composed practical responses (absent before the pass).
+  readonly practicalAdaptation?: PracticalAdaptationState;
+  readonly campMovement?: CampMovementState;
   readonly causalTraces: readonly CausalTrace[];
   // DEEP-TIME-HISTORY-TECH-1 — persisted durable history (founding snapshot,
   // era records, episodes). OBSERVE-ONLY: written by bandHistory.ts at creation

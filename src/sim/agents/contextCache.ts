@@ -60,6 +60,7 @@ export interface TickContextCache {
   readonly season: Season;
   readonly bandSpatialIndex: BandSpatialIndex;
   readonly activeBandIds: readonly BandId[];
+  readonly nonDispersedBandCount: number;
   readonly tileBandOccupancy: ReadonlyMap<TileId, readonly BandId[]>;
   readonly nearbyBandsByBandId: ReadonlyMap<BandId, readonly BandId[]>;
   readonly nearbyBandPressureByBandTileKey: Map<string, NearbyBandPressure>;
@@ -92,10 +93,12 @@ export interface TickContextCache {
 }
 
 export function buildTickContextCache(world: WorldState): TickContextCache {
-  const activeBandIds = Object.values(world.bands)
+  const allBands = Object.values(world.bands);
+  const activeBandIds = allBands
     .filter(isActiveBand)
     .map((band) => band.id)
     .sort(compareBandIds);
+  const nonDispersedBandCount = allBands.filter((band) => band.status !== "dispersed").length;
   const bandSpatialIndex = buildBandSpatialIndex(world, activeBandIds);
   const salientMemoryByBandId = new Map<BandId, SalientBandMemorySummary>();
   const nearbyBandsByBandId = new Map<BandId, readonly BandId[]>();
@@ -120,6 +123,7 @@ export function buildTickContextCache(world: WorldState): TickContextCache {
     season: world.time.season,
     bandSpatialIndex,
     activeBandIds,
+    nonDispersedBandCount,
     tileBandOccupancy: bandSpatialIndex.tileBandOccupancy,
     nearbyBandsByBandId,
     nearbyBandPressureByBandTileKey: new Map(),

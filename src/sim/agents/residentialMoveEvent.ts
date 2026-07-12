@@ -34,6 +34,9 @@ import type { WorldState } from "../world/types";
 import { isBandPassableDestination } from "../world/passability";
 // 2K.12: selection-only seasonal-memory reader (band-learned only; no hidden truth).
 import { readSeasonalEcologyHint } from "./seasonalEcologyReader";
+// INVENTION-1: practiced carrying response relieves a bounded share of the
+// dependent/elder hardship terms of a burdened residential move.
+import { deriveCarriedWaterRelief, deriveCarryingRelief } from "./practicalResponses";
 import { deriveTemporaryWatercraftAssessmentForMove } from "./storageSuitability";
 import type {
   Band,
@@ -128,9 +131,22 @@ function buildResidentialMoveEvent(
   const watercraftDelayDays = temporaryWatercraft === undefined
     ? 0
     : Math.min(4, Math.max(0, temporaryWatercraft.shuttleTrips - 1));
-  const durationDays = Math.max(1, Math.min(14, distanceTiles + watercraftDelayDays));
+  // CAUSAL-REPAIR-2: urgency quickens the PACE, not only the departure day.
+  // An emergency water escape forced-marches ~2 tiles/day, a food-pressure
+  // escape ~1.5; ordinary relocations keep the unhurried 1 tile/day (packing,
+  // foraging en route, dependents). Record/display only — the seasonal
+  // decision, endpoint, and determinism are unchanged; the quicker pace is
+  // paid as extra hardship risk below.
+  const paceTilesPerDay =
+    moveKind === "emergency_water_move" ? 2 :
+    moveKind === "food_pressure_move" ? 1.5 :
+    1;
+  const durationDays = Math.max(
+    1,
+    Math.min(14, Math.ceil(distanceTiles / paceTilesPerDay) + watercraftDelayDays),
+  );
   const endDay = Math.min(SEASON_LENGTH_DAYS - 1, startDay + durationDays);
-  const hardship = deriveMigrationHardship(world, band, distanceTiles, status, temporaryWatercraft);
+  const hardship = deriveMigrationHardship(world, band, distanceTiles, status, temporaryWatercraft, paceTilesPerDay);
 
   // 2K.12: record-only learned-seasonal CONTEXT about the destination (not a cause — the
   // move scorer is not biased by seasonal memory in 2K.12). Flag default OFF / no relevant
@@ -178,6 +194,7 @@ function deriveMigrationHardship(
   distanceTiles: number,
   status: ResidentialMoveStatus,
   temporaryWatercraft: ReturnType<typeof deriveTemporaryWatercraftAssessmentForMove>,
+  paceTilesPerDay: number,
 ): {
   readonly risk: number;
   readonly level: "low" | "moderate" | "high" | "severe";
@@ -197,14 +214,31 @@ function deriveMigrationHardship(
       : world.time.season === "winter"
         ? 0.08
         : 0;
+  // A forced-march pace (>1 tile/day) is paid as extra hardship risk — the
+  // quicker escape trades rest, foraging en route, and care time for speed.
+  // Ordinary 1 tile/day moves pay exactly 0 here.
+  const forcedMarchRisk = Math.max(0, paceTilesPerDay - 1) * 0.12;
+  // INVENTION-1: a practiced carrying response (band's own pre-move state)
+  // relieves at most 60% × cap(0.4) = 24% of the dependent/elder burden terms
+  // of the move — real but bounded; every other hardship term is fully paid.
+  const carryingRelief = deriveCarryingRelief(band, Number(world.time.tick));
+  const carryingFactor = 1 - (carryingRelief.active ? carryingRelief.relief : 0) * 0.6;
+  // INVENTION-3: carried water (water_storage response) relieves at most
+  // 50% × cap(0.28) = 14% of the move's water hardship term — the dry stages
+  // are still mostly paid, and leakage/heat already discounted the relief.
+  const carriedWater = deriveCarriedWaterRelief(band, Number(world.time.tick), {
+    heatContext: world.time.season === "summer",
+    routeDurationSteps: Math.max(1, distanceTiles),
+  });
+  const waterFactor = 1 - (carriedWater.active ? carriedWater.relief : 0) * 0.5;
   const risk = round2(clamp01(
     distanceTiles / 14 * 0.24 +
-      dependentShare * 0.18 +
-      elderShare * 0.16 +
+      (dependentShare * 0.18 + elderShare * 0.16) * carryingFactor +
       foodStress * 0.18 +
-      waterStress * 0.22 +
+      waterStress * 0.22 * waterFactor +
       fatigue * 0.12 +
       seasonalHardship +
+      forcedMarchRisk +
       (temporaryWatercraft === undefined ? 0 : temporaryWatercraft.riverRisk * 0.16 + temporaryWatercraft.seasonExposureRisk * 0.12),
   ));
   const level =

@@ -436,8 +436,27 @@ export function getDaughterDispersalPressure(
   const kinTolerance = kinSafety;
   const safeFrontierPull = tile === undefined ? 0 : getSafeFrontierPull(world, band, tile, nearby);
   const localUsePressure = getLocalUsePressureValue(band.usePressure[tileId]);
+  // CAUSAL-REPAIR-1: founders are no longer exempt from dispersal pressure.
+  // A founding lineage in a saturating basin previously read 0 here forever
+  // while its daughters ringed it in. Founder pressure is gated on SUSTAINED
+  // evidence (the M0.11 over-capacity signal needs ≥2 consecutive derivations,
+  // or already-substantial weighted crowding), built only from parent-free
+  // terms, and scaled to 0.7× so founders stay more rooted than daughters.
+  const sustainedOverCapacity =
+    band.carryingCapacity?.perCapitaReturn.sustainedOverCapacity ??
+    band.perCapitaReturn?.sustainedOverCapacity ??
+    0;
+  const founderPressureGate = sustainedOverCapacity > 0 || nearby.weightedCrowding > 0.3;
   const daughterDispersalPressure = band.parentBandId === undefined
-    ? 0
+    ? (founderPressureGate
+        ? clamp01(
+            (nearby.weightedCrowding * 0.3 +
+              nearby.daughterOverlap * 0.2 +
+              localUsePressure * 0.16 +
+              safeFrontierPull * 0.14 +
+              Math.min(1, sustainedOverCapacity) * 0.34) * 0.7,
+          )
+        : 0)
     : clamp01(
         nearby.weightedCrowding * 0.36 +
           parentCoreOverlap * 0.42 +

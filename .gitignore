@@ -12,5 +12,12 @@ CLAUDE.md
 AGENTS.md
 PRODUCT.md
 DESIGN.md
-docs/HANDOFF.md
+# AI-agent handoffs, diagnostics, and planning scratch files
+**/HANDOFF.md
+**/HANDOFF-*.md
+**/*_HANDOFF.md
+**/*_DIAGNOSTIC.md
 docs/superpowers/
+
+# Local assistant/tool cache (design/config files remain tracked)
+.impeccable/hook.cache.json

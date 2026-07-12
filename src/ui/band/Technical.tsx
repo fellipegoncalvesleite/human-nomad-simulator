@@ -1,8 +1,20 @@
 import type { Band } from "../../sim/agents/types";
 import { deriveBandChronicle } from "../../sim/agents/bandChronicle";
+import { deriveBandTendencies } from "../../sim/agents/bandTendency";
+import { deriveChronicHardship } from "../../sim/agents/chronicHardship";
+import { deriveCrossingPracticeRelief } from "../../sim/agents/crossingPractice";
+import { effectiveFragmentStrength } from "../../sim/agents/practicalFragments";
+import { deriveCarryingRelief, deriveDryRouteWaterRelief, deriveEngineeringSafetyRelief } from "../../sim/agents/practicalResponses";
+import { classifyResidentialSeason, deriveSeasonalTravelPlanForBand } from "../../sim/agents/migrationWalk";
 import { deriveBandIdentityProfile } from "../../sim/agents/bandIdentity";
 import { deriveCanonicalEvents, familyLabel } from "../../sim/agents/eventSystem";
 import { deriveKnowledgeEcologyProfile } from "../../sim/agents/knowledgeEcology";
+import {
+  deriveKnowledgeCarrierProfile,
+  knowledgeAvailabilityLabel,
+  knowledgeCarrierClassLabel,
+  knowledgeCarrierDomainLabel,
+} from "../../sim/agents/knowledgeCarriers";
 import {
   deriveMaterialAffordanceProfile,
   materialAffordanceFamilyLabel,
@@ -27,7 +39,24 @@ import {
   practiceFeedbackReadinessFeedbackTypeLabel,
   practiceFeedbackReadinessStatusLabel,
 } from "../../sim/agents/practiceFeedbackReadiness";
+import {
+  deriveSocialEcologicalDiffusionProfile,
+  socialDiffusionChannelLabel,
+  socialDiffusionCompatibilityLabel,
+  socialDiffusionDomainLabel,
+  socialDiffusionStatusLabel,
+  socialDiffusionTacitDifficultyLabel,
+  socialDiffusionTrustFilterLabel,
+} from "../../sim/agents/socialEcologicalDiffusion";
+import {
+  adaptiveAttemptOutcomeLabel,
+  adaptiveIdeaFamilyLabel,
+  adaptiveResponseTypeLabel,
+  deriveAdaptiveHumanProfile,
+} from "../../sim/agents/adaptiveHuman";
+import { deriveCampMovementProfile } from "../../sim/agents/campMovement";
 import { deriveMemoryReferents } from "../../sim/agents/memoryReferents";
+import { derivePublicHumanStoryProfile } from "../../sim/agents/publicHumanStory";
 import type { Decision } from "../../sim/rules/types";
 import type { Tile, WorldState } from "../../sim/world/types";
 
@@ -120,12 +149,76 @@ function WorldEcologyDebugDetails() {
         label="plant patches (worked)"
         value={`${ecologySummary.plant.dynamicRecords} records · ${ecologySummary.plant.overharvested} overharvested · ${ecologySummary.plant.heavilyOverharvested} heavy · mean depletion ${ecologySummary.plant.meanDepletion}`}
       />
+      <Detail
+        label="fauna routine phases (world truth)"
+        value={Object.entries(ecologySummary.faunaRoutines.phases).map(([phase, count]) => `${phase} ${count}`).join(" · ") || "none"}
+      />
+      <Detail
+        label="fauna response state (world truth)"
+        value={`${ecologySummary.faunaRoutines.managedStocks} contact-affected stocks · wariness ${ecologySummary.faunaRoutines.meanWariness} · habituation ${ecologySummary.faunaRoutines.meanHabituation} · reproductive condition ${ecologySummary.faunaRoutines.meanReproductiveCondition}`}
+      />
     </>
   );
 }
 
-function PerformancePayloadDetails({ band }: { readonly band: Band }) {
+function PerformancePayloadDetails({ band, world }: { readonly band: Band; readonly world: WorldState | null }) {
+  const selectedProjection = useSimulationStore((state) => state.selectedBandPanelProjection);
+  const liveOverlay = useSimulationStore((state) => state.liveOverlay);
+  const matchingProjection =
+    selectedProjection !== null && selectedProjection.selectedBandId === String(band.id)
+      ? selectedProjection
+      : null;
   const selectedBandBytes = estimateJsonBytes(band);
+  const liveProjectionBytes = estimateJsonBytes(matchingProjection ?? {});
+  const liveOverlayBytes = estimateJsonBytes(liveOverlay ?? {});
+  const dynamicSnapshotBytes =
+    world === null
+      ? 0
+      : estimateJsonBytes({
+          time: world.time,
+          bands: world.bands,
+          decisions: world.decisions,
+          decisionArchive: world.decisionArchive,
+          currentClimateStress: world.currentClimateStress,
+          tileDepletion: world.tileDepletion,
+        });
+  const storyStart = performance.now();
+  const storyProfile = world === null ? null : derivePublicHumanStoryProfile(world, band);
+  const storyDerivationMs = performance.now() - storyStart;
+  const storyBytes = estimateJsonBytes(storyProfile ?? {});
+  const storyItemCount = storyProfile?.items.length ?? 0;
+  const storyEvidenceRefs =
+    storyProfile?.items.reduce(
+      (total, item) => total + item.evidenceChips.length + item.sourceRefs.length,
+      0,
+    ) ?? 0;
+  const latestDecisionId = band.decisionHistory[band.decisionHistory.length - 1];
+  const latestDecision =
+    world === null || latestDecisionId === undefined
+      ? undefined
+      : world.decisions[latestDecisionId];
+  const latestAlternativeCount = latestDecision?.alternativesConsidered.length ?? 0;
+  const latestCoreBreadth = latestDecision?.coreDeliberationBreadth ?? 0;
+  const projectionDiagnostics = matchingProjection?.diagnostics;
+  const compactReduction =
+    projectionDiagnostics === undefined || projectionDiagnostics.rawBandBytesEstimate === 0
+      ? "n/a"
+      : `${Math.round((1 - projectionDiagnostics.compactBandBytesEstimate / projectionDiagnostics.rawBandBytesEstimate) * 100)}%`;
+  const largestLists = [
+    { label: "reports", count: band.reportedKnowledge?.reports.length ?? 0 },
+    { label: "speculations", count: band.reportedKnowledge?.speculations?.length ?? 0 },
+    { label: "events", count: band.eventHistory?.recentEvents.length ?? 0 },
+    { label: "event window 10y", count: band.eventHistory?.last10Years.length ?? 0 },
+    { label: "event window 25y", count: band.eventHistory?.last25Years.length ?? 0 },
+    { label: "camp talk", count: band.campRumors?.items.length ?? 0 },
+    { label: "movement history", count: band.movementHistory.length },
+    { label: "residential moves", count: band.recentResidentialMoveEvents?.length ?? 0 },
+    { label: "recent trips", count: band.recentIntraSeasonTrips?.length ?? 0 },
+  ]
+    .sort((left, right) => right.count - left.count)
+    .slice(0, 5)
+    .map((entry) => `${entry.label} ${entry.count}`)
+    .join(" · ");
   const panelPayloads = {
     overview:
       estimateJsonBytes(band.conditionProfile ?? {}) +
@@ -147,10 +240,38 @@ function PerformancePayloadDetails({ band }: { readonly band: Band }) {
 
   return (
     <>
-      <Detail label="selected-band payload" value={`${formatBytes(selectedBandBytes)} estimated JSON`} />
+      <Detail label="selected-band raw payload" value={`${formatBytes(selectedBandBytes)} estimated JSON`} />
+      <Detail
+        label="selected-band live payload"
+        value={`${formatBytes(liveProjectionBytes)} transfer estimate · mode ${matchingProjection?.detailMode ?? "snapshot"} · reduction ${compactReduction}`}
+      />
+      <Detail
+        label="worker/main-thread payload"
+        value={`live overlay ${formatBytes(liveOverlayBytes)} · dynamic snapshot ${formatBytes(dynamicSnapshotBytes)} estimated JSON`}
+      />
+      <Detail
+        label="public story payload"
+        value={`${formatBytes(storyBytes)} · ${storyItemCount} items · ${storyEvidenceRefs} evidence/source refs · ${storyDerivationMs.toFixed(2)} ms derived on Technical expansion`}
+      />
       <Detail
         label="panel payload estimates"
         value={`overview ${formatBytes(panelPayloads.overview)} · nature ${formatBytes(panelPayloads.nature)} · history ${formatBytes(panelPayloads.history)} · technical raw ${formatBytes(panelPayloads.technicalRaw)}`}
+      />
+      <Detail
+        label="largest selected-band lists"
+        value={largestLists.length === 0 ? "none" : largestLists}
+      />
+      <Detail
+        label="projection caps"
+        value={
+          projectionDiagnostics === undefined
+            ? "live summary not available"
+            : `trips ${projectionDiagnostics.caps.recentTrips} · activity path ${projectionDiagnostics.caps.activityPathTiles} · residential moves ${projectionDiagnostics.caps.residentialMoves} · events ${projectionDiagnostics.caps.eventHistory} · camp talk ${projectionDiagnostics.caps.campTalk}`
+        }
+      />
+      <Detail
+        label="projection cache key"
+        value={projectionDiagnostics?.projectionKey ?? "waiting for live selected-band projection"}
       />
       <Detail
         label="event/talk counts"
@@ -164,7 +285,26 @@ function PerformancePayloadDetails({ band }: { readonly band: Band }) {
         label="recent substrate counts"
         value={`camp ${band.protoCampMemory?.topPlaces.length ?? 0} · access ${band.protoAccessMemory?.topPlaces.length ?? 0} · body weather ${band.bodyCampLogistics?.weatherMemories.length ?? 0} · relationship practice ${band.relationshipMemory?.practiceSkills.length ?? 0} · failures ${band.relationshipMemory?.failureStories.length ?? 0}`}
       />
-      <Detail label="render policy" value="hidden tabs are not mounted; collapsed Technical sections lazy-mount raw proof on expansion" />
+      <Detail
+        label="derivation policy"
+        value="public tabs mount one active panel; Technical and markdown export derive raw proof on demand"
+      />
+      <Detail
+        label="closed-tab derivations avoided"
+        value="inactive band tabs are unmounted; hidden markdown export source is unmounted until Generate .md"
+      />
+      <Detail
+        label="movement hot-path diagnostics"
+        value="benchmark phases exposed: movementDecisionAndPressure · movement:candidateGeneration · movement:candidatePassabilityChecks · context:carryingCapacity · context:rangeSaturationState · context:frontierKnowledge"
+      />
+      <Detail
+        label="movement cache/index proof"
+        value="WorldTime seasonal tile cache · static map relief-radius cache · static map fallback catchment-ring cache · directed river-crossing cache · seasonal crossing-state cache · per-tick non-dispersed band count"
+      />
+      <Detail
+        label="candidate caps / dedupe status"
+        value={`latest alternatives ${latestAlternativeCount} · core breadth ${latestCoreBreadth} · dedupe not applied in behavior path; action/reason ordering preserved`}
+      />
     </>
   );
 }
@@ -311,6 +451,267 @@ function MemoryReferentDetails({ band, world }: { readonly band: Band; readonly 
           />
         ))
       )}
+    </>
+  );
+}
+
+// CAUSAL-REPAIR-1 proof block: the exact hardship signal, tendency vector,
+// founder/daughter dispersal pressure, and per-crossing practice relief the
+// decision actually consumed — plus the latest decision's candidate roster.
+// Derived on demand from the same pure functions the sim uses; no extra state.
+function CausalAgencyDetails({
+  band,
+  world,
+  latestDecision,
+}: {
+  readonly band: Band;
+  readonly world: WorldState | null;
+  readonly latestDecision: Decision | undefined;
+}) {
+  const tendencies = deriveBandTendencies(band);
+  const hardship = deriveChronicHardship(band, tendencies);
+  const currentTick = world === null ? 0 : Number(world.time.tick);
+  const travelPlan = deriveSeasonalTravelPlanForBand(
+    band,
+    band.currentIntent?.kind,
+    band.currentIntent?.persistence ?? 0,
+    currentTick,
+  );
+  const lastMove = band.movementHistory[band.movementHistory.length - 1];
+  const lastMoveDistance = lastMove === undefined || world === null
+    ? undefined
+    : (() => {
+        const fromTile = world.tiles[lastMove.fromTileId];
+        const toTile = world.tiles[lastMove.toTileId];
+        return fromTile === undefined || toTile === undefined
+          ? undefined
+          : Math.abs(fromTile.coord.x - toTile.coord.x) + Math.abs(fromTile.coord.y - toTile.coord.y);
+      })();
+  const lastMoveSummary = lastMove === undefined
+    ? "no residential move recorded"
+    : `${String(lastMove.fromTileId)} → ${String(lastMove.toTileId)} · ${lastMoveDistance ?? "?"} tile(s) · ${Math.max(0, currentTick - Number(lastMove.tick))} season(s) ago${(lastMoveDistance ?? 0) >= 2 ? " · staged seasonal travel" : ""}`;
+  const movedThisSeason = lastMove !== undefined && currentTick - Number(lastMove.tick) <= 1;
+  const bestMoveAlternative = latestDecision?.alternativesConsidered.find(
+    (alternative) => alternative.action.type === "move_to_tile" || alternative.action.type === "explore_unknown_neighbor",
+  );
+  const seasonClass = classifyResidentialSeason({
+    movedThisSeason,
+    moveDistance: movedThisSeason ? lastMoveDistance ?? 0 : 0,
+    planMotive: travelPlan.motive,
+    planEngaged: travelPlan.engaged,
+    anchorRecommendation: band.anchorDecision?.chosenResidentialAction,
+    blockedCrossingOnBestMove: (bestMoveAlternative?.scoreBreakdown.blockedCrossingPenalty ?? 0) >= 1,
+  });
+  const crossingEntries = Object.entries(band.crossingMemories)
+    .map(([key, memory]) => ({ key, memory, practice: deriveCrossingPracticeRelief(memory, currentTick) }))
+    .sort((left, right) => right.practice.relief - left.practice.relief)
+    .slice(0, 4);
+  const anchor = band.anchorDecision;
+  const stayBlocker = anchor === undefined
+    ? "no anchor decision"
+    : [
+        anchor.waterFailureGate ? "water failure gate open" : undefined,
+        anchor.foodCollapseGate ? "food collapse gate open" : undefined,
+        anchor.betterKnownRefugeGate ? "better known refuge gate open" : undefined,
+        anchor.riskGate ? "risk gate open" : undefined,
+        anchor.fatigueGate ? "fatigue gate open" : undefined,
+      ].filter((entry): entry is string => entry !== undefined).join(" · ") ||
+      `anchor recommends ${anchor.chosenResidentialAction} (no gate open)`;
+  const candidateSummary = latestDecision === undefined
+    ? "no decision archived"
+    : latestDecision.alternativesConsidered
+        .slice(0, 6)
+        .map((alternative) => `${alternative.action.type} ${formatCompactNumber(alternative.score)}`)
+        .join(" · ");
+
+  return (
+    <>
+      <Detail
+        label="hardship signal"
+        value={`severity ${formatCompactNumber(hardship.severity)} · ${hardship.active ? "ACTIVE" : "inactive"} · lowReturn ${formatCompactNumber(hardship.lowReturnEvidence)} · saturation ${formatCompactNumber(hardship.saturationEvidence)} · foodStress ${formatCompactNumber(hardship.foodStressEvidence)} · dwell ×${formatCompactNumber(hardship.dwellEscalation)}`}
+      />
+      <Detail
+        label="hardship effects"
+        value={`stay-bias erosion ${formatCompactNumber(hardship.stayBiasErosion)} (cap 0.6) · move-pressure boost ${formatCompactNumber(hardship.movePressureBoost)} (cap 0.18) · scout urgency ${formatCompactNumber(hardship.scoutUrgency)} (cap 0.14)`}
+      />
+      <Detail
+        label="pressure escalation applied"
+        value={`pressureState.chronicHardshipEscalation ${formatCompactNumber(band.pressureState?.chronicHardshipEscalation ?? 0)} · netMovePressure ${formatCompactNumber(band.pressureState?.netMovePressure ?? 0)}`}
+      />
+      <Detail
+        label="stay blocker / hold reason"
+        value={stayBlocker}
+      />
+      <Detail
+        label="tendency vector"
+        value={`explore ${formatCompactNumber(tendencies.exploration)} · attach ${formatCompactNumber(tendencies.attachment)} · crossCaution ${formatCompactNumber(tendencies.crossingCaution)} · campShift ${formatCompactNumber(tendencies.campShiftWillingness)} · failSens ${formatCompactNumber(tendencies.failureSensitivity)} · routine ${formatCompactNumber(tendencies.routineReliance)} (each ±1, use-site caps ≤±15%)`}
+      />
+      <Detail
+        label="dispersal pressure"
+        value={`${band.parentBandId === undefined ? "founder" : "daughter"} · daughterDispersalPressure ${formatCompactNumber(band.pressureState?.daughterDispersalPressure ?? 0)} · sustainedOverCapacity ${formatCompactNumber(band.carryingCapacity?.perCapitaReturn.sustainedOverCapacity ?? 0)}`}
+      />
+      <Detail
+        label="crossing practice"
+        value={crossingEntries.length === 0
+          ? "no crossing memories — relief absent"
+          : crossingEntries
+              .map((entry) =>
+                `${entry.key}: relief ${formatCompactNumber(entry.practice.relief)} (cap 0.35) · practice ${formatCompactNumber(entry.practice.practice)} · staleness ${formatCompactNumber(entry.practice.staleness)} · uses ${entry.memory.useCount}`)
+              .join(" | ")}
+      />
+      <Detail
+        label="latest candidates"
+        value={`${latestDecision === undefined ? 0 : latestDecision.alternativesConsidered.length} considered · ${candidateSummary}`}
+      />
+      <Detail
+        label="seasonal travel plan"
+        value={`motive ${travelPlan.motive} (strength ${formatCompactNumber(travelPlan.motiveStrength)}) · budget ${travelPlan.budget} tile(s)/season · ${travelPlan.engaged ? "JOURNEY ENGAGED (staged migration walk)" : "single hop"}`}
+      />
+      <Detail
+        label="travel limiters"
+        value={travelPlan.limiters.length === 0 ? "none — journey at full planned range" : travelPlan.limiters.join(" · ")}
+      />
+      <Detail
+        label="residential season class"
+        value={`${seasonClass.kind} — ${seasonClass.label} (residential band only; task parties/probes never move the camp)`}
+      />
+      <Detail
+        label="last residential move"
+        value={lastMoveSummary}
+      />
+    </>
+  );
+}
+
+// INVENTION-1 proof block: the practical-learning substrate — what the band
+// has lived through (fragments with basis/strength/staleness), what it
+// composed from them (responses with variant, status, confidence, failures,
+// revision lineage), which real coefficient the response touches right now
+// (current reliefs with their exact gating reason), and the response-specific
+// efficacy records the sim wrote when a response was exercised.
+function PracticalAdaptationDetails({ band, world }: { readonly band: Band; readonly world: WorldState | null }) {
+  const state = band.practicalAdaptation;
+  const currentTick = world === null ? 0 : Number(world.time.tick);
+  if (state === undefined || (state.fragments.length === 0 && state.responses.length === 0)) {
+    return (
+      <Detail
+        label="practical adaptation"
+        value="no learned fragments or practical responses yet — they form only from repeated lived conditions (burden, dry travel) with a real material/technique basis"
+      />
+    );
+  }
+  const carrying = deriveCarryingRelief(band, currentTick);
+  const water = deriveDryRouteWaterRelief(band, currentTick, undefined);
+  const engineering = deriveEngineeringSafetyRelief(band, currentTick, undefined);
+  return (
+    <>
+      <Detail
+        label="canonical invention problems"
+        value={(state.problems ?? []).length === 0 ? "none" : (state.problems ?? []).map((problem) =>
+          `${problem.publicLabel} · ${problem.status} severity ${formatCompactNumber(problem.severity)} confidence ${formatCompactNumber(problem.confidence)} repeated ${problem.repetitionCount} · reading: ${problem.interpretation}${problem.misread ? " (MISREAD)" : ""} · evidence ${problem.evidenceRefs.join(",")}`).join(" | ")}
+      />
+      <Detail
+        label="canonical invention ideas"
+        value={(state.ideas ?? []).length === 0 ? "none" : (state.ideas ?? []).map((idea) =>
+          `${idea.publicLabel} · ${idea.status} (${idea.statusReason}) · mechanism ${idea.mechanismBelief} · basis ${formatCompactNumber(idea.basisScore)} from ${idea.basisFragmentIds.join(",") || "missing components"} · ${idea.source}`).join(" | ")}
+      />
+      <Detail
+        label="canonical physical experiments"
+        value={(state.experiments ?? []).length === 0 ? "none" : (state.experiments ?? []).map((experiment) =>
+          `${experiment.family}/${experiment.variantKey} · ${experiment.status} attempts ${experiment.attemptSeasons} · materials ${experiment.materials.join(", ")} · procedure ${experiment.procedure} · cost labor ${formatCompactNumber(experiment.laborCost)} risk ${formatCompactNumber(experiment.riskCost)} / ${experiment.opportunityCost} · expected ${experiment.expectedEffect} · observed ${experiment.observedOutcome ?? "not yet attempted"} · learned ${experiment.fragmentsLearned.join(",") || "none"} contradicted ${experiment.fragmentsContradicted.join(",") || "none"}`).join(" | ")}
+      />
+      <Detail
+        label="local waterworks"
+        value={state.waterWorks === undefined ? "none" : `${String(state.waterWorks.tileId)} · ${state.waterWorks.status} · yield ${formatCompactNumber(state.waterWorks.yieldLevel)} · dig seasons ${state.waterWorks.digSeasons} · labor total ${formatCompactNumber(state.waterWorks.laborPaid)} latest ${formatCompactNumber(state.waterWorks.lastLaborCost)} · ${state.waterWorks.outcomeNote}`}
+      />
+      <Detail
+        label="learned fragments"
+        value={state.fragments.length === 0
+          ? "none"
+          : state.fragments
+              .map((fragment) =>
+                `${fragment.subject} (${fragment.property}) · ${fragment.basis}/${fragment.knowledgeState ?? "legacy"} · strength ${formatCompactNumber(fragment.strength)} eff ${formatCompactNumber(effectiveFragmentStrength(fragment, currentTick))} · observations ${fragment.observationCount ?? 0} contradictions ${fragment.contradictionCount ?? 0} · contexts ${(fragment.contextKeys ?? []).join(",") || "none"} · failures ${fragment.failureCount}`)
+              .join(" | ")}
+      />
+      {state.responses.map((response) => (
+        <Detail
+          key={response.id}
+          label={`response ${response.family}`}
+          value={`${response.variantKey} · ${response.status} · confidence ${formatCompactNumber(response.confidence)} · ${response.successCount} success / ${response.partialCount} partial / ${response.failureCount} failure · ${response.lastEfficacy ?? "not yet exercised"} · ${response.contextNote}${response.revisionOf !== undefined ? ` · revised from ${response.revisionOf}` : ""}`}
+        />
+      ))}
+      <Detail
+        label="current carrying relief"
+        value={`relief ${formatCompactNumber(carrying.relief)} (cap ${formatCompactNumber(carrying.cap)}) · ${carrying.active ? "ACTIVE — applied to travel-plan carry/vulnerable limiters + move-hardship dependent terms" : "inactive"} · ${carrying.reason}`}
+      />
+      <Detail
+        label="current water-route relief"
+        value={`relief ${formatCompactNumber(water.relief)} (cap ${formatCompactNumber(water.cap)}) · applied to the travel-plan water limiter only toward a remembered watered destination (target-dependent; this view has no target) · ${water.reason}`}
+      />
+      <Detail
+        label="current crossing-engineering relief"
+        value={`safety relief ${formatCompactNumber(engineering.relief)} (cap ${formatCompactNumber(engineering.cap)}) · target/crossing-dependent; this view has no crossing context · ${engineering.reason}`}
+      />
+      {state.efficacyRecords.map((record) => (
+        <Detail
+          key={record.id}
+          label={`practical efficacy ${record.family} @t${String(record.tick)}`}
+          value={`${record.classification} → ${record.outcome} · response ${record.responseId} · ${record.responseActive ? "ACTIVE" : "not active"} · context ${record.contextKey ?? "none"} · coefficient ${record.coefficient} pre ${formatCompactNumber(record.preEffectValue)} effect ${formatCompactNumber(record.effectAmount)} (cap ${formatCompactNumber(record.effectCap)}) · confidence Δ${formatCompactNumber(record.confidenceDelta)} · failures Δ${record.failureDelta} · future influence ${record.futureInfluenceChanged ? "CHANGED" : "unchanged"} · ${record.localityNote} · ${record.reason}`}
+        />
+      ))}
+    </>
+  );
+}
+
+function AnimalLearningManagementDetails({ band }: { readonly band: Band }) {
+  const knowledge = band.animalPatternKnowledge;
+  const management = band.animalManagement;
+  return (
+    <>
+      <Detail
+        label="persisted animal-pattern knowledge"
+        value={knowledge === undefined || knowledge.records.length === 0
+          ? "none — current stock truth/cards do not count as learned patterns"
+          : knowledge.records.map((record) =>
+              `${record.faunaKind}@${String(record.placeTileId)} · ${record.state}/${record.basis} conf ${formatCompactNumber(record.confidence)} · observations ${record.observationCount} direct ${record.directObservationCount} inferred ${record.inferenceCount} contradicted ${record.contradictionCount} · seasons ${record.seasonsObserved.join(",") || "none"} · patterns ${record.patterns.join(",")}`).join(" | ")}
+      />
+      <Detail
+        label="proto-management attempts"
+        value={management === undefined || management.records.length === 0
+          ? "none — requires repeated direct contact and affordable labor/water/camp cost"
+          : management.records.map((record) =>
+              `${record.faunaKind}@${String(record.placeTileId)} · ${record.status} ${record.action} → ${record.outcome} · contact ${record.contactSeasons} feed ${record.feedingAttempts} hold ${record.holdingAttempts} +${record.successes}/-${record.failures} · cost labor ${formatCompactNumber(record.laborCost)} water ${formatCompactNumber(record.waterCost)} camp ${formatCompactNumber(record.campCost)} · willingness ${formatCompactNumber(record.willingness)} · tolerance ${formatCompactNumber(record.animalToleranceObserved)} stress ${formatCompactNumber(record.stressObserved)}`).join(" | ")}
+      />
+      <Detail label="management scope locks" value="no domestication unlock · no ownership · no breeding program · no livestock inventory · no pastoral economy" />
+    </>
+  );
+}
+
+// ADAPTIVE EFFICACY FEEDBACK-1 proof block: the persisted response-specific
+// efficacy records the sim itself wrote when it classified an attempt — which
+// response, in which matching ford/camp context, whether the practiced relief
+// was active, the real coefficient touched (pre-value / effect / cap), how the
+// outcome was classified, what it did to remembered danger / practice evidence
+// / routine confidence, and the exact no-credit or mismatch reason.
+function AdaptiveEfficacyDetails({ band }: { readonly band: Band }) {
+  const records = band.adaptiveHuman?.efficacyRecords ?? [];
+  if (records.length === 0) {
+    return (
+      <Detail
+        label="adaptive efficacy"
+        value="no response-specific efficacy evaluation recorded yet — crossing / camp-care attempts write records here; other families still use the generic movement fallback"
+      />
+    );
+  }
+  return (
+    <>
+      {records.map((record) => (
+        <Detail
+          key={record.id}
+          label={`efficacy ${record.family} @t${String(record.tick)}`}
+          value={`${record.classification} → ${record.outcome} · response ${record.responseId} · practiced response ${record.responseActive ? "ACTIVE" : "not active"} · context ${record.contextKey ?? "none"} · coefficient ${record.coefficient} pre ${formatCompactNumber(record.preEffectValue)} effect ${formatCompactNumber(record.effectAmount)} (cap ${formatCompactNumber(record.effectCap)}) · danger Δ${formatCompactNumber(record.dangerDelta)} · practice Δ${formatCompactNumber(record.practiceDelta)} · routine confidence Δ${formatCompactNumber(record.confidenceDelta)} · failure evidence Δ${record.failureDelta} · future influence ${record.futureInfluenceChanged ? "CHANGED" : "unchanged"} · ${record.localityNote} · ${record.reason}`}
+        />
+      ))}
     </>
   );
 }
@@ -547,6 +948,81 @@ function KnowledgeEcologyDetails({ band, world }: { readonly band: Band; readonl
       <Detail label="item sample" value={itemSummary || "none"} />
       <Detail label="source id samples" value={profile.technicalProof.sourceIdSamples.join(" | ") || "none"} />
       <Detail label="event id samples" value={profile.technicalProof.relatedEventIdSamples.join(" | ") || "none"} />
+    </>
+  );
+}
+
+function KnowledgeCarrierDetails({ band, world }: { readonly band: Band; readonly world: WorldState | null }) {
+  if (world === null) {
+    return <Detail label="knowledge carriers" value="world unavailable" />;
+  }
+
+  const profile = deriveKnowledgeCarrierProfile(world, band);
+  const stateCounts = Object.entries(profile.stateCounts)
+    .filter(([, count]) => count > 0)
+    .map(([state, count]) => `${knowledgeAvailabilityLabel(state as Parameters<typeof knowledgeAvailabilityLabel>[0])} ${count}`)
+    .join(" · ");
+  const carrierCounts = Object.entries(profile.carrierCounts)
+    .filter(([, count]) => count > 0)
+    .map(([carrier, count]) => `${knowledgeCarrierClassLabel(carrier as Parameters<typeof knowledgeCarrierClassLabel>[0])} ${count}`)
+    .join(" · ");
+  const domainCounts = Object.entries(profile.domainCounts)
+    .filter(([, count]) => count > 0)
+    .map(([domain, count]) => `${knowledgeCarrierDomainLabel(domain as Parameters<typeof knowledgeCarrierDomainLabel>[0])} ${count}`)
+    .join(" · ");
+  const sourceCounts = Object.entries(profile.technicalProof.sourceSystemCounts)
+    .filter(([, count]) => count > 0)
+    .map(([source, count]) => `${source.replace(/_/g, " ")} ${count}`)
+    .join(" · ");
+  const itemSummary = profile.items
+    .slice(0, 8)
+    .map((item) =>
+      `${item.domain}:${item.state}:str ${formatCompactNumber(item.strength)} avail ${formatCompactNumber(item.availability)} decay ${formatCompactNumber(item.decayPressure)} carriers ${item.carrierClasses.join("+")}`,
+    )
+    .join(" | ");
+
+  return (
+    <>
+      <Detail label="carrier projection" value={`${profile.items.length}/${profile.caps.itemCap} items · ${profile.publicCards.length}/${profile.caps.publicCardCap} public cards · mode ${profile.projectionMode}`} />
+      <Detail label="overview" value={`${profile.overviewTitle} · ${profile.overviewLines.join(" ")}`} />
+      <Detail label="domains" value={domainCounts || "none"} />
+      <Detail label="states" value={stateCounts || "none"} />
+      <Detail label="carrier classes" value={carrierCounts || "none"} />
+      <Detail
+        label="active / weak / source basis"
+        value={`active/fresh/tested ${profile.activeItemCount} · fading ${profile.fadingItemCount} · dormant ${profile.dormantItemCount} · distorted ${profile.distortedItemCount} · inherited ${profile.inheritedFragmentCount} · copied ${profile.copiedUntestedCount} · local untested ${profile.locallyUntestedCount} · lost ${profile.lostOrUnavailableCount} · local-only ${profile.localOnlyItemCount} · lived ${profile.livedItemCount} · inherited basis ${profile.inheritedItemCount} · copied basis ${profile.copiedItemCount}`}
+      />
+      <Detail
+        label="behavior hooks"
+        value={`projection-only hooks ${profile.behaviorHooksCount} · max influence ${profile.maxBehaviorInfluence} · cap ${profile.technicalProof.behaviorHookCap} · hotPathSafe=${String(profile.technicalProof.hotPathSafe)}`}
+      />
+      <Detail
+        label="daughter hooks"
+        value={`inheritedState=${String(profile.daughterBottleneckHooks.inheritedFragmentState)} · parentCarrier=${String(profile.daughterBottleneckHooks.parentSourceCarrier)} · localTestingNeeded ${profile.daughterBottleneckHooks.daughterLocalTestingNeededCount} · confidenceLoss=${String(profile.daughterBottleneckHooks.inheritanceConfidenceLossRepresented)} · fuzzy ${profile.daughterBottleneckHooks.exactTileVsRegionFuzzinessCount} · inheritedRoutesUntested ${profile.daughterBottleneckHooks.untestedInheritedRouteCount} · warningsNoExactRoute ${profile.daughterBottleneckHooks.inheritedWarningWithoutExactRouteCount} · routinesNoPractice ${profile.daughterBottleneckHooks.inheritedRoutineWithoutPracticeCount} · mismatch ${profile.daughterBottleneckHooks.localMismatchRiskCount} · noFissionChange=${String(profile.daughterBottleneckHooks.noFissionBehaviorChange)}`}
+      />
+      <Detail
+        label="social diffusion hooks"
+        value={`visibleTrace ${profile.interBandDiffusionHooks.visibleTraceCount} · socialTrace ${profile.interBandDiffusionHooks.socialTraceCount} · copiedUntested ${profile.interBandDiffusionHooks.copiedUntestedCount} · copiedFailed ${profile.interBandDiffusionHooks.copiedFailedCount} · copiedLocalOnly ${profile.interBandDiffusionHooks.copiedLocalOnlyCount} · cautionFilter ${profile.interBandDiffusionHooks.trustCautionFilterCount} · sourceUnknown ${profile.interBandDiffusionHooks.sourceUnknownCount} · heardNotTested ${profile.interBandDiffusionHooks.heardWarningNotPersonallyTestedCount} · actualDiffusion=${String(!profile.interBandDiffusionHooks.noActualDiffusionImplemented)}`}
+      />
+      <Detail
+        label="caps"
+        value={`items ${profile.caps.itemCap} · per-domain ${profile.caps.itemsPerDomainCap} · carriers/item ${profile.caps.carriersPerItemCap} · evidence/item ${profile.caps.evidencePerItemCap} · linked refs/item ${profile.caps.linkedSystemPerItemCap} · technical refs ${profile.caps.technicalRefCap} · held ${String(profile.caps.capsHeld)}`}
+      />
+      <Detail
+        label="integrity"
+        value={`selectedBandOnly=${profile.integrity.selectedBandOnly} · projectionOnly=${profile.integrity.projectionOnly} · noBehaviorInfluence=${profile.integrity.noBehaviorInfluence} · dormantDoesNotDelete=${profile.integrity.dormantDoesNotDelete} · inheritedSeparated=${profile.integrity.inheritedSeparatedFromLived} · copiedSeparated=${profile.integrity.copiedUntestedSeparatedFromPracticed} · localOnlyNotGlobal=${profile.integrity.localOnlyNotGlobalSkill} · distortionEvidence=${profile.integrity.distortionBoundedEvidenceBased} · noNamedPeople=${profile.integrity.noNamedPeople}`}
+      />
+      <Detail
+        label="anti-fake"
+        value={`noNewEcology=${profile.integrity.noNewEcology} · noCultureReligionLawPropertyTerritoryTradeAgricultureWar=${profile.integrity.noCultureReligionMythLawPropertyTerritoryTradeAgricultureWar} · noSkillUnlocks=${profile.integrity.noSkillUnlocks} · noDecisionInfluence=${profile.integrity.noDecisionInfluence}`}
+      />
+      <Detail label="source systems" value={sourceCounts || "none"} />
+      <Detail label="payload estimate" value={`${formatBytes(profile.technicalProof.payloadBytesEstimate)} · max item ${formatBytes(profile.technicalProof.maxItemPayloadBytes)} · broken refs ${profile.technicalProof.brokenRefs}`} />
+      <Detail label="state enums" value={profile.technicalProof.exactStateEnums.join(" | ")} />
+      <Detail label="carrier enum" value={profile.technicalProof.exactCarrierClasses.join(" | ")} />
+      <Detail label="item sample" value={itemSummary || "none"} />
+      <Detail label="source id samples" value={profile.technicalProof.sourceIdSamples.join(" | ") || "none"} />
+      <Detail label="technical refs" value={profile.technicalProof.technicalRefs.join(" | ") || "none"} />
     </>
   );
 }
@@ -891,6 +1367,383 @@ function PracticeFeedbackReadinessDetails({ band, world }: { readonly band: Band
   );
 }
 
+function AdaptiveHumanDetails({ band, world }: { readonly band: Band; readonly world: WorldState | null }) {
+  if (world === null) {
+    return <Detail label="adaptive human" value="world unavailable" />;
+  }
+
+  const profile = deriveAdaptiveHumanProfile(world, band);
+  const ideaFamilies = Object.entries(profile.ideaFamilyCounts)
+    .filter(([, count]) => count > 0)
+    .map(([family, count]) => `${adaptiveIdeaFamilyLabel(family as Parameters<typeof adaptiveIdeaFamilyLabel>[0])} ${count}`)
+    .join(" · ");
+  const responses = Object.entries(profile.responseTypeCounts)
+    .filter(([, count]) => count > 0)
+    .map(([response, count]) => `${adaptiveResponseTypeLabel(response as Parameters<typeof adaptiveResponseTypeLabel>[0])} ${count}`)
+    .join(" · ");
+  const outcomes = Object.entries(profile.attemptOutcomeCounts)
+    .filter(([, count]) => count > 0)
+    .map(([outcome, count]) => `${adaptiveAttemptOutcomeLabel(outcome as Parameters<typeof adaptiveAttemptOutcomeLabel>[0])} ${count}`)
+    .join(" · ");
+  const quality = Object.entries(profile.feedbackQualityCounts)
+    .filter(([, count]) => count > 0)
+    .map(([entry, count]) => `${entry.replace(/_/g, " ")} ${count}`)
+    .join(" · ");
+  const routineConfidence = Object.entries(profile.routineConfidenceCounts)
+    .filter(([, count]) => count > 0)
+    .map(([entry, count]) => `${entry.replace(/_/g, " ")} ${count}`)
+    .join(" · ");
+  const ideaSummary = profile.ideas
+    .slice(0, 8)
+    .map((idea) => `${idea.family}:${idea.status}:${idea.proposedResponse}:${formatCompactNumber(idea.feasibility)} e${idea.evidence.length}`)
+    .join(" | ");
+  const attemptSummary = profile.attempts
+    .slice(0, 8)
+    .map((attempt) => `${attempt.attemptType}:${attempt.outcome}:${attempt.feedbackQuality}:${attempt.participants}`)
+    .join(" | ");
+
+  return (
+    <>
+      <Detail label="mode" value={`${profile.mode} · behavior active ${String(profile.integrity.behaviorActive)} · no new actions ${String(profile.integrity.noNewActions)}`} />
+      <Detail label="overview" value={`${profile.overviewTitle} · ${profile.overviewLines.join(" ")}`} />
+      <Detail
+        label="counts"
+        value={`ideas ${profile.ideas.length}/${profile.caps.activeIdeaCap} · responses ${profile.selectedResponses.length}/${profile.caps.selectedResponseCap} · attempts ${profile.attempts.length}/${profile.caps.attemptCap} · routines ${profile.localRoutines.length}/${profile.caps.routineCap} · adaptations ${profile.contextBoundAdaptations.length}/${profile.caps.adaptationCap} · variants ${profile.variants.length}/${profile.caps.variantCap}`}
+      />
+      <Detail label="idea families" value={ideaFamilies || "none"} />
+      <Detail label="responses" value={responses || "none"} />
+      <Detail label="attempt outcomes" value={outcomes || "none"} />
+      <Detail label="feedback quality" value={quality || "none"} />
+      <Detail label="routine confidence" value={routineConfidence || "none"} />
+      <Detail
+        label="selected / rejected"
+        value={`selected ${profile.selectedIdeaCount} · rejected ${profile.rejectedIdeaCount} · copied ${profile.copiedIdeaCount} · inherited ${profile.inheritedIdeaCount} · desperate ${profile.desperateIdeaCount}`}
+      />
+      <Detail
+        label="risk hooks"
+        value={`dead-end ${profile.deadEndCount} · false-confidence ${profile.falseConfidenceCount} · local-only ${profile.localOnlyCount} · subgroup attempts ${profile.subgroupExecutionCount}`}
+      />
+      <Detail
+        label="source refs"
+        value={`problem ${profile.problemRefCount} · affordance ${profile.affordanceRefCount} · knowledge ${profile.knowledgeRefCount} · activity ${profile.activityRefCount} · practice feedback ${profile.practiceFeedbackRefCount} · camp/foothold ${profile.campFootholdRefCount} · social diffusion ${profile.socialDiffusionRefCount} · event refs ${profile.eventRefCount}`}
+      />
+      <Detail
+        label="passive collapse"
+        value={profile.passiveCollapseAudit === undefined
+          ? "none"
+          : `${profile.passiveCollapseAudit.status} · pressure ${formatCompactNumber(profile.passiveCollapseAudit.collapsePressure)} · attempts ${profile.passiveCollapseAudit.recentAttemptCount} · blocked ${profile.passiveCollapseAudit.blockedReasons.join(" | ") || "none"}`}
+      />
+      <Detail
+        label="behavior trace"
+        value={band.adaptiveHuman?.latestDecisionTrace === undefined
+          ? "none"
+          : `${band.adaptiveHuman.latestDecisionTrace.actionType} · score delta ${formatCompactNumber(band.adaptiveHuman.latestDecisionTrace.scoreDelta)} · scope ${band.adaptiveHuman.latestDecisionTrace.behaviorEffectScope} · idea ${band.adaptiveHuman.latestDecisionTrace.selectedIdeaId ?? "none"}`}
+      />
+      <Detail
+        label="integrity"
+        value={`bounded=${profile.integrity.behaviorInfluenceTraced} · no new ecology=${profile.integrity.noNewEcology} · no global=${profile.integrity.noGlobalUnlock} · local routines=${profile.integrity.localRoutinesNotGlobalSkills} · no automatic improvement=${profile.integrity.noAutomaticImprovement}`}
+      />
+      <Detail
+        label="deferred systems"
+        value={`agriculture/domestication/settlement/territory/war/culture=${profile.integrity.noAgricultureDomesticationSettlementTerritoryWarCulture} · daughter partial=${profile.integrity.daughterInheritancePartial} · copied can fail=${profile.integrity.copiedIdeasCanFail}`}
+      />
+      <Detail
+        label="payload / caps"
+        value={`${formatBytes(profile.payloadBytesEstimate)} · max ideas ${profile.maxIdeasProfile} · max routines ${profile.maxRoutinesProfile} · max evidence/item ${profile.maxEvidenceItem} · held ${String(profile.caps.capsHeld)}`}
+      />
+      <Detail label="idea sample" value={ideaSummary || "none"} />
+      <Detail label="attempt sample" value={attemptSummary || "none"} />
+      <Detail label="idea ids" value={profile.technicalProof.ideaIdSamples.join(" | ") || "none"} />
+      <Detail label="response ids" value={profile.technicalProof.responseIdSamples.join(" | ") || "none"} />
+      <Detail label="attempt ids" value={profile.technicalProof.attemptIdSamples.join(" | ") || "none"} />
+      <Detail label="routine ids" value={profile.technicalProof.routineIdSamples.join(" | ") || "none"} />
+      <Detail label="adaptation ids" value={profile.technicalProof.adaptationIdSamples.join(" | ") || "none"} />
+      <Detail label="variant ids" value={profile.technicalProof.variantIdSamples.join(" | ") || "none"} />
+      <Detail label="problem ids" value={profile.technicalProof.problemIdSamples.join(" | ") || "none"} />
+      <Detail label="affordance ids" value={profile.technicalProof.affordanceIdSamples.join(" | ") || "none"} />
+      <Detail label="practice-feedback ids" value={profile.technicalProof.practiceFeedbackIdSamples.join(" | ") || "none"} />
+      <Detail label="camp/foothold ids" value={profile.technicalProof.campFootholdIdSamples.join(" | ") || "none"} />
+      <Detail label="social diffusion ids" value={profile.technicalProof.socialDiffusionIdSamples.join(" | ") || "none"} />
+      <Detail label="event refs" value={profile.technicalProof.eventRefSamples.join(" | ") || "none"} />
+    </>
+  );
+}
+
+function CampMovementDetails({ band, world }: { readonly band: Band; readonly world: WorldState | null }) {
+  if (world === null) {
+    return <Detail label="camp movement" value="world unavailable" />;
+  }
+
+  const profile = deriveCampMovementProfile(world, band);
+  const establishment = profile.currentEstablishment;
+  const latestTrace = profile.latestDecisionTrace;
+  const oldCamp = profile.oldCampDecay
+    .slice(0, 5)
+    .map((record) => `${String(record.tileId)} ${formatCompactNumber(record.pullBefore)}>${formatCompactNumber(record.pullAfter)} ${record.reason}`)
+    .join(" | ");
+  const escapes = profile.stagnationEscapes
+    .slice(0, 6)
+    .map((escape) => `${escape.response}:${escape.status}:${escape.actionType}:${escape.blockedReasons.join("/") || "none"}`)
+    .join(" | ");
+  const shifts = profile.recentLocalShifts
+    .slice(0, 6)
+    .map((shift) => `${String(shift.fromTileId)}>${String(shift.toTileId)} d${shift.distance} ${shift.outcome}`)
+    .join(" | ");
+  const camps = profile.temporaryTaskCamps
+    .slice(0, 6)
+    .map((camp) => `${camp.purpose}:${camp.status}:${String(camp.targetTileId)}`)
+    .join(" | ");
+  const relief = profile.rangeRotation;
+  const reliefCandidates = relief.candidates
+    .slice(0, 8)
+    .map((candidate) =>
+      `${String(candidate.tileId)}:${candidate.status}:${candidate.actionStrategy}:relief ${formatCompactNumber(candidate.pressureReliefScore)}:useDiff ${formatCompactNumber(candidate.usePressureDifference)}:support ${formatCompactNumber(candidate.supportAdequacy)}:water ${formatCompactNumber(candidate.waterRefugeAdequacy)}:better ${String(candidate.betterThanCurrent)}:goodEnough ${String(candidate.goodEnoughRelief)}${candidate.blockedReason === undefined ? "" : `:blocked ${candidate.blockedReason}`}`,
+    )
+    .join(" | ");
+  const reliefRejected = relief.rejectedCandidates
+    .slice(0, 5)
+    .map((candidate) => `${String(candidate.tileId)}:${candidate.status}:${candidate.blockedReason ?? candidate.reasonLabel}`)
+    .join(" | ");
+
+  return (
+    <>
+      <Detail label="status" value={`${profile.status} · behavior active ${String(profile.integrity.behaviorActive)} · traced ${String(profile.integrity.behaviorInfluenceTraced)}`} />
+      <Detail label="overview" value={`${profile.overviewTitle} · ${profile.overviewLines.join(" ")}`} />
+      <Detail
+        label="counts"
+        value={`local shifts ${profile.localCampShiftCount} · temporary camps ${profile.temporaryCampCount} · establishments ${profile.establishmentStateCount} · successes ${profile.establishmentSuccessCount} · failures ${profile.establishmentFailureCount} · recovery holds ${profile.recoveryHoldCount}`}
+      />
+      <Detail
+        label="stagnation / collapse"
+        value={`flags ${profile.stagnationFlagCount} · escape responses ${profile.stagnationEscapeResponseCount} · passive cases ${profile.passiveCollapseCaseCount} · suspicious ${profile.suspiciousPassiveCollapseCount} · oscillation ${profile.oscillationCaseCount}`}
+      />
+      <Detail
+        label="range rotation / pressure relief"
+        value={`cluster ${relief.currentLocalClusterId} · range ${relief.currentLocalRangeId} · current use ${formatCompactNumber(relief.currentUsePressure)} · saturation ${formatCompactNumber(relief.rangeSaturationPressure)} · candidates ${profile.reliefCandidateCount} · good-enough ${profile.goodEnoughReliefCandidateCount} · chosen relief moves ${profile.chosenReliefMoveCount} · rejected ${profile.rejectedReliefCandidateCount} · blocked ${profile.blockedReliefMoveCount} · scout bridges ${profile.scoutProbeBridgeCount}`}
+      />
+      <Detail
+        label="local orbit trap"
+        value={`detected ${String(relief.localOrbitTrap.detected)} · escalation ${relief.localOrbitTrap.escalation} · pressure ${formatCompactNumber(relief.localOrbitTrap.pressure)} · micro shifts ${relief.localOrbitTrap.recentMicroShiftCount} · distinct tiles ${relief.localOrbitTrap.recentDistinctTileCount} · same cluster ${String(relief.localOrbitTrap.sameClusterLoop)} · basis ${relief.localOrbitTrap.basis.join(" | ") || "none"}`}
+      />
+      <Detail
+        label="escape target integrity"
+        value={`with target ${profile.escapeResponsesWithTargetCount} · blocked ${profile.escapeResponsesBlockedCount} · targetless ${profile.targetlessEscapeAttemptCount} · repeated targetless ${profile.repeatedTargetlessEscapeAttemptCount} · latest blocked ${relief.targetIntegrity.latestBlockedReason ?? "none"}`}
+      />
+      <Detail
+        label="old camp pull"
+        value={`score ${formatCompactNumber(band.campMovement?.oldCampPullScore ?? 0)} · decay cases ${profile.oldCampDecayCount} · gradual ${String(profile.integrity.oldAnchorDecayGradual)}`}
+      />
+      <Detail
+        label="establishment"
+        value={establishment === undefined
+          ? "none"
+          : `${establishment.status} · scope ${establishment.scope} · cluster ${establishment.localClusterId} · age ${establishment.ageTicks} · confidence ${formatCompactNumber(establishment.confidence)} · recovery ${formatCompactNumber(establishment.recoveryNeed)} · carried ${String(establishment.establishmentCarriedOver)} · reset ${establishment.resetReason ?? "none"} · retreat ${formatCompactNumber(establishment.retreatRisk)} · no settlement ${String(establishment.noSettlement)}`}
+      />
+      <Detail
+        label="establishment scope"
+        value={`scope ${relief.establishmentScope.scope} · current cluster ${relief.establishmentScope.currentLocalClusterId} · previous cluster ${relief.establishmentScope.previousLocalClusterId ?? "none"} · same-cluster ${String(relief.establishmentScope.sameClusterShift)} · new-cluster ${String(relief.establishmentScope.newClusterMove)} · carried ${String(relief.establishmentScope.carriedOver)} · carry-over ${formatCompactNumber(relief.establishmentScope.carryOverAmount)} · reset ${relief.establishmentScope.resetReason ?? "none"}`}
+      />
+      <Detail
+        label="source refs"
+        value={`adaptive ${profile.adaptiveResponseRefCount} · foothold ${profile.footholdRefCount} · activity ${profile.activityRefCount} · events ${profile.eventRefCount} · movement reasons ${profile.movementReasonRefCount} · demography ${profile.demographyLaborRefCount}`}
+      />
+      <Detail
+        label="behavior trace"
+        value={latestTrace === undefined
+          ? "none"
+          : `${latestTrace.actionType} · ${latestTrace.scale} · delta ${formatCompactNumber(latestTrace.scoreDelta)} · target ${latestTrace.targetTileId === undefined ? "none" : String(latestTrace.targetTileId)} · basis ${latestTrace.basis.join(" | ") || "none"}`}
+      />
+      <Detail
+        label="integrity"
+        value={`local shifts distinct=${profile.integrity.localShiftDistinctFromRelocation} · temporary not settlement=${profile.integrity.temporaryCampsNotSettlement} · establishment not settlement=${profile.integrity.establishmentNotSettlement} · no new actions=${profile.integrity.noNewActions} · no new ecology=${profile.integrity.noNewEcology} · no settlement/inventory/property/agriculture/culture/territory=${profile.integrity.noSettlementInventoryPropertyAgricultureCultureTerritory}`}
+      />
+      <Detail
+        label="payload / caps"
+        value={`${formatBytes(profile.payloadBytesEstimate)} · max stored entries ${profile.maxStoredEntriesPerBand} · caps held ${String(profile.caps.capsHeld)} · local ${profile.caps.localShiftCap} · temporary ${profile.caps.temporaryCampCap} · decay ${profile.caps.oldCampDecayCap} · escape ${profile.caps.stagnationEscapeCap} · evidence/item ${profile.caps.evidencePerItemCap}`}
+      />
+      <Detail label="stagnation flags" value={profile.stagnationFlags.join(" | ") || "none"} />
+      <Detail label="relief candidates" value={reliefCandidates || "none"} />
+      <Detail label="rejected relief candidates" value={reliefRejected || "none"} />
+      <Detail
+        label="relief integrity"
+        value={`goodEnoughSeparate=${String(relief.integrity.goodEnoughSeparateFromBetterThanCurrent)} · bounded=${String(relief.integrity.boundedBehaviorInfluence)} · noLongDistanceForced=${String(relief.integrity.noLongDistanceMigrationForced)} · riverRetained=${String(relief.integrity.riverFollowingRetained)} · noFissionChange=${String(relief.integrity.noFissionBehaviorChange)} · noNewEcology=${String(relief.integrity.noNewEcology)} · capsHeld=${String(relief.caps.capsHeld)} · radius ${relief.caps.searchRadiusTiles}`}
+      />
+      <Detail label="shift sample" value={shifts || "none"} />
+      <Detail label="temporary camp sample" value={camps || "none"} />
+      <Detail label="escape sample" value={escapes || "none"} />
+      <Detail label="old camp sample" value={oldCamp || "none"} />
+      <Detail label="local shift ids" value={profile.technicalProof.localShiftIds.join(" | ") || "none"} />
+      <Detail label="temporary camp ids" value={profile.technicalProof.temporaryCampIds.join(" | ") || "none"} />
+      <Detail label="old camp decay ids" value={profile.technicalProof.oldCampDecayIds.join(" | ") || "none"} />
+      <Detail label="escape ids" value={profile.technicalProof.escapeIds.join(" | ") || "none"} />
+      <Detail label="event refs" value={profile.technicalProof.eventRefs.join(" | ") || "none"} />
+      <Detail label="foothold refs" value={profile.technicalProof.footholdRefs.join(" | ") || "none"} />
+      <Detail label="adaptive refs" value={profile.technicalProof.adaptiveRefs.join(" | ") || "none"} />
+    </>
+  );
+}
+
+function SocialEcologicalDiffusionDetails({ band, world }: { readonly band: Band; readonly world: WorldState | null }) {
+  if (world === null) {
+    return <Detail label="social ecological diffusion" value="world unavailable" />;
+  }
+
+  const profile = deriveSocialEcologicalDiffusionProfile(world, band);
+  const contexts = Object.entries(profile.contextKindCounts)
+    .filter(([, count]) => count > 0)
+    .map(([kind, count]) => `${kind.replace(/_/g, " ")} ${count}`)
+    .join(" · ");
+  const channels = Object.entries(profile.channelCounts)
+    .filter(([, count]) => count > 0)
+    .map(([channel, count]) => `${socialDiffusionChannelLabel(channel as Parameters<typeof socialDiffusionChannelLabel>[0])} ${count}`)
+    .join(" · ");
+  const domains = Object.entries(profile.domainCounts)
+    .filter(([, count]) => count > 0)
+    .map(([domain, count]) => `${socialDiffusionDomainLabel(domain as Parameters<typeof socialDiffusionDomainLabel>[0])} ${count}`)
+    .join(" · ");
+  const statuses = Object.entries(profile.statusCounts)
+    .filter(([, count]) => count > 0)
+    .map(([status, count]) => `${socialDiffusionStatusLabel(status as Parameters<typeof socialDiffusionStatusLabel>[0])} ${count}`)
+    .join(" · ");
+  const tacit = Object.entries(profile.tacitDifficultyCounts)
+    .filter(([, count]) => count > 0)
+    .map(([difficulty, count]) => `${socialDiffusionTacitDifficultyLabel(difficulty as Parameters<typeof socialDiffusionTacitDifficultyLabel>[0])} ${count}`)
+    .join(" · ");
+  const compatibility = Object.entries(profile.compatibilityCounts)
+    .filter(([, count]) => count > 0)
+    .map(([state, count]) => `${socialDiffusionCompatibilityLabel(state as Parameters<typeof socialDiffusionCompatibilityLabel>[0])} ${count}`)
+    .join(" · ");
+  const trust = Object.entries(profile.trustFilterCounts)
+    .filter(([, count]) => count > 0)
+    .map(([filter, count]) => `${socialDiffusionTrustFilterLabel(filter as Parameters<typeof socialDiffusionTrustFilterLabel>[0])} ${count}`)
+    .join(" · ");
+  const basis = Object.entries(profile.basisCounts)
+    .filter(([, count]) => count > 0)
+    .map(([entry, count]) => `${entry.replace(/_/g, " ")} ${count}`)
+    .join(" · ");
+  const sources = Object.entries(profile.sourceSystemCounts)
+    .filter(([, count]) => count > 0)
+    .map(([source, count]) => `${source.replace(/_/g, " ")} ${count}`)
+    .join(" · ");
+  const itemSummary = profile.diffusionItems
+    .slice(0, 8)
+    .map((item) => `${item.domain}:${item.channel}:${item.status}:${formatCompactNumber(item.confidence)} e${item.evidence.length}`)
+    .join(" | ");
+
+  return (
+    <>
+      <Detail label="projection" value={`${profile.socialContexts.length}/${profile.caps.socialContextCap} contexts · ${profile.diffusionItems.length}/${profile.caps.diffusionItemCap} diffusion items · per domain ${profile.caps.itemsPerDomainCap}`} />
+      <Detail label="overview" value={`${profile.overviewTitle} · ${profile.overviewLines.join(" ")}`} />
+      <Detail label="context kinds" value={contexts || "none"} />
+      <Detail label="channels" value={channels || "none"} />
+      <Detail label="domains" value={domains || "none"} />
+      <Detail label="statuses" value={statuses || "none"} />
+      <Detail label="tacit difficulty" value={tacit || "none"} />
+      <Detail label="compatibility" value={compatibility || "none"} />
+      <Detail label="trust / caution" value={trust || "none"} />
+      <Detail label="inherited / lived basis" value={basis || "none"} />
+      <Detail
+        label="channel refs"
+        value={`direct/contact ${profile.directContactRefCount} · activity/talk ${profile.activityTalkRefCount} · visible trace ${profile.visibleTraceRefCount} · parent/daughter ${profile.parentDaughterRefCount} · shared route/water ${profile.sharedRouteWaterRefCount}`}
+      />
+      <Detail
+        label="source refs"
+        value={`knowledge ${profile.knowledgeRefCount} · event ${profile.eventRefCount} · affordance ${profile.affordanceRefCount} · practice feedback ${profile.practiceFeedbackRefCount} · foothold ${profile.footholdRefCount}`}
+      />
+      <Detail
+        label="diffusion risks"
+        value={`failed imitation ${profile.failedImitationCount} · partial copy ${profile.partialCopyCount} · seen not understood ${profile.seenNotUnderstoodCount} · withholding ${profile.withholdingCount} · rejection ${profile.rejectionCount}`}
+      />
+      <Detail label="source systems" value={sources || "none"} />
+      <Detail label="constraints" value={profile.constraints.join(" | ")} />
+      <Detail
+        label="caps"
+        value={`contexts ${profile.caps.socialContextCap} · items ${profile.caps.diffusionItemCap} · per domain ${profile.caps.itemsPerDomainCap} · evidence/item ${profile.caps.evidencePerItemCap} · evidence/context ${profile.caps.evidencePerContextCap} · links ${profile.caps.linkPerItemCap} · records ${profile.caps.contextRecordCap} · held ${String(profile.caps.capsHeld)}`}
+      />
+      <Detail
+        label="integrity"
+        value={`selectedBandOnly=${profile.integrity.selectedBandOnly} · projectionOnly=${profile.integrity.projectionOnly} · noBehaviorInfluence=${profile.integrity.noBehaviorInfluence} · noDecisionInfluence=${profile.integrity.noDecisionInfluence} · antiOmniscient=${profile.integrity.antiOmniscient} · hiddenOtherBandState=${profile.integrity.noHiddenOtherBandInternalState}`}
+      />
+      <Detail
+        label="interpretation guards"
+        value={`inheritedSeparated=${profile.integrity.inheritedSeparated} · daughterLocalTesting=${profile.integrity.daughterParentKnowledgeNotLocalTesting} · tacit=${profile.integrity.tacitKnowledgeRepresented} · compatibility=${profile.integrity.compatibilityRepresented} · trust=${profile.integrity.trustCautionRepresented} · failedImitation=${profile.integrity.failedImitationRepresented}`}
+      />
+      <Detail
+        label="deferred systems"
+        value={`skills/adaptations=${profile.integrity.noSkillOrAdaptationState} · culture/taboo/myth/worldview/religion/language=${profile.integrity.noCultureTabooMythWorldviewReligionLanguage} · diplomacy/trade/war/territory/property=${profile.integrity.noDiplomacyAllianceTradeWarTerritoryProperty} · settlement/agriculture/domestication/inventory=${profile.integrity.noSettlementAgricultureDomesticationInventory}`}
+      />
+      <Detail label="chronicle integration" value={`${profile.chronicleIntegration.mode} · broken links ${profile.chronicleIntegration.brokenRenderedLinks} · ${profile.chronicleIntegration.reason}`} />
+      <Detail
+        label="payload estimate"
+        value={`${formatBytes(profile.technicalProof.payloadBytesEstimate)} selected-band projection · max context ${formatBytes(profile.technicalProof.maxContextPayloadBytes)} · max item ${formatBytes(profile.technicalProof.maxItemPayloadBytes)}`}
+      />
+      <Detail
+        label="claim guards"
+        value={`fake diplomacy/trade/territory/culture ${profile.technicalProof.fakeDiplomacyTradeTerritoryCultureClaimCount} · fake skill/adaptation ${profile.technicalProof.fakeSkillAdaptationClaimCount} · hidden internal state ${profile.technicalProof.hiddenInternalStateExposureCount} · decision isolation ${String(profile.technicalProof.decisionPathIsolation)}`}
+      />
+      <Detail label="item sample" value={itemSummary || "none"} />
+      <Detail label="source samples" value={profile.technicalProof.sourceIdSamples.join(" | ") || "none"} />
+      <Detail label="context samples" value={profile.technicalProof.contextIdSamples.join(" | ") || "none"} />
+      <Detail label="report samples" value={profile.technicalProof.reportIdSamples.join(" | ") || "none"} />
+      <Detail label="knowledge samples" value={profile.technicalProof.knowledgeIdSamples.join(" | ") || "none"} />
+      <Detail label="event samples" value={profile.technicalProof.eventIdSamples.join(" | ") || "none"} />
+      <Detail label="activity samples" value={profile.technicalProof.activityIdSamples.join(" | ") || "none"} />
+      <Detail label="affordance samples" value={profile.technicalProof.affordanceIdSamples.join(" | ") || "none"} />
+      <Detail label="practice-feedback samples" value={profile.technicalProof.practiceFeedbackIdSamples.join(" | ") || "none"} />
+      <Detail label="foothold samples" value={profile.technicalProof.footholdIdSamples.join(" | ") || "none"} />
+    </>
+  );
+}
+
+function PublicHumanStoryDetails({ band, world }: { readonly band: Band; readonly world: WorldState | null }) {
+  if (world === null) {
+    return <Detail label="public story layer" value="world unavailable" />;
+  }
+
+  const profile = derivePublicHumanStoryProfile(world, band);
+  const proof = profile.technicalProof;
+  const categories = Object.entries(proof.categoryCounts)
+    .filter(([, count]) => count > 0)
+    .map(([category, count]) => `${category.replace(/_/g, " ")} ${count}`)
+    .join(" · ");
+  const tones = Object.entries(proof.toneTierCounts)
+    .filter(([, count]) => count > 0)
+    .map(([tone, count]) => `${tone.replace(/_/g, " ")} ${count}`)
+    .join(" · ");
+  const storySample = profile.items
+    .slice(0, 8)
+    .map((item) => `${item.category}:${item.toneTier}:${item.templateId}:${item.status}`)
+    .join(" | ");
+
+  return (
+    <>
+      <Detail label="public story layer" value={`${proof.storyItemCount}/${proof.maxStoriesProfile} stories · templates used ${proof.templatesUsed.length} · skipped ${proof.skippedTemplates} · caps held ${String(proof.capsHeld)}`} />
+      <Detail label="categories" value={categories || "none"} />
+      <Detail label="tone tiers" value={tones || "none"} />
+      <Detail
+        label="concrete names"
+        value={`objects ${proof.concreteObjectNameCount} · foods ${proof.concreteFoodNameCount} · fallback generic ${proof.fallbackGenericNameCount}`}
+      />
+      <Detail
+        label="talk / conflict safety"
+        value={`internal ${profile.internalTalks.length} · outer ${profile.outerTalks.length} · dormant conflict templates ${proof.dormantConflictTemplates} · active conflict events ${proof.activeConflictEvents} · dormant behavior influence ${proof.dormantConflictBehaviorInfluence}`}
+      />
+      <Detail
+        label="grounding guards"
+        value={`identity influenced ${proof.bandIdentityInfluencedStories} · skipped unsupported ${proof.skippedUnsupportedTemplates} · raw/debug leaks ${proof.rawDebugLeakCount} · unsupported fake terms ${proof.unsupportedFakeTermCount} · duplicate phrases ${proof.duplicatePhraseCount} · broken refs ${proof.brokenSourceRefCount}`}
+      />
+      <Detail
+        label="behavior isolation"
+        value={`public text affects behavior ${String(proof.publicStorySelectionAffectsBehavior)} · deterministic keys ${proof.deterministicKeySamples.length} · payload ${formatBytes(proof.maxPayloadBytes)}`}
+      />
+      <Detail label="templates used" value={proof.templatesUsed.join(" | ") || "none"} />
+      <Detail label="story sample" value={storySample || "none"} />
+      <Detail label="deterministic key samples" value={proof.deterministicKeySamples.join(" | ") || "none"} />
+      <Detail label="source ref samples" value={proof.sourceRefSamples.join(" | ") || "none"} />
+    </>
+  );
+}
+
 function estimateJsonBytes(value: unknown): number {
   return new TextEncoder().encode(JSON.stringify(value)).length;
 }
@@ -1025,6 +1878,11 @@ export function Technical({
         <CarryingCapacityDetails band={band} world={world} />
         <SeasonalSupportDetails band={band} />
       </CollapsibleGroup>
+      <CollapsibleGroup title="Causal agency repair — hardship / tendencies / crossing practice">
+        <CausalAgencyDetails band={band} world={world} latestDecision={latestDecision} />
+        {band.practicalAdaptation === undefined ? <AdaptiveEfficacyDetails band={band} /> : null}
+        <PracticalAdaptationDetails band={band} world={world} />
+      </CollapsibleGroup>
       <CollapsibleGroup title="Condition profile">
         <BandConditionProfileDetails band={band} />
       </CollapsibleGroup>
@@ -1056,18 +1914,36 @@ export function Technical({
       <CollapsibleGroup title="Knowledge ecology substrate">
         <KnowledgeEcologyDetails band={band} world={world} />
       </CollapsibleGroup>
+      <CollapsibleGroup title="Knowledge carriers / availability substrate">
+        <KnowledgeCarrierDetails band={band} world={world} />
+      </CollapsibleGroup>
       <CollapsibleGroup title="Material affordance substrate">
         <MaterialAffordanceDetails band={band} world={world} />
       </CollapsibleGroup>
-      <CollapsibleGroup title="Problem framing / practice experiment substrate">
-        <ProblemPracticeDetails band={band} world={world} />
-      </CollapsibleGroup>
-      <CollapsibleGroup title="Practice feedback / routine readiness substrate">
-        <PracticeFeedbackReadinessDetails band={band} world={world} />
+      {band.practicalAdaptation === undefined ? (
+        <>
+          <CollapsibleGroup title="Legacy problem projection adapter">
+            <ProblemPracticeDetails band={band} world={world} />
+          </CollapsibleGroup>
+          <CollapsibleGroup title="Legacy practice-readiness adapter">
+            <PracticeFeedbackReadinessDetails band={band} world={world} />
+          </CollapsibleGroup>
+          <CollapsibleGroup title="Legacy adaptive-idea adapter">
+            <AdaptiveHumanDetails band={band} world={world} />
+          </CollapsibleGroup>
+        </>
+      ) : null}
+      <CollapsibleGroup title="Intra-season movement / establishment substrate">
+        <CampMovementDetails band={band} world={world} />
       </CollapsibleGroup>
       <CollapsibleGroup title="History chronicle projection">
         <BandChronicleDetails band={band} world={world} />
       </CollapsibleGroup>
+      {band.practicalAdaptation === undefined ? (
+        <CollapsibleGroup title="Legacy public story adapter">
+          <PublicHumanStoryDetails band={band} world={world} />
+        </CollapsibleGroup>
+      ) : null}
       <CollapsibleGroup title="Concrete memory referents">
         <MemoryReferentDetails band={band} world={world} />
       </CollapsibleGroup>
@@ -1092,7 +1968,7 @@ export function Technical({
           value={band.subsistenceModes.map((mode) => subsistenceLabel(mode)).join(", ")}
         />
         <Detail
-          label="technologies"
+          label="legacy static spawn tags (not learned technology)"
           value={band.technologies.map((tech) => technologyLabel(tech)).join(", ")}
         />
         <Detail label="band id" value={String(band.id)} />
@@ -1113,7 +1989,7 @@ export function Technical({
         <MobilityBehaviorBasisDetails band={band} world={world} />
       </CollapsibleGroup>
       <CollapsibleGroup title="Performance &amp; payload diagnostics">
-        <PerformancePayloadDetails band={band} />
+        <PerformancePayloadDetails band={band} world={world} />
       </CollapsibleGroup>
       <CollapsibleGroup title="Pressure, crowding &amp; causes">
         <CausalPressureDetails band={band} latestDecision={latestDecision} />
@@ -1132,6 +2008,9 @@ export function Technical({
         <SeasonalRoundDetails band={band} world={world} />
         <SeasonalEcologyDetails band={band} world={world} />
       </CollapsibleGroup>
+      <CollapsibleGroup title="Social-ecological diffusion substrate">
+        <SocialEcologicalDiffusionDetails band={band} world={world} />
+      </CollapsibleGroup>
       <CollapsibleGroup title="Social tension &amp; inner fission">
         <SocialTensionDetails band={band} />
         <InnerFissionDetails band={band} />
@@ -1139,6 +2018,7 @@ export function Technical({
       <CollapsibleGroup title="Visible landscape &amp; nature">
         <VisibleLandscapeDetails band={band} />
         <VisibleNatureDetails band={band} />
+        <AnimalLearningManagementDetails band={band} />
       </CollapsibleGroup>
       <CollapsibleGroup title="Weak-band fate">
         <BandViabilityDetails band={band} />

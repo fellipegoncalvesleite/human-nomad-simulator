@@ -65,7 +65,8 @@ export type CanonicalEventSourceSystem =
   | "deep_history_terminal"
   | "readable_event_history"
   | "residential_move_record"
-  | "fission_record";
+  | "fission_record"
+  | "camp_movement_record";
 
 export type CanonicalEventLivedStatus = "personally_lived" | "inherited_not_personally_lived";
 
@@ -177,6 +178,7 @@ const EMPTY_SOURCE_COUNTS: Readonly<Record<CanonicalEventSourceSystem, number>> 
   readable_event_history: 0,
   residential_move_record: 0,
   fission_record: 0,
+  camp_movement_record: 0,
 };
 
 export function deriveCanonicalEvents(world: WorldState, band: Band): CanonicalEventState {
@@ -184,6 +186,7 @@ export function deriveCanonicalEvents(world: WorldState, band: Band): CanonicalE
     ...deriveDeepHistoryEvents(band),
     ...deriveReadableHistoryEvents(band),
     ...deriveResidentialMoveEvents(band),
+    ...deriveCampMovementEvents(band),
     ...deriveFissionEvents(band),
   ]);
   const drafts = [...dedupedDrafts].sort(compareDraftPriority);
@@ -598,6 +601,217 @@ function residentialMoveDraft(band: Band, event: ResidentialMoveEvent): Canonica
     chronicleSectionIds: ["article-history"],
     sourceKeys: [String(event.eventId), event.moveKind, event.cause],
     score: 500 + (event.hardshipRisk ?? 0) * 80 + Number(event.tick) * 0.0001,
+  };
+}
+
+function deriveCampMovementEvents(band: Band): readonly CanonicalEventDraft[] {
+  const state = band.campMovement;
+
+  if (state === undefined) {
+    return [];
+  }
+
+  const drafts: CanonicalEventDraft[] = [];
+
+  for (const shift of state.recentLocalShifts.slice(0, 3)) {
+    drafts.push(campMovementDraft({
+      band,
+      id: shift.id,
+      tick: shift.tick,
+      title: "Nearby camp shift",
+      summary: `${shift.reason}. Outcome: ${humanizeKey(shift.outcome).toLowerCase()}.`,
+      consequence: "This records a local camp response that already happened; it does not steer future movement.",
+      severity: shift.outcome === "failed" ? 0.46 : 0.28,
+      significance: 0.42 + shift.confidence * 0.24,
+      tileIds: [shift.fromTileId, shift.toTileId],
+      reasonIds: shift.evidenceRefs.flatMap((entry) => entry.reasonIds),
+      eventIds: shift.evidenceRefs.flatMap((entry) => entry.eventId === undefined ? [] : [entry.eventId as EventId]),
+      chips: [
+        { kind: "movement", label: "Local camp shift", sourceIds: [shift.id] },
+        { kind: "outcome", label: humanizeKey(shift.outcome), sourceIds: [] },
+      ],
+      score: 640 + shift.confidence * 20,
+    }));
+  }
+
+  for (const camp of state.temporaryTaskCamps.slice(0, 2)) {
+    drafts.push(campMovementDraft({
+      band,
+      id: camp.id,
+      tick: camp.tick,
+      title: "Temporary task camp",
+      summary: `A temporary task camp supported ${humanizeKey(camp.purpose).toLowerCase()} and is ${humanizeKey(camp.status).toLowerCase()}.`,
+      consequence: "This records a short-lived task foothold, not a new residential base.",
+      severity: camp.status === "failed" ? 0.44 : 0.24,
+      significance: 0.34 + camp.confidence * 0.22,
+      tileIds: [camp.originTileId, camp.targetTileId],
+      reasonIds: camp.evidenceRefs.flatMap((entry) => entry.reasonIds),
+      eventIds: camp.evidenceRefs.flatMap((entry) => entry.eventId === undefined ? [] : [entry.eventId as EventId]),
+      chips: [
+        { kind: "task camp", label: humanizeKey(camp.purpose), sourceIds: [camp.id] },
+        { kind: "status", label: humanizeKey(camp.status), sourceIds: [] },
+      ],
+      score: 628 + camp.confidence * 16,
+    }));
+  }
+
+  for (const decay of state.oldCampDecay.slice(0, 2)) {
+    drafts.push(campMovementDraft({
+      band,
+      id: decay.id,
+      tick: decay.tick,
+      title: "Old camp pull weakened",
+      summary: decay.reason,
+      consequence: "Old camp pull weakens gradually and can recover if later evidence supports return.",
+      severity: decay.decayAmount,
+      significance: 0.36 + decay.decayAmount,
+      tileIds: [decay.tileId],
+      reasonIds: [],
+      eventIds: [],
+      chips: [
+        { kind: "camp pull", label: `${decay.pullBefore.toFixed(2)} to ${decay.pullAfter.toFixed(2)}`, sourceIds: [decay.id] },
+      ],
+      score: 618 + decay.decayAmount * 12,
+    }));
+  }
+
+  for (const escape of state.stagnationEscapes.slice(0, 2)) {
+    const targetPhrase = escape.targetTileId === undefined
+      ? escape.status === "blocked" ? "blocked without a target" : "no target recorded"
+      : "target recorded";
+    drafts.push(campMovementDraft({
+      band,
+      id: escape.id,
+      tick: escape.tick,
+      title: escape.response === "pressure_relief_move" ? "Pressure relief shift" : "Stagnation escape response",
+      summary: `${humanizeKey(escape.response)} was ${humanizeKey(escape.status).toLowerCase()} (${targetPhrase}): ${escape.reason}.`,
+      consequence: escape.blockedReasons.length === 0
+        ? "The response is visible as an attempt, not proof of lasting success."
+        : `Blocked by ${escape.blockedReasons.slice(0, 2).join("; ")}.`,
+      severity: escape.status === "blocked" || escape.status === "failed" ? 0.5 : 0.32,
+      significance: escape.status === "helped" ? 0.54 : 0.46,
+      tileIds: escape.targetTileId === undefined ? [] : [escape.targetTileId],
+      reasonIds: escape.evidenceRefs.flatMap((entry) => entry.reasonIds),
+      eventIds: escape.evidenceRefs.flatMap((entry) => entry.eventId === undefined ? [] : [entry.eventId as EventId]),
+      chips: [
+        { kind: "response", label: humanizeKey(escape.response), sourceIds: [escape.id] },
+        { kind: "status", label: humanizeKey(escape.status), sourceIds: [] },
+      ],
+      score: 624,
+    }));
+  }
+
+  const relief = state.rangeRotation;
+  if (relief?.chosenCandidate !== undefined) {
+    drafts.push(campMovementDraft({
+      band,
+      id: relief.chosenCandidate.id,
+      tick: state.lastUpdatedTick,
+      title: relief.chosenCandidate.actionStrategy === "scout_probe" ? "Scout for relief place" : "Range pressure relief",
+      summary: `${relief.chosenCandidate.reasonLabel}; pressure relief ${relief.chosenCandidate.pressureReliefScore.toFixed(2)}.`,
+      consequence: relief.chosenCandidate.actionStrategy === "scout_probe"
+        ? "A plausible relief place was converted into a scout/probe target instead of a blind relocation."
+        : "This is a local pressure-relief rotation, not long-distance migration.",
+      severity: 0.3 + relief.chosenCandidate.pressureReliefScore * 0.2,
+      significance: 0.42 + relief.chosenCandidate.pressureReliefScore * 0.2,
+      tileIds: [relief.chosenCandidate.tileId],
+      reasonIds: relief.chosenCandidate.evidenceRefs.flatMap((entry) => entry.reasonIds),
+      eventIds: [],
+      chips: [
+        { kind: "pressure relief", label: humanizeKey(relief.chosenCandidate.actionStrategy), sourceIds: [relief.chosenCandidate.id] },
+        { kind: "relation", label: humanizeKey(relief.chosenCandidate.relationToCurrentCluster), sourceIds: [] },
+      ],
+      score: 626 + relief.chosenCandidate.pressureReliefScore * 18,
+    }));
+  }
+
+  if (relief?.localOrbitTrap.detected === true) {
+    drafts.push(campMovementDraft({
+      band,
+      id: `local-orbit-trap:${String(band.id)}:${Number(state.lastUpdatedTick)}`,
+      tick: state.lastUpdatedTick,
+      title: "Local orbit trap detected",
+      summary: relief.localOrbitTrap.basis.slice(0, 2).join("; ") || "Recent micro-shifts stayed in a worn local cluster.",
+      consequence: `Escalation: ${humanizeKey(relief.localOrbitTrap.escalation)}.`,
+      severity: relief.localOrbitTrap.pressure,
+      significance: 0.48 + relief.localOrbitTrap.pressure * 0.18,
+      tileIds: [],
+      reasonIds: [],
+      eventIds: [],
+      chips: [
+        { kind: "orbit trap", label: humanizeKey(relief.localOrbitTrap.escalation), sourceIds: [] },
+      ],
+      score: 622 + relief.localOrbitTrap.pressure * 12,
+    }));
+  }
+
+  if ((relief?.targetIntegrity.targetlessAttempts ?? 0) > 0) {
+    drafts.push(campMovementDraft({
+      band,
+      id: `targetless-escape-blocked:${String(band.id)}:${Number(state.lastUpdatedTick)}`,
+      tick: state.lastUpdatedTick,
+      title: "Targetless escape blocked",
+      summary: relief?.targetIntegrity.latestBlockedReason ?? "An escape response lacked a concrete target and was blocked.",
+      consequence: "Targetless relocation is recorded as blocked rather than counted as a real escape attempt.",
+      severity: 0.42,
+      significance: 0.46,
+      tileIds: [],
+      reasonIds: [],
+      eventIds: [],
+      chips: [
+        { kind: "target integrity", label: "blocked", sourceIds: [] },
+      ],
+      score: 620,
+    }));
+  }
+
+  return drafts.slice(0, 6);
+}
+
+function campMovementDraft(input: {
+  readonly band: Band;
+  readonly id: string;
+  readonly tick: TickNumber;
+  readonly title: string;
+  readonly summary: string;
+  readonly consequence: string;
+  readonly severity: number;
+  readonly significance: number;
+  readonly tileIds: readonly TileId[];
+  readonly reasonIds: readonly ReasonId[];
+  readonly eventIds: readonly EventId[];
+  readonly chips: readonly CanonicalEventEvidenceChip[];
+  readonly score: number;
+}): CanonicalEventDraft {
+  return {
+    id: canonicalId(input.band, "camp-movement", input.id),
+    type: "recent_pattern",
+    family: "movement_place",
+    memoryScope: "recent",
+    livedStatus: "personally_lived",
+    provenance: "movement_trace",
+    sourceSystem: "camp_movement_record",
+    startYear: estimateYearFromTick(input.tick, input.band),
+    endYear: estimateYearFromTick(input.tick, input.band),
+    title: input.title,
+    summary: input.summary,
+    consequence: input.consequence,
+    actualCause: "bounded camp movement response",
+    severity: clamp01(input.severity),
+    significance: clamp01(input.significance),
+    grouped: false,
+    groupedCount: 1,
+    involvedBandIds: [input.band.id],
+    involvedTileIds: compactIds(input.tileIds).slice(0, RELATED_LINK_CAP),
+    involvedRouteIds: [],
+    sourceEventIds: capIds(input.eventIds, SOURCE_ID_CAP),
+    sourceReasonIds: capIds(input.reasonIds, SOURCE_ID_CAP),
+    sourceHistoryIds: [input.id].slice(0, SOURCE_ID_CAP),
+    evidenceChips: input.chips.slice(0, EVIDENCE_CHIP_CAP),
+    chronicleLinkIds: [],
+    chronicleSectionIds: ["article-history"],
+    sourceKeys: [`camp-movement:${input.id}`],
+    score: input.score + Number(input.tick) * 0.0001,
   };
 }
 

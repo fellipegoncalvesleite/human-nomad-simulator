@@ -857,7 +857,10 @@ function createBandFromSpawnProfile(
     decisionHistory: [],
     cohesion: 0.78,
     mobilityCostTolerance: profile.mobilityStrategy === "high_mobility" ? 0.82 : 0.64,
-    storageCapacity: profile.technologies.includes("basic_storage") ? 0.36 : 0.16,
+    // INVENTION-3: learned container/storage practice is recomputed from the
+    // practical-response substrate after lived evidence; spawn labels never
+    // grant a perfect, frozen container coefficient.
+    storageCapacity: 0.16,
     hungerPressure: 0.18,
     territorialPressure: 0.12,
     demography: createInitialDemography(world, profile.size),

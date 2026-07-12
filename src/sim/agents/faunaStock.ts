@@ -74,6 +74,23 @@ export type FaunaHabitatType =
   | "upland_slope"
   | "dry_country";
 
+export type FaunaRoutineProfile =
+  | "schooling_aquatic"
+  | "migratory_herd"
+  | "cover_forager"
+  | "camp_scavenger";
+
+export type FaunaRoutinePhase =
+  | "feeding"
+  | "water_seeking"
+  | "resting_cover"
+  | "roaming"
+  | "habitat_return"
+  | "migration"
+  | "young_protection"
+  | "flight"
+  | "camp_following";
+
 export interface FaunaSeasonality {
   readonly peakSeasons: readonly Season[];
   readonly leanSeasons: readonly Season[];
@@ -106,6 +123,14 @@ export interface FaunaStockGeo {
   readonly detectability: number;
   // 0..1 — bounded hunting/fishing risk placeholder (injury / dangerous water).
   readonly riskPlaceholder: number;
+  readonly routineProfile: FaunaRoutineProfile;
+  readonly waterDependence: number;
+  readonly herdTendency: number;
+  readonly flightResponse: number;
+  readonly aggressionDefense: number;
+  readonly habituationPotential: number;
+  readonly managementSuitability: number;
+  readonly reproductiveRate: number;
 }
 
 // Dynamic, persisted, sparse. `abundance` is a FRACTION of carryingCapacity
@@ -115,6 +140,17 @@ export interface FaunaStockDynamic {
   readonly disturbance: number; // [0, 1]
   readonly lastPressureTick: TickNumber;
   readonly cumulativePressure: number; // debug only
+  // ROUTINES-2: sparse stock-level behavior, never individual animals.
+  readonly routinePhase?: FaunaRoutinePhase;
+  readonly herdCohesion?: number;
+  readonly humanWariness?: number;
+  readonly habituation?: number;
+  readonly campProximity?: number;
+  readonly habitatReturn?: number;
+  readonly migrationPressure?: number;
+  readonly youngProtection?: number;
+  readonly reproductiveCondition?: number;
+  readonly managementStress?: number;
 }
 
 export interface FaunaStockGeography {
@@ -476,6 +512,14 @@ function buildStockGeo(world: WorldState, tile: Tile, candidate: StockCandidate,
     pressureSensitivity: traits.pressureSensitivity,
     detectability: traits.detectability,
     riskPlaceholder: traits.risk,
+    routineProfile: traits.routineProfile,
+    waterDependence: traits.waterDependence,
+    herdTendency: traits.herdTendency,
+    flightResponse: traits.flightResponse,
+    aggressionDefense: traits.aggressionDefense,
+    habituationPotential: traits.habituationPotential,
+    managementSuitability: traits.managementSuitability,
+    reproductiveRate: traits.reproductiveRate,
   };
 }
 
@@ -595,22 +639,35 @@ interface KindTraits {
   readonly amplitude: number;
   readonly defaultPeak: readonly Season[];
   readonly defaultLean: readonly Season[];
+  readonly routineProfile: FaunaRoutineProfile;
+  readonly waterDependence: number;
+  readonly herdTendency: number;
+  readonly flightResponse: number;
+  readonly aggressionDefense: number;
+  readonly habituationPotential: number;
+  readonly managementSuitability: number;
+  readonly reproductiveRate: number;
 }
 
 // Per-kind static traits. Aquatic: higher recovery, lower mobility, can pulse.
 // Terrestrial: lower recovery, higher mobility/avoidance, large game riskier.
+const aquaticRoutine = { routineProfile: "schooling_aquatic" as const, waterDependence: 1, herdTendency: 0.7, flightResponse: 0.5, aggressionDefense: 0.02, habituationPotential: 0.05, managementSuitability: 0.02, reproductiveRate: 0.7 };
+const herdRoutine = { routineProfile: "migratory_herd" as const, waterDependence: 0.75, herdTendency: 0.9, flightResponse: 0.82, aggressionDefense: 0.5, habituationPotential: 0.18, managementSuitability: 0.14, reproductiveRate: 0.22 };
+const coverRoutine = { routineProfile: "cover_forager" as const, waterDependence: 0.48, herdTendency: 0.42, flightResponse: 0.58, aggressionDefense: 0.34, habituationPotential: 0.42, managementSuitability: 0.4, reproductiveRate: 0.42 };
+const scavengerRoutine = { routineProfile: "camp_scavenger" as const, waterDependence: 0.4, herdTendency: 0.25, flightResponse: 0.38, aggressionDefense: 0.14, habituationPotential: 0.78, managementSuitability: 0.62, reproductiveRate: 0.72 };
+
 const KIND_TRAITS: Readonly<Record<FaunaStockKind, KindTraits>> = {
-  lake_fish: { ccBase: 0.8, recovery: 0.22, mobility: 0.18, pressureSensitivity: 0.5, detectability: 0.4, risk: 0.08, amplitude: 0.3, defaultPeak: ["summer"], defaultLean: ["winter"] },
-  river_reach_fish: { ccBase: 0.68, recovery: 0.26, mobility: 0.3, pressureSensitivity: 0.52, detectability: 0.42, risk: 0.12, amplitude: 0.4, defaultPeak: ["spring", "summer"], defaultLean: ["winter"] },
-  delta_wetland_fish: { ccBase: 0.92, recovery: 0.3, mobility: 0.22, pressureSensitivity: 0.62, detectability: 0.46, risk: 0.1, amplitude: 0.45, defaultPeak: ["spring", "autumn"], defaultLean: ["winter"] },
-  seasonal_fish_run: { ccBase: 0.6, recovery: 0.42, mobility: 0.4, pressureSensitivity: 0.5, detectability: 0.5, risk: 0.14, amplitude: 0.85, defaultPeak: ["spring"], defaultLean: ["summer", "winter"] },
-  shellfish_reedbed: { ccBase: 0.55, recovery: 0.2, mobility: 0.1, pressureSensitivity: 0.46, detectability: 0.38, risk: 0.18, amplitude: 0.25, defaultPeak: ["summer"], defaultLean: ["winter"] },
-  large_game: { ccBase: 0.62, recovery: 0.12, mobility: 0.72, pressureSensitivity: 0.78, detectability: 0.66, risk: 0.4, amplitude: 0.4, defaultPeak: ["autumn"], defaultLean: ["winter"] },
-  medium_game: { ccBase: 0.52, recovery: 0.18, mobility: 0.6, pressureSensitivity: 0.6, detectability: 0.54, risk: 0.26, amplitude: 0.35, defaultPeak: ["autumn"], defaultLean: ["winter"] },
-  small_game: { ccBase: 0.44, recovery: 0.3, mobility: 0.45, pressureSensitivity: 0.42, detectability: 0.4, risk: 0.14, amplitude: 0.3, defaultPeak: ["summer"], defaultLean: ["winter"] },
-  waterfowl: { ccBase: 0.58, recovery: 0.34, mobility: 0.82, pressureSensitivity: 0.66, detectability: 0.6, risk: 0.16, amplitude: 0.7, defaultPeak: ["spring", "autumn"], defaultLean: ["summer"] },
-  upland_game: { ccBase: 0.46, recovery: 0.16, mobility: 0.58, pressureSensitivity: 0.56, detectability: 0.5, risk: 0.3, amplitude: 0.4, defaultPeak: ["summer"], defaultLean: ["winter"] },
-  forest_edge_game: { ccBase: 0.56, recovery: 0.2, mobility: 0.55, pressureSensitivity: 0.58, detectability: 0.52, risk: 0.24, amplitude: 0.35, defaultPeak: ["autumn"], defaultLean: ["winter"] },
+  lake_fish: { ccBase: 0.8, recovery: 0.22, mobility: 0.18, pressureSensitivity: 0.5, detectability: 0.4, risk: 0.08, amplitude: 0.3, defaultPeak: ["summer"], defaultLean: ["winter"], ...aquaticRoutine },
+  river_reach_fish: { ccBase: 0.68, recovery: 0.26, mobility: 0.3, pressureSensitivity: 0.52, detectability: 0.42, risk: 0.12, amplitude: 0.4, defaultPeak: ["spring", "summer"], defaultLean: ["winter"], ...aquaticRoutine },
+  delta_wetland_fish: { ccBase: 0.92, recovery: 0.3, mobility: 0.22, pressureSensitivity: 0.62, detectability: 0.46, risk: 0.1, amplitude: 0.45, defaultPeak: ["spring", "autumn"], defaultLean: ["winter"], ...aquaticRoutine },
+  seasonal_fish_run: { ccBase: 0.6, recovery: 0.42, mobility: 0.4, pressureSensitivity: 0.5, detectability: 0.5, risk: 0.14, amplitude: 0.85, defaultPeak: ["spring"], defaultLean: ["summer", "winter"], ...aquaticRoutine },
+  shellfish_reedbed: { ccBase: 0.55, recovery: 0.2, mobility: 0.1, pressureSensitivity: 0.46, detectability: 0.38, risk: 0.18, amplitude: 0.25, defaultPeak: ["summer"], defaultLean: ["winter"], ...aquaticRoutine, herdTendency: 0.05, flightResponse: 0.02 },
+  large_game: { ccBase: 0.62, recovery: 0.12, mobility: 0.72, pressureSensitivity: 0.78, detectability: 0.66, risk: 0.4, amplitude: 0.4, defaultPeak: ["autumn"], defaultLean: ["winter"], ...herdRoutine },
+  medium_game: { ccBase: 0.52, recovery: 0.18, mobility: 0.6, pressureSensitivity: 0.6, detectability: 0.54, risk: 0.26, amplitude: 0.35, defaultPeak: ["autumn"], defaultLean: ["winter"], ...coverRoutine },
+  small_game: { ccBase: 0.44, recovery: 0.3, mobility: 0.45, pressureSensitivity: 0.42, detectability: 0.4, risk: 0.14, amplitude: 0.3, defaultPeak: ["summer"], defaultLean: ["winter"], ...scavengerRoutine },
+  waterfowl: { ccBase: 0.58, recovery: 0.34, mobility: 0.82, pressureSensitivity: 0.66, detectability: 0.6, risk: 0.16, amplitude: 0.7, defaultPeak: ["spring", "autumn"], defaultLean: ["summer"], ...herdRoutine, aggressionDefense: 0.2, reproductiveRate: 0.5 },
+  upland_game: { ccBase: 0.46, recovery: 0.16, mobility: 0.58, pressureSensitivity: 0.56, detectability: 0.5, risk: 0.3, amplitude: 0.4, defaultPeak: ["summer"], defaultLean: ["winter"], ...coverRoutine, managementSuitability: 0.18 },
+  forest_edge_game: { ccBase: 0.56, recovery: 0.2, mobility: 0.55, pressureSensitivity: 0.58, detectability: 0.52, risk: 0.24, amplitude: 0.35, defaultPeak: ["autumn"], defaultLean: ["winter"], ...coverRoutine, habituationPotential: 0.55, managementSuitability: 0.52 },
 };
 
 // --- dynamic state read helpers ---
@@ -742,7 +799,16 @@ export function deriveFaunaTripReturnFactor(
 
   const dyn = getFaunaStockDynamic(world, stock.id);
   const seasonal = seasonalAvailabilityFactor(stock, season, true);
-  const factor = (0.4 + stock.carryingCapacity * 0.6) * dyn.abundance * seasonal * (1 - dyn.disturbance * DISTURB_SUPPRESS);
+  // ROUTINES-2: flight/wariness makes a stock harder to encounter; temporary
+  // camp proximity or regrouping can partly offset that. These are physical
+  // stock effects, but bands learn them only through the resulting trip trace.
+  const routineEncounter = clamp(
+    1 - (dyn.humanWariness ?? dyn.disturbance) * 0.18 + (dyn.campProximity ?? 0) * 0.1 + (dyn.herdCohesion ?? 0) * 0.04,
+    0.72,
+    1.12,
+  );
+  const factor = (0.4 + stock.carryingCapacity * 0.6) * dyn.abundance * seasonal *
+    (1 - dyn.disturbance * DISTURB_SUPPRESS) * routineEncounter;
 
   return clamp(factor, ABUNDANCE_FLOOR, 1.6);
 }
@@ -782,7 +848,7 @@ export function deriveFaunaTripStockTrace(
     mobility: stock.mobility,
     pressureSensitivity: stock.pressureSensitivity,
     detectability: stock.detectability,
-    risk: stock.riskPlaceholder,
+    risk: round3(clamp01(stock.riskPlaceholder + (dyn.youngProtection ?? 0) * stock.aggressionDefense * 0.28 + (dyn.managementStress ?? 0) * 0.12)),
     laborAccessCost: round3(clamp01(0.18 + stock.riskPlaceholder * 0.22 + (stock.habitat === "river_reach" ? 0.1 : 0))),
     rawSource: "deriveFaunaTripStockTrace from finite fauna/aquatic stock geography + sparse dynamic state",
     reasonIds: [`reason:fauna-trip-stock:${String(stock.id)}:${String(tileId)}:${String(tick)}` as ReasonId],
@@ -898,6 +964,7 @@ export function advanceFaunaStocks(world: WorldState, cache: TickContextCache): 
   const previous = world.faunaStocks ?? {};
   const tick = world.time.tick;
   const next: Record<string, FaunaStockDynamic> = {};
+  const managementByStock = collectManagementPressure(world);
 
   for (const stock of geo.stocks) {
     const dyn = previous[stock.id] ?? { abundance: 1, disturbance: 0, lastPressureTick: 0 as TickNumber, cumulativePressure: 0 };
@@ -912,7 +979,10 @@ export function advanceFaunaStocks(world: WorldState, cache: TickContextCache): 
     // In-season trip depletion already lowered abundance directly; here we apply
     // catchment-occupation pressure + recovery + disturbance dynamics.
     const pressure = clamp01(generalPressure * GENERAL_PRESSURE_WEIGHT) * stock.pressureSensitivity;
-    const recovery = stock.recoveryRate * (1 - dyn.abundance) * (1 - dyn.disturbance * 0.5);
+    const management = managementByStock.get(String(stock.id));
+    const routine = deriveRoutineState(stock, dyn, world.time.season, generalPressure, management);
+    const recovery = stock.recoveryRate * (1 - dyn.abundance) * (1 - dyn.disturbance * 0.5) *
+      (0.55 + (routine.reproductiveCondition ?? 0.7) * 0.45);
     const loss = pressure * DEPLETION_STRENGTH * dyn.abundance;
     const nextAbundance = clamp(dyn.abundance + recovery - loss, ABUNDANCE_FLOOR, 1);
 
@@ -922,7 +992,7 @@ export function advanceFaunaStocks(world: WorldState, cache: TickContextCache): 
     );
 
     // Drop entries that have returned to baseline (sparse record).
-    if (nextAbundance >= 1 - DYNAMIC_DROP_EPSILON && nextDisturbance <= DYNAMIC_DROP_EPSILON) {
+    if (management === undefined && nextAbundance >= 1 - DYNAMIC_DROP_EPSILON && nextDisturbance <= DYNAMIC_DROP_EPSILON) {
       continue;
     }
 
@@ -931,10 +1001,99 @@ export function advanceFaunaStocks(world: WorldState, cache: TickContextCache): 
       disturbance: round4(nextDisturbance),
       lastPressureTick: generalPressure > 0.02 ? tick : dyn.lastPressureTick,
       cumulativePressure: round4(dyn.cumulativePressure + generalPressure),
+      ...routine,
     };
   }
 
   return { ...world, faunaStocks: next as Readonly<Record<FaunaStockId, FaunaStockDynamic>> };
+}
+
+interface ManagementPressure {
+  readonly feeding: number;
+  readonly holding: number;
+  readonly protection: number;
+  readonly failure: number;
+}
+
+function collectManagementPressure(world: WorldState): ReadonlyMap<string, ManagementPressure> {
+  const accumulated = new Map<string, ManagementPressure>();
+  for (const band of Object.values(world.bands)) {
+    for (const record of band.animalManagement?.records ?? []) {
+      const prior = accumulated.get(record.stockId) ?? { feeding: 0, holding: 0, protection: 0, failure: 0 };
+      accumulated.set(record.stockId, {
+        feeding: clamp01(prior.feeding + (record.action === "feed" ? 0.2 : 0)),
+        holding: clamp01(prior.holding + (record.action === "temporary_hold" ? 0.28 : 0)),
+        protection: clamp01(prior.protection + (record.action === "protect" ? 0.18 : 0)),
+        failure: clamp01(prior.failure + (["escaped", "enclosure_stress", "injury_risk", "reproduction_failed"].includes(record.outcome) ? 0.2 : 0)),
+      });
+    }
+  }
+  return accumulated;
+}
+
+function deriveRoutineState(
+  stock: FaunaStockGeo,
+  dyn: FaunaStockDynamic,
+  season: Season,
+  pressure: number,
+  management: ManagementPressure | undefined,
+): Pick<FaunaStockDynamic,
+  "routinePhase" | "herdCohesion" | "humanWariness" | "habituation" | "campProximity" |
+  "habitatReturn" | "migrationPressure" | "youngProtection" | "reproductiveCondition" | "managementStress"> {
+  const feeding = management?.feeding ?? 0;
+  const holding = management?.holding ?? 0;
+  const protection = management?.protection ?? 0;
+  const failure = management?.failure ?? 0;
+  const priorWariness = dyn.humanWariness ?? dyn.disturbance;
+  const priorHabituation = dyn.habituation ?? 0;
+  const managementStress = clamp01((dyn.managementStress ?? 0) * 0.7 + holding * 0.72 + failure * 0.4);
+  const habituation = clamp01(
+    priorHabituation * 0.86 + feeding * stock.habituationPotential * 0.5 -
+      pressure * stock.flightResponse * 0.16 - managementStress * 0.12,
+  );
+  const humanWariness = clamp01(
+    priorWariness * 0.76 + pressure * stock.flightResponse * 0.42 + holding * 0.24 + failure * 0.2 - habituation * 0.16,
+  );
+  const fragmentation = clamp01(pressure * stock.flightResponse + managementStress * 0.4);
+  const herdCohesion = clamp01(
+    (dyn.herdCohesion ?? stock.herdTendency) * 0.72 + stock.herdTendency * 0.28 - fragmentation * 0.24 + protection * 0.08,
+  );
+  const migrationPressure = clamp01(
+    (stock.routineProfile === "migratory_herd" ? (season === "spring" || season === "autumn" ? 0.68 : 0.24) :
+      stock.routineProfile === "schooling_aquatic" && stock.kind === "seasonal_fish_run" && season === "spring" ? 0.82 : 0.08) +
+      pressure * stock.mobility * 0.24,
+  );
+  const waterSeeking = stock.waterDependence * (season === "summer" ? 0.82 : 0.42);
+  const youngProtection = clamp01((season === "spring" ? stock.aggressionDefense * 0.76 : 0.08) + protection * 0.16);
+  const campProximity = clamp01(
+    (dyn.campProximity ?? 0) * 0.68 + feeding * stock.habituationPotential * 0.54 - humanWariness * 0.18,
+  );
+  const habitatReturn = clamp01((dyn.habitatReturn ?? 0.5) * 0.78 + (pressure < 0.08 ? 0.18 : -0.08) + stock.herdTendency * 0.04);
+  const reproductiveCondition = clamp01(
+    (dyn.reproductiveCondition ?? 0.78) * 0.76 + stock.reproductiveRate * 0.22 + protection * 0.08 -
+      pressure * 0.18 - managementStress * 0.42,
+  );
+  const routinePhase: FaunaRoutinePhase =
+    humanWariness >= 0.62 ? "flight" :
+    stock.routineProfile === "camp_scavenger" && campProximity >= 0.2 ? "camp_following" :
+    youngProtection >= 0.38 ? "young_protection" :
+    migrationPressure >= 0.58 ? "migration" :
+    waterSeeking >= 0.58 ? "water_seeking" :
+    stock.routineProfile === "cover_forager" && season === "winter" ? "resting_cover" :
+    habitatReturn >= 0.68 && pressure < 0.12 ? "habitat_return" :
+    stock.routineProfile === "migratory_herd" ? "roaming" : "feeding";
+  return {
+    routinePhase,
+    herdCohesion: round4(herdCohesion),
+    humanWariness: round4(humanWariness),
+    habituation: round4(habituation),
+    campProximity: round4(campProximity),
+    habitatReturn: round4(habitatReturn),
+    migrationPressure: round4(migrationPressure),
+    youngProtection: round4(youngProtection),
+    reproductiveCondition: round4(reproductiveCondition),
+    managementStress: round4(managementStress),
+  };
 }
 
 // --- audit / debug summary ---
@@ -952,6 +1111,12 @@ export interface FaunaStockSummary {
   readonly disturbedStockCount: number; // disturbance > 0.3
   readonly meanInfluenceTiles: number;
   readonly maxInfluenceTiles: number;
+  readonly byRoutineProfile: Readonly<Record<string, number>>;
+  readonly byRoutinePhase: Readonly<Record<string, number>>;
+  readonly managedStockCount: number;
+  readonly meanWariness: number;
+  readonly meanHabituation: number;
+  readonly meanReproductiveCondition: number;
 }
 
 export function summarizeFaunaStocks(world: WorldState): FaunaStockSummary {
@@ -966,9 +1131,16 @@ export function summarizeFaunaStocks(world: WorldState): FaunaStockSummary {
   let disturbed = 0;
   let influenceSum = 0;
   let maxInfluence = 0;
+  const byRoutineProfile: Record<string, number> = {};
+  const byRoutinePhase: Record<string, number> = {};
+  let managedStockCount = 0;
+  let warinessSum = 0;
+  let habituationSum = 0;
+  let reproductiveConditionSum = 0;
 
   for (const stock of geo.stocks) {
     byKind[stock.kind] = (byKind[stock.kind] ?? 0) + 1;
+    byRoutineProfile[stock.routineProfile] = (byRoutineProfile[stock.routineProfile] ?? 0) + 1;
     regions.add(stock.regionId);
     ccSum += stock.carryingCapacity;
     influenceSum += stock.influenceTileIds.length;
@@ -979,6 +1151,12 @@ export function summarizeFaunaStocks(world: WorldState): FaunaStockSummary {
     }
 
     const dyn = getFaunaStockDynamic(world, stock.id);
+    const phase = dyn.routinePhase ?? "uninitialized";
+    byRoutinePhase[phase] = (byRoutinePhase[phase] ?? 0) + 1;
+    if ((dyn.managementStress ?? 0) > 0 || (dyn.campProximity ?? 0) > 0) managedStockCount += 1;
+    warinessSum += dyn.humanWariness ?? 0;
+    habituationSum += dyn.habituation ?? 0;
+    reproductiveConditionSum += dyn.reproductiveCondition ?? 1;
     abundanceSum += dyn.abundance;
     minAbundance = Math.min(minAbundance, dyn.abundance);
 
@@ -1006,6 +1184,12 @@ export function summarizeFaunaStocks(world: WorldState): FaunaStockSummary {
     disturbedStockCount: disturbed,
     meanInfluenceTiles: count === 0 ? 0 : round3(influenceSum / count),
     maxInfluenceTiles: maxInfluence,
+    byRoutineProfile,
+    byRoutinePhase,
+    managedStockCount,
+    meanWariness: count === 0 ? 0 : round3(warinessSum / count),
+    meanHabituation: count === 0 ? 0 : round3(habituationSum / count),
+    meanReproductiveCondition: count === 0 ? 1 : round3(reproductiveConditionSum / count),
   };
 }
 

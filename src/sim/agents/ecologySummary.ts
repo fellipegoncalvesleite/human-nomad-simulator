@@ -42,6 +42,13 @@ export interface WorldEcologySummary {
   readonly aquatic: StockCategorySummary;
   readonly plant: PlantCategorySummary;
   readonly pressure: EcologyPressureLevel;
+  readonly faunaRoutines: {
+    readonly phases: Readonly<Record<string, number>>;
+    readonly managedStocks: number;
+    readonly meanWariness: number;
+    readonly meanHabituation: number;
+    readonly meanReproductiveCondition: number;
+  };
   readonly debugTruthOnly: true;
 }
 
@@ -68,9 +75,20 @@ export function summarizeWorldEcology(world: WorldState): WorldEcologySummary {
   // Local mutable accumulators (the readonly summary is built at the end).
   const faunaAcc = { total: 0, rich: 0, decent: 0, poor: 0, depleted: 0, recovering: 0, abundanceSum: 0, overused: 0, disturbed: 0 };
   const aquaticAcc = { total: 0, rich: 0, decent: 0, poor: 0, depleted: 0, recovering: 0, abundanceSum: 0, overused: 0, disturbed: 0 };
+  const routinePhases: Record<string, number> = {};
+  let managedStocks = 0;
+  let warinessSum = 0;
+  let habituationSum = 0;
+  let reproductiveConditionSum = 0;
 
   for (const stock of geo.stocks) {
     const dyn = getFaunaStockDynamic(world, stock.id);
+    const routinePhase = dyn.routinePhase ?? "uninitialized";
+    routinePhases[routinePhase] = (routinePhases[routinePhase] ?? 0) + 1;
+    if ((dyn.managementStress ?? 0) > 0 || (dyn.campProximity ?? 0) > 0) managedStocks += 1;
+    warinessSum += dyn.humanWariness ?? 0;
+    habituationSum += dyn.habituation ?? 0;
+    reproductiveConditionSum += dyn.reproductiveCondition ?? 1;
     const acc = stock.faunaClass === "aquatic_food" ? aquaticAcc : faunaAcc;
     acc.total += 1;
     acc.abundanceSum += dyn.abundance;
@@ -106,6 +124,13 @@ export function summarizeWorldEcology(world: WorldState): WorldEcologySummary {
     aquatic: finalizeStock(aquaticAcc),
     plant,
     pressure: derivePressure(faunaAcc, aquaticAcc, plantState.overharvestedPatches),
+    faunaRoutines: {
+      phases: routinePhases,
+      managedStocks,
+      meanWariness: geo.stocks.length === 0 ? 0 : round3(warinessSum / geo.stocks.length),
+      meanHabituation: geo.stocks.length === 0 ? 0 : round3(habituationSum / geo.stocks.length),
+      meanReproductiveCondition: geo.stocks.length === 0 ? 1 : round3(reproductiveConditionSum / geo.stocks.length),
+    },
     debugTruthOnly: true,
   };
 }

@@ -703,6 +703,17 @@ function deriveVisiblePlantCards(
       continue;
     }
     for (const patch of derivePlantPatchesForTile(tile, world.time, 3)) {
+      const linkedResourceClassId = mapPlantToResourceEcologyClass(patch.plantClassId);
+      const remembered = linkedResourceClassId !== undefined &&
+        band.resourceEcology?.knowledge.topMemories.some((memory) =>
+          memory.placeTileId === tileId && memory.resourceClassId === linkedResourceClassId,
+        ) === true;
+      const encountered = tileId === band.position || (band.recentIntraSeasonTrips ?? []).some((trip) =>
+        trip.targetTileId === tileId && trip.physicalFoodHarvest?.sourceKind === "plant_patch",
+      );
+      if (!remembered && !encountered) {
+        continue;
+      }
       cards.push(plantPatchToCard(world, band, patch, tileId, grazingPressureForTile(faunaCards, tileId)));
     }
   }
@@ -866,10 +877,23 @@ function plantPatchToCard(
     : band.resourceEcology?.knowledge.topMemories.find((memory) =>
       memory.placeTileId === tileId && memory.resourceClassId === linkedResourceClassId,
     );
-  const state = world.plantPatchState?.[String(patch.patchId)];
-  const humanPressure = state?.depletion ?? patch.depletion;
+  const directEncounter = tileId === band.position;
+  const harvestReceipt = (band.recentIntraSeasonTrips ?? [])
+    .map((trip) => trip.physicalFoodHarvest)
+    .find((receipt) => receipt?.sourceKind === "plant_patch" && receipt.sourceId === String(patch.patchId));
+  // Normal band state uses only remembered/directly experienced quantities.
+  // Exact sparse patch depletion remains world truth and is shown only in Technical.
+  const humanPressure = harvestReceipt === undefined || harvestReceipt.physicalAvailability <= 0
+    ? matchingMemory?.knowledgeState === "avoided" ? 0.55 : 0
+    : clamp01(harvestReceipt.depletionApplied / harvestReceipt.physicalAvailability);
   const pressure = round2(clamp01(humanPressure + animalGrazingPressure * 0.18));
-  const abundance = round2(clamp01(patch.currentAbundance * (1 - pressure)));
+  const abundance = round2(clamp01(
+    harvestReceipt !== undefined
+      ? (harvestReceipt.physicalAvailability - harvestReceipt.harvestedAmount) / Math.max(0.0001, harvestReceipt.physicalAvailability)
+      : directEncounter
+        ? Math.round(patch.currentAbundance * 4) / 4
+        : (matchingMemory?.confidence ?? 0.2) * (matchingMemory?.seasonalReliability ?? 0.5),
+  ));
   const knowledgeState = translatePlantKnowledgeState(matchingMemory?.knowledgeState, tileId === band.position, pressure, patch);
   const confidence = round2(clamp01(
     (matchingMemory?.confidence ?? 0) * 0.56 +
@@ -886,26 +910,30 @@ function plantPatchToCard(
     ...(linkedResourceClassId === undefined ? {} : { linkedResourceClassId }),
     knowledgeState,
     confidence,
-    seasonalAvailability: patch.currentSeasonalAvailability,
-    previousSeasonalAvailability: patch.previousAvailability,
-    seasonalModifier: round2(patch.seasonalModifier),
-    seasonalPulseStrength: round2(clamp01(patch.seasonalPulseStrength)),
-    abundanceTrend: patch.abundanceTrend,
-    lifecycleState: patch.lifecycleState,
+    seasonalAvailability: directEncounter || harvestReceipt !== undefined ? patch.currentSeasonalAvailability : "unreliable",
+    previousSeasonalAvailability: directEncounter || harvestReceipt !== undefined ? patch.previousAvailability : "unreliable",
+    seasonalModifier: directEncounter || harvestReceipt !== undefined ? round2(patch.seasonalModifier) : 1,
+    seasonalPulseStrength: directEncounter || harvestReceipt !== undefined ? round2(clamp01(patch.seasonalPulseStrength)) : 0,
+    abundanceTrend: directEncounter || harvestReceipt !== undefined ? patch.abundanceTrend : "unreliable",
+    lifecycleState: directEncounter || harvestReceipt !== undefined ? patch.lifecycleState : "unreliable",
     abundance,
     pressure,
     depletion: round2(clamp01(humanPressure)),
-    recovery: round2(clamp01(patch.naturalRecoveryProgress + patch.naturalRegrowthModifier * 0.4)),
+    recovery: directEncounter || harvestReceipt !== undefined
+      ? round2(clamp01(patch.naturalRecoveryProgress + patch.naturalRegrowthModifier * 0.4))
+      : 0,
     animalGrazingPressure: round2(animalGrazingPressure),
-    reliability: round2(patch.reliabilityThisSeason),
-    risk: patch.safetyRisk,
-    laborCost: round2(clamp01(patch.laborCost)),
+    reliability: directEncounter || harvestReceipt !== undefined
+      ? round2(patch.reliabilityThisSeason)
+      : round2(matchingMemory?.seasonalReliability ?? 0.2),
+    risk: directEncounter || harvestReceipt !== undefined ? patch.safetyRisk : "unknown",
+    laborCost: directEncounter || harvestReceipt !== undefined ? round2(clamp01(patch.laborCost)) : 0.5,
     fallbackRole: patch.fallbackRole,
     fallbackRank: round2(clamp01(patch.fallbackRank)),
     plantPatchEffect: classifyPlantPatchEffect(patch, pressure, knowledgeState),
     useStatus: getPlantUseStatus(knowledgeState, pressure, patch),
     topReasons: topPlantReasons(patch, pressure, animalGrazingPressure, matchingMemory?.rawSource),
-    rawSource: "derivePlantPatchesForTile on band-known/current candidate tiles + ResourceEcology knowledge memory",
+    rawSource: "band resource memory or direct/current plant encounter; exact world depletion excluded",
   };
 }
 

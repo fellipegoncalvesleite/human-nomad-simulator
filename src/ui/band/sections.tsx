@@ -3724,10 +3724,10 @@ export function CarryingCapacityDetails({
         )})`}
       />
       <Detail
-        label="reachable support (raw → shared)"
+        label="projected catchment context (not consumed as food)"
         value={`${formatNumber(support.rawReachableSupport)} → ${formatNumber(
           support.sharedReachableSupport,
-        )} vs demand ${formatNumber(support.adultEquivalentDemand)} | ${
+        )}; canonical demand ${formatNumber(support.adultEquivalentDemand)} | ${
           support.surplusDeficit >= 0
             ? `surplus +${formatNumber(support.surplusDeficit)}`
             : `deficit ${formatNumber(support.surplusDeficit)}`
@@ -3742,9 +3742,9 @@ export function CarryingCapacityDetails({
       {(support.animalSupportRaw !== undefined || support.aquaticSupportRaw !== undefined) && (
         <Detail
           label="fauna / aquatic stocks (FAUNA/AQUATIC-1, finite)"
-          value={`animal ${formatNumber(support.animalSupportRaw ?? 0)} · aquatic ${formatNumber(
+          value={`physical animal harvest ${formatNumber(support.animalSupportRaw ?? 0)} · aquatic harvest ${formatNumber(
             support.aquaticSupportRaw ?? 0,
-          )} support · stock shortfall -${formatNumber(support.faunaSupportLoss ?? 0)} · ${
+          )} · projected catchment stock shortfall -${formatNumber(support.faunaSupportLoss ?? 0)} · ${
             support.faunaCoveredTiles ?? 0
           } catchment tile(s) over a known stock zone${
             (support.faunaSupportLoss ?? 0) > 0.05 ? " · overuse/lean reducing returns" : ""
@@ -3754,7 +3754,7 @@ export function CarryingCapacityDetails({
       {support.plantSupportRaw !== undefined && (
         <Detail
           label="plant patches (ECO-BIOME-1, finite)"
-          value={`plant-food ${formatNumber(support.plantSupportRaw ?? 0)} support · overharvest shortfall -${formatNumber(
+          value={`physical plant harvest ${formatNumber(support.plantSupportRaw ?? 0)} · projected catchment overharvest shortfall -${formatNumber(
             support.plantSupportLoss ?? 0,
           )} · processing drag -${formatNumber(support.processingLaborDrag ?? 0)} · ${
             support.plantCoveredTiles ?? 0
@@ -3764,31 +3764,43 @@ export function CarryingCapacityDetails({
         />
       )}
       <Detail
-        label="AG11 activity supplement"
-        value={
-          support.activitySubsistenceSupplement === undefined
-            ? "OFF/default — abstract support floor only; no activity support consumed"
-            : `ON experimental supplement, not full economy replacement · floor ${formatNumber(
-                support.activitySubsistenceSupplement.abstractSupportFloor,
-              )} → final ${formatNumber(
-                support.activitySubsistenceSupplement.finalSupportWithSupplement,
-              )} · cap ${formatNumber(
-                support.activitySubsistenceSupplement.supplementCap,
-              )}${support.activitySubsistenceSupplement.supplementCapApplied ? " hit" : ""} · consumed g/h/f/p ${formatNumber(
-                support.activitySubsistenceSupplement.supplementFromGathering,
-              )}/${formatNumber(
-                support.activitySubsistenceSupplement.supplementFromHunting,
-              )}/${formatNumber(
-                support.activitySubsistenceSupplement.supplementFromFishing,
-              )}/${formatNumber(
-                support.activitySubsistenceSupplement.supplementFromPlants,
-              )} · eligible shadow ${formatNumber(
-                support.activitySubsistenceSupplement.activityShadowSameDayFoodEligible,
-              )}, delayed tracked ${formatNumber(
-                support.activitySubsistenceSupplement.activityShadowDelayedFoodTracked,
-              )}`
-        }
+        label="legacy AG11 supplement"
+        value="retired from economy — shadow/generic activity estimates cannot feed the canonical ledger"
       />
+      {support.humanFoodLedger === undefined ? null : (
+        <>
+          <Detail
+            label="canonical human food ledger"
+            value={`plant ${formatNumber(support.humanFoodLedger.physicalPlantHarvest)} · fauna ${formatNumber(
+              support.humanFoodLedger.physicalFaunaHarvest,
+            )} · aquatic ${formatNumber(support.humanFoodLedger.aquaticHarvest)} · storage ${formatNumber(
+              support.humanFoodLedger.storageContribution,
+            )} · residual ${formatNumber(support.humanFoodLedger.transitionalResidual)} · losses transport/process/spoil/access ${formatNumber(
+              support.humanFoodLedger.transportLoss,
+            )}/${formatNumber(support.humanFoodLedger.processingLoss)}/${formatNumber(
+              support.humanFoodLedger.spoilageLoss,
+            )}/${formatNumber(support.humanFoodLedger.accessLoss)} · usable ${formatNumber(
+              support.humanFoodLedger.totalUsableSupport,
+            )} / demand ${formatNumber(support.humanFoodLedger.populationDemand)} · ratio ${formatNumber(
+              support.humanFoodLedger.rawSupportRatio,
+            )} · stress ${formatNumber(support.humanFoodLedger.foodStress)} · generic catchment consumed=false`}
+          />
+          <Detail
+            label="physical food receipts (Technical world truth)"
+            value={support.humanFoodLedger.sourceReceipts.length === 0
+              ? "none — no physical source fed this band in the ledger season"
+              : support.humanFoodLedger.sourceReceipts.map((receipt) =>
+                  `${receipt.sourceKind}:${receipt.sourceId ?? "absent"}/${receipt.sourceClass} known=${receipt.knownness} attempted=${String(
+                    receipt.attempted,
+                  )} found=${String(receipt.physicalSourceFound)} avail=${formatNumber(
+                    receipt.physicalAvailability,
+                  )} harvested=${formatNumber(receipt.harvestedAmount)} depleted=${formatNumber(
+                    receipt.depletionApplied,
+                  )} usable=${formatNumber(receipt.usableSupport)}${receipt.failureReason === undefined ? "" : ` fail=${receipt.failureReason}`}`,
+                ).join(" | ")}
+          />
+        </>
+      )}
       <Detail
         label="shared catchment pressure"
         value={`${formatNumber(support.sharedPressurePenalty)} over ${support.overlappingBandIds.length} overlapping band(s); access -${formatNumber(

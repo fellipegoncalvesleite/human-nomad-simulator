@@ -31,6 +31,7 @@ import type {
   IntraSeasonTripRecord,
   IntraSeasonTripTaskGroupType,
   PlantPatchActivityTrace,
+  PhysicalFoodHarvestRecord,
 } from "./types";
 import type { DailyAction } from "./dailyActions";
 import { deriveBaseHabitatPotential } from "./habitatYield";
@@ -39,13 +40,14 @@ import {
   deriveFaunaStockGeography,
   deriveFaunaTripStockTrace,
   deriveFaunaTripReturnFactor,
+  resolveFaunaFoodHarvest,
   type FaunaTripStockTraceBase,
   type FaunaClass,
   type FaunaHabitatType,
   type FaunaStockGeography,
   type FaunaStockKind,
 } from "./faunaStock";
-import { applyPlantGatherDepletion, derivePlantGatherPatchTrace, derivePlantGatherReturnFactor, type PlantGatherPatchTraceBase } from "./plantStock";
+import { derivePlantGatherPatchTrace, derivePlantGatherReturnFactor, resolvePlantFoodHarvest, type PlantGatherPatchTraceBase } from "./plantStock";
 import { deriveResourceClassAvailability } from "./resourceClasses";
 import { deriveHuntingSafetyRelief } from "./practicalResponses";
 import { effectiveResourceConfidence, updateResourceKnowledgeFromObservation } from "./resourceKnowledge";
@@ -165,11 +167,14 @@ function applyTripDay(world: WorldState, day: number): WorldState {
             resourceKnowledgeState: candidate.seededResourceKnowledgeState,
           };
     const initialRecord = buildTripRecord(currentWorld, activityBand, candidate, time.day ?? (day as DayNumber), time.tick, time.season, faunaGeo);
-    const memoryApplication = applyActivityOutcomeToMemoryForWorld(currentWorld, activityBand, initialRecord, candidate.memory);
+    const physicalResolution = resolvePhysicalFoodHarvest(currentWorld, initialRecord, time, faunaGeo);
+    currentWorld = physicalResolution.world;
+    const resolvedRecord = physicalResolution.record;
+    const memoryApplication = applyActivityOutcomeToMemoryForWorld(currentWorld, activityBand, resolvedRecord, candidate.memory);
     const record: IntraSeasonTripRecord = {
-      ...initialRecord,
+      ...resolvedRecord,
       activityMemoryEffect: memoryApplication.effect,
-      reasonIds: [...initialRecord.reasonIds, ...memoryApplication.effect.reasonIds],
+      reasonIds: [...resolvedRecord.reasonIds, ...memoryApplication.effect.reasonIds],
     };
     const recentIntraSeasonTrips = [record, ...(band.recentIntraSeasonTrips ?? [])].slice(0, RECENT_TRIP_RECORD_CAP);
     const activityLaborSummary = buildActivityLaborSummary(activityBand, record, recentIntraSeasonTrips);
@@ -197,30 +202,6 @@ function applyTripDay(world: WorldState, day: number): WorldState {
     };
     changed = true;
 
-    // FAUNA/AQUATIC-1 — a successful hunting/fishing trip physically depletes the
-    // targeted finite stock (and scatters it via disturbance). Bounded, sparse,
-    // deterministic. This is the causal bridge from activity to the support
-    // multiplier in carryingCapacity: overuse a delta/lake/game ground and its
-    // realized animal/aquatic support actually falls until it rests.
-    const faunaClass = faunaClassForTrip(record.taskGroupType, record.resourceClassId);
-    if (faunaClass !== undefined && isSuccessfulFaunaOutcome(record.activityOutcome)) {
-      const intensity = estimateFaunaTripPressureIntensity(record.estimatedPeopleCount, record.resourceReturn.estimatedReturnValue);
-      currentWorld = applyFaunaTripDepletion(currentWorld, faunaGeo, record.targetTileId, faunaClass, intensity, time.tick);
-    }
-
-    // ECO-BIOME-1 — a successful gathering trip overharvests the finite plant patch
-    // it worked, the causal bridge to the plant support multiplier (gather a berry
-    // slope / tuber ground down and its realized plant support falls until rested).
-    if (faunaClass === undefined && isSuccessfulFaunaOutcome(record.activityOutcome) && isPlantGatherTrip(record.taskGroupType, record.resourceClassId)) {
-      const plantTile = currentWorld.tiles[record.targetTileId];
-      if (plantTile !== undefined) {
-        const intensity = Math.max(
-          0,
-          Math.min(1, record.estimatedPeopleCount * 0.07 + record.resourceReturn.estimatedReturnValue * 0.55),
-        );
-        currentWorld = applyPlantGatherDepletion(currentWorld, plantTile, time, intensity);
-      }
-    }
   }
 
   return changed
@@ -229,6 +210,135 @@ function applyTripDay(world: WorldState, day: number): WorldState {
         bands: bandsById as Readonly<Record<BandId, Band>>,
       }
     : world;
+}
+
+function resolvePhysicalFoodHarvest(
+  world: WorldState,
+  record: IntraSeasonTripRecord,
+  time: ReturnType<typeof getWorldTimeForDay>,
+  faunaGeo: FaunaStockGeography,
+): { readonly world: WorldState; readonly record: IntraSeasonTripRecord } {
+  const faunaClass = faunaClassForTrip(record.taskGroupType, record.resourceClassId);
+  const plantTrip = faunaClass === undefined && isPlantGatherTrip(record.taskGroupType, record.resourceClassId);
+  if (faunaClass === undefined && !plantTrip) {
+    return { world, record };
+  }
+
+  const attempted = true;
+  const standTileId = record.pathTiles[record.pathTiles.length - 1];
+  const targetTile = world.tiles[record.targetTileId];
+  const routeReached = standTileId === record.targetTileId ||
+    (targetTile?.isAquatic === true && world.tiles[standTileId]?.neighbors.includes(record.targetTileId) === true);
+  const activityEligible = routeReached && record.resourceReturn.returnedResourceKind.endsWith("_placeholder") &&
+    record.resourceReturn.estimatedReturnValue > 0;
+  const requestedAmount = record.resourceReturn.estimatedReturnValue;
+  const transportLossRate = Math.min(0.25, record.roundTripTiles * 0.012);
+  const knownness: PhysicalFoodHarvestRecord["knownness"] = record.resourceReturn.returnConfidence >= 0.42
+    ? "known_target"
+    : "stale_or_inferred_target";
+
+  const resolution = faunaClass === undefined
+    ? (() => {
+        const tile = world.tiles[record.targetTileId];
+        return tile === undefined
+          ? {
+              world,
+              sourceFound: false,
+              physicalAvailability: 0,
+              harvestedAmount: 0,
+              depletionApplied: 0,
+              processingLossRate: 0,
+              failureReason: "physical_source_absent" as const,
+            }
+          : resolvePlantFoodHarvest(world, tile, time, requestedAmount, activityEligible);
+      })()
+    : resolveFaunaFoodHarvest(
+        world,
+        faunaGeo,
+        record.targetTileId,
+        faunaClass,
+        record.season,
+        record.tick,
+        requestedAmount,
+        activityEligible,
+      );
+  const transportLoss = resolution.harvestedAmount * transportLossRate;
+  const processingLoss = Math.max(0, resolution.harvestedAmount - transportLoss) * resolution.processingLossRate;
+  const usableSupport = round4(Math.max(0, resolution.harvestedAmount - transportLoss - processingLoss));
+  const sourceKind: PhysicalFoodHarvestRecord["sourceKind"] = faunaClass === "animal_food"
+    ? "fauna_stock"
+    : faunaClass === "aquatic_food"
+      ? "aquatic_stock"
+      : "plant_patch";
+  const sourceId = resolution.sourceId;
+  const sourceClass = String(resolution.sourceClass ?? record.resourceClassId ?? faunaClass ?? "generic_plant_food");
+  const physicalFoodHarvest: PhysicalFoodHarvestRecord = {
+    sourceKind,
+    ...(sourceId === undefined ? {} : { sourceId: String(sourceId) }),
+    sourceClass,
+    knownness,
+    attempted,
+    physicalSourceFound: resolution.sourceFound,
+    physicalAvailability: round4(resolution.physicalAvailability),
+    harvestedAmount: round4(resolution.harvestedAmount),
+    depletionApplied: round4(resolution.depletionApplied),
+    transportLoss: round4(transportLoss),
+    processingLoss: round4(processingLoss),
+    usableSupport,
+    ...(resolution.failureReason === undefined ? {} : { failureReason: resolution.failureReason }),
+    worldTruthDebugOnly: true,
+    reasonIds: [`reason:physical-food-harvest:${record.sourceBandId}:${record.day}:${sourceKind}:${sourceId ?? "absent"}` as ReasonId],
+  };
+  const physicalFailure = resolution.failureReason === "physical_source_absent" || resolution.failureReason === "physically_exhausted";
+  const activityOutcome = !routeReached
+    ? "failed_due_to_distance"
+    : physicalFailure && isSuccessfulFaunaOutcome(record.activityOutcome)
+      ? "target_not_found"
+      : record.activityOutcome;
+  const returnedResourceKind = usableSupport > 0 ? record.resourceReturn.returnedResourceKind : "none";
+  const resourceReturn: ActivityResourceReturnRecord = {
+    ...record.resourceReturn,
+    returnedResourceKind,
+    estimatedReturnValue: usableSupport,
+    consumedByEconomy: usableSupport > 0,
+    noCarryingCapacityCoupling: false,
+    noSupportChange: false,
+    reasonIds: [...record.resourceReturn.reasonIds, ...physicalFoodHarvest.reasonIds],
+  };
+
+  return {
+    world: resolution.world,
+    record: {
+      ...record,
+      activityResult: activityOutcome,
+      activityOutcome,
+      activityOutcomeSummary: summarizeActivityOutcome(activityOutcome, returnedResourceKind),
+      resultSummary: summarizeActivityOutcome(activityOutcome, returnedResourceKind),
+      resourceReturn,
+      physicalFoodHarvest,
+      ...(record.plantPatchTrace === undefined
+        ? {}
+        : { plantPatchTrace: { ...record.plantPatchTrace, depletionApplied: resolution.depletionApplied > 0 } }),
+      ...(record.animalActivityTrace === undefined
+        ? {}
+        : {
+            animalActivityTrace: {
+              ...record.animalActivityTrace,
+              activityOutcome,
+              actualReturnValue: usableSupport,
+              depletionApplied: resolution.depletionApplied > 0,
+              pressureApplied: resolution.depletionApplied > 0
+                ? estimateFaunaTripPressureIntensity(record.estimatedPeopleCount, usableSupport)
+                : 0,
+            },
+          }),
+      ...(record.aquaticActivityTrace === undefined
+        ? {}
+        : { aquaticActivityTrace: { ...record.aquaticActivityTrace, activityOutcome, depletionApplied: resolution.depletionApplied > 0 } }),
+      reasonIds: [...record.reasonIds, ...physicalFoodHarvest.reasonIds],
+      noSupportChange: false,
+    },
+  };
 }
 
 // Maps a trip's task group / resource class to the finite fauna stock class it
@@ -1159,7 +1269,10 @@ function summarizeActivityOutcome(
   outcome: IntraSeasonTripActivityResult,
   returnedResourceKind: ActivityReturnResourceKind,
 ): string {
-  return `deterministic_${outcome}; return=${returnedResourceKind}; record_only_no_economy_coupling`;
+  const physicalReturn = returnedResourceKind === "gathered_food_placeholder" ||
+    returnedResourceKind === "hunted_food_placeholder" ||
+    returnedResourceKind === "fish_placeholder";
+  return `deterministic_${outcome}; return=${returnedResourceKind}; ${physicalReturn ? "physical_receipt_feeds_support" : "information_or_zero_return"}`;
 }
 
 // ===========================================================================
@@ -2243,6 +2356,7 @@ function buildActivityLaborSummary(
   const recentActivityGroupSummaries = [...laborRecords]
     .sort(compareLaborRecordsByRecency)
     .slice(0, RECENT_ACTIVITY_GROUP_SUMMARY_CAP);
+  const physicalFoodConsumed = recentTrips.some((trip) => trip.resourceReturn.consumedByEconomy);
 
   return {
     bandId: band.id,
@@ -2261,9 +2375,9 @@ function buildActivityLaborSummary(
     cappedAllocation: impossibleOverAllocationCount > 0,
     impossibleOverAllocationCount,
     allocationConfidence: "estimated_only",
-    noFoodCoupling: true,
+    noFoodCoupling: !physicalFoodConsumed,
     noYieldCoupling: true,
-    noCarryingCapacityCoupling: true,
+    noCarryingCapacityCoupling: !physicalFoodConsumed,
     noPopulationChange: true,
     noStressChange: true,
   };
@@ -2283,6 +2397,7 @@ function buildActivityOutcomeSummary(
   let informationCount = 0;
   let noEffectCount = 0;
   let maxEstimatedReturnValue = 0;
+  let physicalFoodConsumed = false;
 
   for (const trip of recentTrips) {
     incrementOutcomeCount(outcomesByType, trip.activityOutcome);
@@ -2293,6 +2408,7 @@ function buildActivityOutcomeSummary(
       trip.resourceReturn.estimatedReturnValue,
     );
     maxEstimatedReturnValue = Math.max(maxEstimatedReturnValue, trip.resourceReturn.estimatedReturnValue);
+    physicalFoodConsumed ||= trip.resourceReturn.consumedByEconomy;
 
     if (isSuccessOutcome(trip.activityOutcome)) {
       successCount += 1;
@@ -2327,12 +2443,12 @@ function buildActivityOutcomeSummary(
     informationCount,
     noEffectCount,
     maxEstimatedReturnValue: round4(maxEstimatedReturnValue),
-    consumedByEconomy: false,
+    consumedByEconomy: physicalFoodConsumed,
     noYieldCoupling: true,
-    noCarryingCapacityCoupling: true,
+    noCarryingCapacityCoupling: !physicalFoodConsumed,
     noPopulationChange: true,
     noStressChange: true,
-    noSupportChange: true,
+    noSupportChange: !physicalFoodConsumed,
   };
 }
 

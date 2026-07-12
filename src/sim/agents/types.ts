@@ -331,12 +331,35 @@ export interface ActivityResourceReturnRecord {
   readonly returnedResourceKind: ActivityReturnResourceKind;
   readonly estimatedReturnValue: number;
   readonly returnConfidence: number;
-  readonly consumedByEconomy: false;
+  readonly consumedByEconomy: boolean;
   readonly noYieldCoupling: true;
-  readonly noCarryingCapacityCoupling: true;
+  readonly noCarryingCapacityCoupling: boolean;
   readonly noPopulationChange: true;
   readonly noStressChange: true;
-  readonly noSupportChange: true;
+  readonly noSupportChange: boolean;
+  readonly reasonIds: readonly ReasonId[];
+}
+
+// LIVING-ECOLOGY-A — canonical receipt linking one band-known activity target to
+// one physical world source. `physicalAvailability` is Technical/debug truth;
+// normal decisions never read it. Human support consumes only `usableSupport`.
+export type PhysicalFoodSourceKind = "plant_patch" | "fauna_stock" | "aquatic_stock";
+
+export interface PhysicalFoodHarvestRecord {
+  readonly sourceKind: PhysicalFoodSourceKind;
+  readonly sourceId?: string;
+  readonly sourceClass: string;
+  readonly knownness: "known_target" | "stale_or_inferred_target";
+  readonly attempted: boolean;
+  readonly physicalSourceFound: boolean;
+  readonly physicalAvailability: number;
+  readonly harvestedAmount: number;
+  readonly depletionApplied: number;
+  readonly transportLoss: number;
+  readonly processingLoss: number;
+  readonly usableSupport: number;
+  readonly failureReason?: "activity_failed" | "physical_source_absent" | "physically_exhausted";
+  readonly worldTruthDebugOnly: true;
   readonly reasonIds: readonly ReasonId[];
 }
 
@@ -499,12 +522,12 @@ export interface ActivityOutcomeSummary {
   readonly informationCount: number;
   readonly noEffectCount: number;
   readonly maxEstimatedReturnValue: number;
-  readonly consumedByEconomy: false;
+  readonly consumedByEconomy: boolean;
   readonly noYieldCoupling: true;
-  readonly noCarryingCapacityCoupling: true;
+  readonly noCarryingCapacityCoupling: boolean;
   readonly noPopulationChange: true;
   readonly noStressChange: true;
-  readonly noSupportChange: true;
+  readonly noSupportChange: boolean;
 }
 
 export type ActivityMemoryEffectType =
@@ -646,9 +669,9 @@ export interface ActivityLaborSummary {
   readonly cappedAllocation: boolean;
   readonly impossibleOverAllocationCount: number;
   readonly allocationConfidence: ActivityLaborAllocationConfidence;
-  readonly noFoodCoupling: true;
+  readonly noFoodCoupling: boolean;
   readonly noYieldCoupling: true;
-  readonly noCarryingCapacityCoupling: true;
+  readonly noCarryingCapacityCoupling: boolean;
   readonly noPopulationChange: true;
   readonly noStressChange: true;
 }
@@ -742,6 +765,7 @@ export interface IntraSeasonTripRecord {
   readonly activityOutcomeReasonIds: readonly ReasonId[];
   readonly activityOutcomeSummary: string;
   readonly resourceReturn: ActivityResourceReturnRecord;
+  readonly physicalFoodHarvest?: PhysicalFoodHarvestRecord;
   // ACTIVITY-GROUPS-10: SHADOW subsistence estimate for this trip (never economy-coupled).
   readonly shadowSubsistence: ActivityShadowReturnRecord;
   // ECO-SEASON-1: realized seasonal ecology the activity observed at its target this
@@ -766,7 +790,7 @@ export interface IntraSeasonTripRecord {
   readonly noStressChange: true;
   readonly noPopulationChange: true;
   readonly noCarryingCapacityChange: true;
-  readonly noSupportChange: true;
+  readonly noSupportChange: boolean;
   readonly bandKnownTargetOnly: true;
 }
 
@@ -1972,6 +1996,29 @@ export interface SupportRatioBreakdown {
   readonly candidateProjectedLearnedSupportDelta?: number;
   readonly noTruthRichnessLeak?: true;
   readonly activitySubsistenceSupplement?: ActivitySubsistenceSupplementState;
+  readonly humanFoodLedger?: HumanFoodSupportLedger;
+  readonly reasonIds: readonly ReasonId[];
+}
+
+export interface HumanFoodSupportLedger {
+  readonly physicalPlantHarvest: number;
+  readonly physicalFaunaHarvest: number;
+  readonly aquaticHarvest: number;
+  readonly storageContribution: number;
+  readonly transitionalResidual: number;
+  readonly grossPhysicalHarvest: number;
+  readonly transportLoss: number;
+  readonly processingLoss: number;
+  readonly spoilageLoss: number;
+  readonly accessLoss: number;
+  readonly totalUsableSupport: number;
+  readonly populationDemand: number;
+  readonly rawSupportRatio: number;
+  readonly foodStress: NormalizedIntensity;
+  readonly sourceReceipts: readonly PhysicalFoodHarvestRecord[];
+  readonly sourceSeasonTick?: TickNumber;
+  readonly genericCatchmentFoodConsumed: false;
+  readonly residualRemovalPath: "none" | "replace_with_explicit_unmodeled_stock";
   readonly reasonIds: readonly ReasonId[];
 }
 

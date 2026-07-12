@@ -146,11 +146,11 @@ export function Food({
   const nature = band.visibleNature;
   const storageCards = band.resourceEcology?.storageSuitabilityCards ?? [];
   const storageSummary = band.resourceEcology?.storageSuitabilitySummary;
-  const topFoods = (band.resourceEcology?.support.topContributingClasses ?? [])
-    .filter((entry) => entry.supportShare >= 0.05)
-    .slice(0, 3)
-    .map((entry) => entry.label);
-  const fallbackShare = band.resourceEcology?.support.fallbackContribution ?? 0;
+  const foodLedger = band.carryingCapacity?.perCapitaReturn.supportDebug.humanFoodLedger;
+  const topFoods = [...new Set((foodLedger?.sourceReceipts ?? [])
+    .filter((receipt) => receipt.usableSupport > 0)
+    .map((receipt) => receipt.sourceClass.replace(/_/g, " ")))]
+    .slice(0, 3);
 
   return (
     <div className="bp-overview">
@@ -163,9 +163,9 @@ export function Food({
               ? "No single food source dominates what feeds them yet."
               : `Most of what feeds them now: ${topFoods.join(", ")}.`}
           </strong>
-          {fallbackShare > 0.12 ? (
-            <p>Fallback foods are carrying a real share of meals — help that costs extra work and risk.</p>
-          ) : null}
+          <p>{foodLedger === undefined
+            ? "Physical food accounting has not run yet."
+            : `${foodLedger.totalUsableSupport.toFixed(2)} usable support from physical harvest against ${foodLedger.populationDemand.toFixed(2)} demand.`}</p>
           {storageSummary === undefined ? null : <p>{storageSummary.carryingConcern}</p>}
         </div>
       </section>

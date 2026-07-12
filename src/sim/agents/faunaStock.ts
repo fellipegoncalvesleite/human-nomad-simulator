@@ -192,6 +192,20 @@ export interface FaunaTripStockTraceBase {
   readonly reasonIds: readonly ReasonId[];
 }
 
+export interface FaunaFoodHarvestResolution {
+  readonly world: WorldState;
+  readonly sourceId?: string;
+  readonly sourceClass?: string;
+  readonly sourceFound: boolean;
+  readonly stockId?: FaunaStockId;
+  readonly stockKind?: FaunaStockKind;
+  readonly physicalAvailability: number;
+  readonly harvestedAmount: number;
+  readonly depletionApplied: number;
+  readonly processingLossRate: number;
+  readonly failureReason?: "activity_failed" | "physical_source_absent" | "physically_exhausted";
+}
+
 // --- tuning constants (all bounded, conservative; calibrated at 100/300/500y) ---
 
 // Geography generation.
@@ -222,6 +236,7 @@ const DYNAMIC_DROP_EPSILON = 0.004;
 // population — it only makes crowded cores visibly poorer fauna grounds.
 const CLAIM_PRESSURE_NORM = 2.2;
 const TRIP_DEPLETION_PULL = 0.22; // per-trip abundance pull (× sensitivity × intensity)
+const FAUNA_HARVEST_SUPPORT_SCALE = 3.2;
 
 // Support coupling.
 const FACTOR_FLOOR = 0.45; // worst-case realized fauna factor for a covered tile
@@ -852,6 +867,121 @@ export function deriveFaunaTripStockTrace(
     laborAccessCost: round3(clamp01(0.18 + stock.riskPlaceholder * 0.22 + (stock.habitat === "river_reach" ? 0.1 : 0))),
     rawSource: "deriveFaunaTripStockTrace from finite fauna/aquatic stock geography + sparse dynamic state",
     reasonIds: [`reason:fauna-trip-stock:${String(stock.id)}:${String(tileId)}:${String(tick)}` as ReasonId],
+  };
+}
+
+// Canonical fauna/aquatic harvest owner. Inventions may alter the requested
+// take before this call, but only a real stock can satisfy it. The returned
+// world and receipt describe the same bounded removal.
+export function resolveFaunaFoodHarvest(
+  world: WorldState,
+  geo: FaunaStockGeography,
+  tileId: TileId,
+  faunaClass: FaunaClass,
+  season: Season,
+  tick: TickNumber,
+  requestedAmount: number,
+  activityEligible: boolean,
+): FaunaFoodHarvestResolution {
+  const stock = bestStockOfClassAt(geo, tileId, faunaClass);
+  if (stock === undefined) {
+    return {
+      world,
+      sourceFound: false,
+      physicalAvailability: 0,
+      harvestedAmount: 0,
+      depletionApplied: 0,
+      processingLossRate: 0,
+      failureReason: "physical_source_absent",
+    };
+  }
+
+  const dyn = getFaunaStockDynamic(world, stock.id);
+  const seasonal = seasonalAvailabilityFactor(stock, season, false);
+  const harvestableAbundance = Math.max(0, dyn.abundance - ABUNDANCE_FLOOR);
+  const physicalAvailability = harvestableAbundance * stock.carryingCapacity * seasonal * FAUNA_HARVEST_SUPPORT_SCALE;
+  const processingLossRate = faunaClass === "aquatic_food" ? 0.12 : 0.16;
+
+  if (!activityEligible) {
+    return {
+      world,
+      sourceId: String(stock.id),
+      sourceClass: stock.kind,
+      sourceFound: true,
+      stockId: stock.id,
+      stockKind: stock.kind,
+      physicalAvailability: round4(physicalAvailability),
+      harvestedAmount: 0,
+      depletionApplied: 0,
+      processingLossRate,
+      failureReason: "activity_failed",
+    };
+  }
+
+  if (physicalAvailability <= 0.0001) {
+    return {
+      world,
+      sourceId: String(stock.id),
+      sourceClass: stock.kind,
+      sourceFound: true,
+      stockId: stock.id,
+      stockKind: stock.kind,
+      physicalAvailability: 0,
+      harvestedAmount: 0,
+      depletionApplied: 0,
+      processingLossRate,
+      failureReason: "physically_exhausted",
+    };
+  }
+
+  const harvestedAmount = Math.min(Math.max(0, requestedAmount), physicalAvailability);
+  if (harvestedAmount <= 0) {
+    return {
+      world,
+      sourceId: String(stock.id),
+      sourceClass: stock.kind,
+      sourceFound: true,
+      stockId: stock.id,
+      stockKind: stock.kind,
+      physicalAvailability: round4(physicalAvailability),
+      harvestedAmount: 0,
+      depletionApplied: 0,
+      processingLossRate,
+      failureReason: "activity_failed",
+    };
+  }
+
+  const abundanceDraw = harvestedAmount /
+    Math.max(0.0001, stock.carryingCapacity * seasonal * FAUNA_HARVEST_SUPPORT_SCALE);
+  const nextAbundance = clamp(dyn.abundance - abundanceDraw, ABUNDANCE_FLOOR, 1);
+  const actualDraw = Math.max(0, dyn.abundance - nextAbundance) *
+    stock.carryingCapacity * seasonal * FAUNA_HARVEST_SUPPORT_SCALE;
+  const intensity = clamp01(actualDraw / Math.max(0.0001, physicalAvailability));
+  const nextWorld: WorldState = {
+    ...world,
+    faunaStocks: {
+      ...(world.faunaStocks ?? {}),
+      [stock.id]: {
+        ...dyn,
+        abundance: round4(nextAbundance),
+        disturbance: round4(clamp01(dyn.disturbance + intensity * stock.mobility * 0.18)),
+        lastPressureTick: tick,
+        cumulativePressure: round4(dyn.cumulativePressure + intensity),
+      },
+    },
+  };
+
+  return {
+    world: nextWorld,
+    sourceId: String(stock.id),
+    sourceClass: stock.kind,
+    sourceFound: true,
+    stockId: stock.id,
+    stockKind: stock.kind,
+    physicalAvailability: round4(physicalAvailability),
+    harvestedAmount: round4(actualDraw),
+    depletionApplied: round4(actualDraw),
+    processingLossRate,
   };
 }
 

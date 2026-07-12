@@ -105,6 +105,20 @@ export interface PlantGatherPatchTraceBase {
   readonly reasonIds: readonly ReasonId[];
 }
 
+export interface PlantFoodHarvestResolution {
+  readonly world: WorldState;
+  readonly sourceId?: string;
+  readonly sourceClass?: string;
+  readonly sourceFound: boolean;
+  readonly patchId?: string;
+  readonly plantClassId?: PlantClassId;
+  readonly physicalAvailability: number;
+  readonly harvestedAmount: number;
+  readonly depletionApplied: number;
+  readonly processingLossRate: number;
+  readonly failureReason?: "activity_failed" | "physical_source_absent" | "physically_exhausted";
+}
+
 // --- tuning constants (conservative; plants are the dominant food, keep gentle) ---
 
 const PLANT_ABUNDANCE_FLOOR = 0.2; // a patch never fully disappears (fallback floor)
@@ -120,6 +134,7 @@ const DYNAMIC_DROP_EPSILON = 0.004; // drop entries within this of baseline (mus
 
 // Seasonal-pulse return shaping (trip returns only — never the support multiplier).
 const PULSE_RETURN_BONUS = 0.4;
+const PLANT_HARVEST_SUPPORT_SCALE = 2.4;
 
 // --- per-tile food-patch geography (memoized by tile reference + season) ---
 
@@ -177,6 +192,135 @@ function plantFoodPatchesAt(tile: Tile, time: WorldTime): readonly PlantFoodPatc
 
 function getPlantPatchState(world: WorldState, patchId: string): PlantPatchState | undefined {
   return world.plantPatchState?.[patchId];
+}
+
+// Canonical plant harvest owner. This is the only production path that turns a
+// plant patch into human food: find a real edible patch, bound the take by its
+// current seasonal/depleted availability, and persist the exact physical draw.
+export function resolvePlantFoodHarvest(
+  world: WorldState,
+  tile: Tile,
+  time: WorldTime,
+  requestedAmount: number,
+  activityEligible: boolean,
+): PlantFoodHarvestResolution {
+  const patches = plantFoodPatchesAt(tile, time);
+  if (patches.length === 0) {
+    return {
+      world,
+      sourceFound: false,
+      physicalAvailability: 0,
+      harvestedAmount: 0,
+      depletionApplied: 0,
+      processingLossRate: 0,
+      failureReason: "physical_source_absent",
+    };
+  }
+
+  let target = patches[0];
+  let targetAvailability = plantHarvestAvailability(world, target);
+  for (const patch of patches.slice(1)) {
+    const availability = plantHarvestAvailability(world, patch);
+    if (availability > targetAvailability || (availability === targetAvailability && patch.patchId < target.patchId)) {
+      target = patch;
+      targetAvailability = availability;
+    }
+  }
+
+  if (!activityEligible) {
+    return {
+      world,
+      sourceId: target.patchId,
+      sourceClass: target.classId,
+      sourceFound: true,
+      patchId: target.patchId,
+      plantClassId: target.classId,
+      physicalAvailability: round4(targetAvailability),
+      harvestedAmount: 0,
+      depletionApplied: 0,
+      processingLossRate: processingLossRate(target),
+      failureReason: "activity_failed",
+    };
+  }
+
+  if (targetAvailability <= 0.0001) {
+    return {
+      world,
+      sourceId: target.patchId,
+      sourceClass: target.classId,
+      sourceFound: true,
+      patchId: target.patchId,
+      plantClassId: target.classId,
+      physicalAvailability: 0,
+      harvestedAmount: 0,
+      depletionApplied: 0,
+      processingLossRate: processingLossRate(target),
+      failureReason: "physically_exhausted",
+    };
+  }
+
+  const harvestedAmount = Math.min(Math.max(0, requestedAmount), targetAvailability);
+  if (harvestedAmount <= 0) {
+    return {
+      world,
+      sourceId: target.patchId,
+      sourceClass: target.classId,
+      sourceFound: true,
+      patchId: target.patchId,
+      plantClassId: target.classId,
+      physicalAvailability: round4(targetAvailability),
+      harvestedAmount: 0,
+      depletionApplied: 0,
+      processingLossRate: processingLossRate(target),
+      failureReason: "activity_failed",
+    };
+  }
+
+  const previous = world.plantPatchState ?? {};
+  const state = previous[target.patchId];
+  const currentDepletion = state?.depletion ?? 0;
+  const fullSeasonalAvailability = Math.max(
+    0.0001,
+    target.baseAbundance * target.naturalAvailability * PLANT_HARVEST_SUPPORT_SCALE,
+  );
+  const nextDepletion = clamp01(currentDepletion + harvestedAmount / fullSeasonalAvailability);
+  const nextWorld: WorldState = {
+    ...world,
+    plantPatchState: {
+      ...previous,
+      [target.patchId]: {
+        depletion: round4(nextDepletion),
+        classId: target.classId,
+        lastUseTick: time.tick,
+        cumulativeUse: round4((state?.cumulativeUse ?? 0) + harvestedAmount),
+      },
+    },
+  };
+
+  return {
+    world: nextWorld,
+    sourceId: target.patchId,
+    sourceClass: target.classId,
+    sourceFound: true,
+    patchId: target.patchId,
+    plantClassId: target.classId,
+    physicalAvailability: round4(targetAvailability),
+    harvestedAmount: round4(harvestedAmount),
+    depletionApplied: round4(harvestedAmount),
+    processingLossRate: processingLossRate(target),
+  };
+}
+
+function plantHarvestAvailability(world: WorldState, patch: PlantFoodPatch): number {
+  const depletion = getPlantPatchState(world, patch.patchId)?.depletion ?? 0;
+  return Math.max(
+    0,
+    patch.baseAbundance * patch.naturalAvailability * (1 - depletion) * PLANT_HARVEST_SUPPORT_SCALE,
+  );
+}
+
+function processingLossRate(patch: PlantFoodPatch): number {
+  return clamp(patch.laborCost * 0.12 + (patch.safetyRisk === "high" ? 0.12 : patch.safetyRisk === "moderate" ? 0.05 : 0), 0, 0.24);
 }
 
 // --- per-tile support effect (consumed by carryingCapacity) ---

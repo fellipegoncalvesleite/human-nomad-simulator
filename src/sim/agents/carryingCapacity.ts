@@ -6,6 +6,7 @@ import {
 } from "./resourceClasses";
 import { deriveFaunaStockGeography, deriveFaunaTileSupportEffect } from "./faunaStock";
 import { derivePlantTileSupportEffect } from "./plantStock";
+import { deriveHumanFoodSupportLedger } from "./humanFoodSupport";
 import { deriveNomadicScalePressure, getNomadicScaleDemandMultiplier } from "./nomadicScale";
 import { getLocalUsePressureValue } from "./pressure";
 import { getSalientMemorySummary, type TickContextCache } from "./contextCache";
@@ -67,10 +68,8 @@ const LEARNED_REALIZED_PER_TILE_CAP = 0.4; // delta 0.12 (processing-resolved) c
 const LEARNED_REALIZED_BAND_CAP = 1.0; // asymptotic per-band ceiling (adult-equivalents)
 const LEARNED_REALIZED_HALF = 0.8; // half-saturation constant for diminishing returns
 
-// AG11 — first real activity-group support coupling. This is deliberately tiny
-// and default-off through WorldState.auditOptions.activitySubsistenceSupplementEnabled.
-// The abstract catchment economy remains the floor; this adds only a capped,
-// same-day food supplement above that floor.
+// Legacy AG11 constants are retained only for the dead compatibility helper at
+// the bottom of this module. The canonical carrying path never calls it.
 const ACTIVITY_SUBSISTENCE_SUPPLEMENT_FRACTION = 0.06;
 const ACTIVITY_SUBSISTENCE_DEMAND_CAP_FRACTION = 0.03;
 const ACTIVITY_SUBSISTENCE_ABSOLUTE_CAP = 0.75;
@@ -136,14 +135,11 @@ export function deriveCarryingCapacity(
   // shortfall (depletion/disturbance/lean season), plus the realized animal /
   // aquatic support actually drawn, for interpretability + audits.
   let faunaSupportLossSum = 0;
-  let animalSupportRawSum = 0;
-  let aquaticSupportRawSum = 0;
   let faunaCoveredTileCount = 0;
   // ECO-BIOME-1 — realized support removed by finite plant-patch overharvest, the
   // realized plant-food support drawn, and the processing-labor drag (useful but
   // costly foods), for interpretability + audits.
   let plantSupportLossSum = 0;
-  let plantSupportRawSum = 0;
   let plantCoveredTileCount = 0;
   let processingDragSum = 0;
   let currentYield: SeasonalEffectiveYield | undefined;
@@ -233,16 +229,6 @@ export function deriveCarryingCapacity(
       plantCoveredTileCount += 1;
       processingDragSum += plantEffect.processingDrag;
     }
-    for (const entry of classSummary.contributionByClass) {
-      if (entry.classId === "animal_food") {
-        animalSupportRawSum += entry.supportContribution * TILE_SUPPORT * wearMultiplier * share;
-      } else if (entry.classId === "aquatic_food") {
-        aquaticSupportRawSum += entry.supportContribution * TILE_SUPPORT * wearMultiplier * share;
-      } else if (entry.classId === "generic_plant_food") {
-        plantSupportRawSum += entry.supportContribution * TILE_SUPPORT * wearMultiplier * share;
-      }
-    }
-
     accumulateResourceClassEffects(resourceClassEffectTotals, classEffects);
 
     // 2K.9 — band-specific learned usable-support for THIS occupied tile, from the band's OWN
@@ -346,7 +332,7 @@ export function deriveCarryingCapacity(
   const resourceClassPressureLoss = rawReachableSupport <= 0
     ? 0
     : clamp01(resourceClassPressureLossSum / rawReachableSupport);
-  const preliminarySupportFloor = sharedReachableSupport + realizedLearnedSupportDelta;
+  const preliminarySupportFloor = sharedReachableSupport;
   const preliminaryRawSupportRatio = preliminarySupportFloor / adultEquivalentDemand;
   const nomadicScalePressure = deriveNomadicScalePressure(band, {
     rawSupportRatio: preliminaryRawSupportRatio,
@@ -362,19 +348,10 @@ export function deriveCarryingCapacity(
       Object.values(world.bands).filter((candidate) => candidate.status !== "dispersed").length,
     time,
   });
-  const abstractSupportFloor =
+  const projectedCatchmentSupport =
     preliminarySupportFloor * (1 - nomadicScalePressure.logisticalInefficiencyPenalty);
-  const activitySubsistenceSupplement = deriveActivitySubsistenceSupplement(
-    world,
-    band,
-    time,
-    abstractSupportFloor,
-    adultEquivalentDemand,
-  );
-  const adjustedReachableSupport =
-    abstractSupportFloor + (activitySubsistenceSupplement?.supplementConsumedByEconomy === true
-      ? activitySubsistenceSupplement.finalSupportWithSupplement - activitySubsistenceSupplement.abstractSupportFloor
-      : 0);
+  const humanFoodLedger = deriveHumanFoodSupportLedger(band, adultEquivalentDemand);
+  const adjustedReachableSupport = humanFoodLedger.totalUsableSupport;
   const rawSupportRatio = adjustedReachableSupport / adultEquivalentDemand;
   const clampedSupportRatio = clamp01(rawSupportRatio);
   const surplusDeficit = adjustedReachableSupport - demand.adultEquivalentDemand;
@@ -416,10 +393,9 @@ export function deriveCarryingCapacity(
   // pressure lowers supportable capacity, so a crowded shared zone saturates sooner.
   // (M0.11: computed BEFORE the per-capita value so sustained over-capacity can
   // feed the effective return below.)
-  // AG11: supportable capacity stays on the abstract floor. The activity
-  // supplement may reduce hunger pressure via per-capita return, but it does not
-  // mutate ecological capacity/yield.
-  const supportableCapacity = Math.max(1, abstractSupportFloor * (0.9 + recoveryBuffer * 0.2));
+  // Supportable human capacity follows physically returned usable food. Generic
+  // catchment yield remains a non-food ecological projection.
+  const supportableCapacity = Math.max(1, adjustedReachableSupport * (0.9 + recoveryBuffer * 0.2));
   const saturation = round2(
     clamp(input.localPopulationEstimate / supportableCapacity, 0, 2.5),
   );
@@ -441,18 +417,11 @@ export function deriveCarryingCapacity(
   const sustainedOverCapacity = clamp(Math.min(saturation, priorSaturation) - 1, 0, 1.5);
   const saturationPenalty = round2(Math.min(0.5, sustainedOverCapacity * 0.45));
 
-  // ECO-BIOME-1 — processing-labor drag: leaning on processing-heavy plant food
-  // (tubers/grain/mast) costs labor, lowering effective per-capita return WITHOUT
-  // touching the support ceiling (no double penalty). Bounded by PROCESSING_DRAG_CAP.
+  // Processing and transport losses are already charged on each physical receipt.
+  // Keep the projected catchment drag for Technical context, but never charge it
+  // a second time against canonical usable support.
   const processingLaborDrag = yieldCount === 0 ? 0 : clamp01(processingDragSum / yieldCount);
-  const perCapitaValue = clamp01(
-    clampedSupportRatio -
-      travelCost * 0.4 -
-      clamp01(input.nearbyCrowding) * 0.18 -
-      clamp01(input.riskPenalty) * 0.14 -
-      saturationPenalty -
-      processingLaborDrag,
-  );
+  const perCapitaValue = clampedSupportRatio;
 
   const supportDebug: SupportRatioBreakdown = {
     rawReachableSupport: round2(rawReachableSupport),
@@ -474,16 +443,16 @@ export function deriveCarryingCapacity(
     resourceClassContributions,
     sharedPressureLoss: round2(sharedPressureLossSum),
     depletionLoss: round2(depletionLossSum),
-    accessCostLoss: round2(adjustedReachableSupport * travelCost),
-    nomadicScaleLoss: round2(preliminarySupportFloor - abstractSupportFloor),
+    accessCostLoss: 0,
+    nomadicScaleLoss: round2(preliminarySupportFloor - projectedCatchmentSupport),
     seasonalLoss: round2(Math.max(0, realizedCatchmentTileCount * TILE_SUPPORT - rawReachableSupport - depletionLossSum)),
     crowdingLoss: round2(sharedPressureLossSum),
     faunaSupportLoss: round2(faunaSupportLossSum),
-    animalSupportRaw: round2(animalSupportRawSum),
-    aquaticSupportRaw: round2(aquaticSupportRawSum),
+    animalSupportRaw: round2(humanFoodLedger.physicalFaunaHarvest),
+    aquaticSupportRaw: round2(humanFoodLedger.aquaticHarvest),
     faunaCoveredTiles: faunaCoveredTileCount,
     plantSupportLoss: round2(plantSupportLossSum),
-    plantSupportRaw: round2(plantSupportRawSum),
+    plantSupportRaw: round2(humanFoodLedger.physicalPlantHarvest),
     plantCoveredTiles: plantCoveredTileCount,
     processingLaborDrag: round2(yieldCount === 0 ? 0 : processingDragSum / yieldCount),
     ...(supportClampReason === undefined ? {} : { supportClampReason }),
@@ -499,7 +468,7 @@ export function deriveCarryingCapacity(
     realizedLearnedSupportBlockedReasons: [...learnedSupportBlocked].sort(),
     candidateProjectedLearnedSupportDelta,
     noTruthRichnessLeak: true,
-    ...(activitySubsistenceSupplement === undefined ? {} : { activitySubsistenceSupplement }),
+    humanFoodLedger,
     reasonIds: makeSupportDebugReasonIds(time, band.id, {
       sharedPressurePenalty,
       rawSupportRatio,
@@ -529,9 +498,6 @@ export function deriveCarryingCapacity(
     supportDebug,
     reasonIds: [
       makeReasonId(time, band.id, perCapitaValue < 0.45 ? "per_capita_return_declined" : "seasonal_effective_yield_updated"),
-      ...(activitySubsistenceSupplement === undefined
-        ? []
-        : [makeReasonId(time, band.id, "activity_subsistence_supplement_applied")]),
       ...(saturationPenalty > 0.05
         ? [makeReasonId(time, band.id, "saturation_reduced_per_capita_return")]
         : []),

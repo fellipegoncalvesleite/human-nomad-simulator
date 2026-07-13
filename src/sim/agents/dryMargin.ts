@@ -18,6 +18,7 @@ import { getRiverCrossingForMovement, getRiverProfile } from "../world/hydrograp
 import { getSeasonalTileConditions } from "../world/seasonal";
 import { getNeighborTiles, getTile } from "../world/generate";
 import type { Tile, WorldState } from "../world/types";
+import { getCanonicalFoodStress } from "./seasonalSurvival";
 
 const MAX_WATER_CANDIDATES = 8;
 const MAX_PROSPECT_CANDIDATES = 10;
@@ -329,8 +330,11 @@ function deriveSeasonalMobilityMode(
       droughtSeverity * 0.34 -
       currentWaterRefuge.drySeasonReliability * 0.12,
   );
+  // Harvest opportunity is band evidence: completed physical receipts plus
+  // known temporary-water opportunity.  Static seasonal habitat potential may
+  // still describe the weather, but it is not a current-food authority.
   const harvestOpportunity = clamp01(
-    (conditions === undefined ? 0.35 : conditions.currentFoodEstimate / 60) +
+    (band.seasonalSupport?.currentSeasonSupport.clampedSupportRatio ?? 0) * 0.74 +
       temporaryWaterOpportunity * 0.26,
   );
   const mode = getSeasonalMode(world.time.season, droughtSeverity, dryRefugePull, temporaryWaterOpportunity, harvestOpportunity);
@@ -552,16 +556,15 @@ function deriveStayMoveScoutComparison(
 ): StayMoveScoutComparison {
   const currentTile = getTile(world, band.position);
   const currentRecord = band.knowledge.observedTiles[band.position];
-  const currentConditions = currentTile === undefined ? undefined : getSeasonalTileConditions(world, currentTile);
   const currentUsePressure = band.usePressure[band.position];
   const localUsePressure = currentUsePressure === undefined
     ? 0
     : Math.max(currentUsePressure.foragingPressure, currentUsePressure.waterPressure, currentUsePressure.aquaticPressure);
   const placeAttachment = band.placeMemory[band.position]?.attachment ?? 0;
   const currentFood = clamp01(
-    (currentRecord?.observedRichness ?? 0.34) * 0.42 +
-      (currentRecord?.observedAquaticPotential ?? 0.1) * 0.12 +
-      ((currentConditions?.currentFoodEstimate ?? 18) / 70) * 0.28,
+    (band.seasonalSupport?.currentSeasonSupport.clampedSupportRatio ?? 0) * 0.58 +
+      (1 - getCanonicalFoodStress(band)) * 0.22 +
+      (currentRecord?.confidence ?? 0) * 0.08,
   );
   const currentMarginalReturn = clamp01(
     currentFood * 0.44 +

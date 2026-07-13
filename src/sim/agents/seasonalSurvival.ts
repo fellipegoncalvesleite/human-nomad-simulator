@@ -88,9 +88,16 @@ export function updateSeasonalSupportState(
   }
 
   const support = carrying.perCapitaReturn.supportDebug;
-  const yieldState = carrying.seasonalEffectiveYield;
+  // This is a demographic/readability trend, not a second food estimate.  The
+  // old version compared two generic habitat-yield projections, so a depleted
+  // tile could still look like a food pulse.  Compare the current physical
+  // receipt ratio with the band's own recent physical-receipt baseline instead.
+  const currentRatio = Math.max(0, support.rawSupportRatio);
+  const recentPhysicalBaseline = previous === undefined
+    ? currentRatio
+    : Math.max(0.05, previous.rolling4SeasonSupport);
   const seasonalModifier = round2(
-    yieldState.basePotential <= 0 ? 1 : yieldState.effectiveYield / yieldState.basePotential,
+    previous === undefined ? 1 : Math.max(0, Math.min(2, currentRatio / recentPhysicalBaseline)),
   );
   // Current nourishment is owned by the canonical physical ledger. Do not feed
   // last tick's behavioral pressure back into food history: that stale loop made
@@ -311,7 +318,6 @@ function getTopSeasonalSupportReasons(
   sample: SeasonalSupportSample,
 ): readonly string[] {
   const support = carrying.perCapitaReturn.supportDebug;
-  const yieldState = carrying.seasonalEffectiveYield;
   const reasons: string[] = [];
 
   if (sample.mode === "lean") {
@@ -343,13 +349,6 @@ function getTopSeasonalSupportReasons(
   if ((support.plantSupportLoss ?? 0) > 0.3) {
     reasons.push("plant patches are giving thin returns");
   }
-  if (yieldState.localUsePenalty > 0.2) {
-    reasons.push("the closest ground is overused");
-  }
-  if (yieldState.recoveryBonus > 0.18) {
-    reasons.push("rested ground nearby is bouncing back");
-  }
-
   return reasons.length === 0 ? ["the season is treating them about evenly"] : reasons.slice(0, 5);
 }
 

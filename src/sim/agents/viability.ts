@@ -9,6 +9,12 @@ import { getTile } from "../world/generate";
 import type { WorldState } from "../world/types";
 
 const MINIMUM_VIABLE_POPULATION = 14;
+// A remnant below nine people on completely failed ground could previously
+// remain at eight indefinitely: even maximal chronic food+water stress topped
+// out below the old 0.82 gate once deterministic replacement births balanced
+// annual losses.  0.76 is still a high-risk gate (low population alone cannot
+// reach it) but makes prolonged, physically nonviable collapse reachable.
+const LOW_POPULATION_COLLAPSE_RISK = 0.76;
 
 export function updateBandViabilityStates(world: WorldState): WorldState {
   let bandsById: Record<string, Band> = Object.values(world.bands)
@@ -109,7 +115,7 @@ export function updateBandViabilityStates(world: WorldState): WorldState {
     // its working adults cannot sustain itself even at a slightly larger size.
     // Both are gated by a high extinction risk so only genuinely-failed, unabsorbed
     // bands collapse (kin-adjacent failing bands are absorbed earlier).
-    const lowPopulationCollapse = band.viability.extinctionRisk >= 0.82 && band.demography.population < 9;
+    const lowPopulationCollapse = band.viability.extinctionRisk >= LOW_POPULATION_COLLAPSE_RISK && band.demography.population < 9;
     const laborCollapse =
       band.viability.extinctionRisk >= 0.74 &&
       band.demography.workingAdults < 4 &&

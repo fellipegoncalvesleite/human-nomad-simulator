@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 
 import type { Band } from "../../sim/agents/types";
+import { deriveDemographicRenewal } from "../../sim/agents/demographicRenewal";
 import type { BandId } from "../../sim/core/types";
 import type { WorldState } from "../../sim/world/types";
 
@@ -329,6 +330,7 @@ function peopleShapeLine(band: Band): string {
 
 function peopleChurnLine(band: Band): string {
   const churn = band.demography.demographicChurn;
+  const renewal = deriveDemographicRenewal(band);
   const births = churn?.birthsThisYear ?? 0;
   const deaths = churn?.deathsThisYear ?? 0;
 
@@ -344,7 +346,7 @@ function peopleChurnLine(band: Band): string {
     return `${births} birth${births === 1 ? "" : "s"} this year — more mouths now, more hands later.`;
   }
 
-  return "No births or deaths this year; the shape of the band is holding.";
+  return renewal.summary;
 }
 
 /* ------------------------- talk & reports (moved from Overview) ------------ */

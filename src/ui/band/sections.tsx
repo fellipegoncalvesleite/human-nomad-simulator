@@ -18,6 +18,7 @@ import { classifyMovementContext, deriveFamiliarCountry, deriveInheritedRangeCon
 import { deriveSocialRangeRecognition } from "../../sim/agents/socialRangeRecognition";
 import { deriveLineageIdentity } from "../../sim/agents/lineageIdentity";
 import { deriveFordContext } from "../../sim/agents/fordContext";
+import { deriveDemographicRenewal } from "../../sim/agents/demographicRenewal";
 
 // 2K.3D: the cause-attributed nonlethal stress increment is feature-flagged and OFF by
 // default in the UI (it is a separately-reported contribution, never wired into movement).
@@ -555,46 +556,6 @@ export function CausalPressureDetails({
   );
 }
 
-// DEMOGRAPHY-MORTALITY-1 — compact demographic outlook + a death-cause hint from
-// the band's own cohort/stress state (no hidden truth).
-function demographicOutlook(band: Band): string {
-  const demo = band.demography;
-  const viability = band.viability?.status;
-
-  if (viability === "extinct") {
-    const terminal = band.viability?.terminalSnapshot;
-    return terminal === undefined
-      ? "extinct — final pressures archived"
-      : `extinct since year ${terminal.year} ${terminal.season} — final pressures archived`;
-  }
-
-  if (viability === "nonviable") {
-    return "critical — at risk of collapse";
-  }
-
-  const base =
-    viability === "fragile"
-      ? "fragile / shrinking"
-      : demo.mortalityPressure > demo.fertilityPressure + 0.12
-        ? "shrinking"
-        : demo.fertilityPressure > demo.mortalityPressure + 0.12
-          ? "growing"
-          : "stable";
-
-  if ((demo.lastDeaths ?? 0) <= 0) {
-    return base;
-  }
-
-  const cause =
-    (demo.lastEldersDied ?? 0) >= (demo.lastDeaths ?? 0) * 0.5
-      ? "mostly old age"
-      : demo.foodPerPersonStress > 0.55
-        ? "hunger / food deficit"
-        : "sustained crisis";
-
-  return `${base} · recent deaths: ${cause}`;
-}
-
 export function DemographyFissionDetails({
   band,
   world,
@@ -602,6 +563,7 @@ export function DemographyFissionDetails({
   readonly band: Band;
   readonly world: WorldState | null;
 }) {
+  const renewal = deriveDemographicRenewal(band);
   const latestFission = band.fissionEvents[band.fissionEvents.length - 1];
   const parentBand = band.parentBandId === undefined || world === null
     ? undefined
@@ -636,7 +598,8 @@ export function DemographyFissionDetails({
         label="recent births / deaths (DEMOGRAPHY-MORTALITY-1)"
         value={`${band.demography.lastBirths ?? 0} born · ${band.demography.lastDeaths ?? 0} died · matured ${band.demography.lastDependentsMatured ?? 0} · aged-to-elder ${band.demography.lastAdultsAged ?? 0} · elders died ${band.demography.lastEldersDied ?? 0}`}
       />
-      <Detail label="demographic outlook" value={demographicOutlook(band)} />
+      <Detail label="demographic renewal" value={renewal.label} />
+      <Detail label="renewal evidence" value={renewal.summary} />
       <Detail label="food/person stress" value={formatNumber(band.demography.foodPerPersonStress)} />
       <Detail label="· food fertility suppression" value={formatNumber(band.demography.foodFertilitySuppression ?? 0)} />
       <Detail label="household crowding" value={formatNumber(band.demography.householdCrowdingPressure)} />
@@ -726,6 +689,7 @@ export function SeasonalSupportDetails({ band }: { readonly band: Band }) {
 
 export function DemographicChurnDetails({ band }: { readonly band: Band }) {
   const churn = band.demography.demographicChurn;
+  const renewal = deriveDemographicRenewal(band);
 
   if (churn === undefined) {
     return (
@@ -748,14 +712,16 @@ export function DemographicChurnDetails({ band }: { readonly band: Band }) {
         value={`matured ${churn.dependentsMaturedThisYear} (${churn.dependentsMaturedLast10Years}/10y) · aged ${churn.adultsAgedThisYear} (${churn.adultsAgedLast10Years}/10y)`}
       />
       <Detail
-        label="death causes this year"
+        label="death attributions this year (overlap; do not sum)"
         value={`elder ${churn.elderDeathsThisYear} · dependent ${churn.dependentDeathsThisYear} · adult ${churn.adultDeathsThisYear} · crisis ${churn.crisisDeathsThisYear} · water ${churn.waterStressDeathsThisYear} · food ${churn.starvationDeathsThisYear} · migration ${churn.migrationHardshipDeathsThisYear}`}
       />
       <Detail
-        label="death causes last 10 years"
+        label="death attributions last 10 years (overlap; do not sum)"
         value={`elder ${churn.elderDeathsLast10Years} · dependent ${churn.dependentDeathsLast10Years} · adult ${churn.adultDeathsLast10Years} · crisis ${churn.crisisDeathsLast10Years} · water ${churn.waterStressDeathsLast10Years} · food ${churn.starvationDeathsLast10Years} · migration ${churn.migrationHardshipDeathsLast10Years}`}
       />
-      <Detail label="demographic outlook" value={churn.demographicOutlook} />
+      <Detail label="demographic renewal" value={renewal.label} />
+      <Detail label="renewal evidence" value={renewal.summary} />
+      <Detail label="renewal limitation" value={renewal.limitations[0]} />
       <Detail
         label="stable hides churn"
         value={churn.stablePopulationHidesChurn ? `yes: births ${churn.birthsLast10Years} / deaths ${churn.deathsLast10Years}` : "no"}

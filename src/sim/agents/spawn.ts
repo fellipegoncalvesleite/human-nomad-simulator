@@ -25,6 +25,11 @@ import { getNeighborTiles, getTile } from "../world/generate";
 import { hashSeedString } from "../core/seededVariation";
 import { getDepletionAdjustedRichness } from "../world/depletion";
 import type { Tile, WorldState } from "../world/types";
+import {
+  deriveCurrentLivingEcologyProjection,
+  deriveCurrentLivingEcologyTile,
+  type CurrentLivingEcologyTileProjection,
+} from "../world/ecologicalProjection";
 
 interface SpawnProfile {
   readonly role: InitialSpawnProfileRole;
@@ -50,12 +55,13 @@ const INITIAL_SPAWN_PROFILES: readonly SpawnProfile[] = [
     subsistenceModes: ["foraging", "aquatic"],
     technologies: ["basic_foraging", "fishing", "basketry", "drying_smoking"],
     criteria: ["aquatic_resources", "coastal_access", "manageable_risk"],
-    scoreTile: (_world, tile) =>
-      scoreSpawnSite({
+    scoreTile: (world, tile) => {
+      const ecology = getPhysicalSpawnEcology(world, tile);
+      return scoreSpawnSite({
         tile,
-        foodValue: tile.resourceProfile.baseRichness * 0.65,
-        waterValue: tile.resourceProfile.waterAccess,
-        aquaticValue: tile.resourceProfile.aquaticPotential,
+        foodValue: ecology.foodSupportScalar,
+        waterValue: ecology.water,
+        aquaticValue: ecology.aquatic,
         movementCostPenalty: movementPenalty(tile),
         riskPenalty: moderateRiskPenalty(tile.riskProfile.floodRisk, 0.58) +
           moderateRiskPenalty(tile.riskProfile.diseaseRisk, 0.46),
@@ -74,7 +80,8 @@ const INITIAL_SPAWN_PROFILES: readonly SpawnProfile[] = [
           terrain: 1.25,
           profile: 1.45,
         },
-      }),
+      });
+    },
   },
   {
     role: "river_valley_foragers",
@@ -91,12 +98,13 @@ const INITIAL_SPAWN_PROFILES: readonly SpawnProfile[] = [
       "wild_grain_potential",
       "low_movement_cost",
     ],
-    scoreTile: (_world, tile) =>
-      scoreSpawnSite({
+    scoreTile: (world, tile) => {
+      const ecology = getPhysicalSpawnEcology(world, tile);
+      return scoreSpawnSite({
         tile,
-        foodValue: tile.resourceProfile.baseRichness,
-        waterValue: tile.resourceProfile.waterAccess,
-        aquaticValue: tile.resourceProfile.aquaticPotential * 0.36,
+        foodValue: ecology.foodSupportScalar,
+        waterValue: ecology.water,
+        aquaticValue: ecology.aquatic * 0.36,
         movementCostPenalty: movementPenalty(tile),
         riskPenalty: tile.riskProfile.droughtRisk * 0.42 + tile.riskProfile.floodRisk * 0.22,
         terrainMatch: terrainMatch(tile, ["river_valley", "plains", "forest"]),
@@ -114,7 +122,8 @@ const INITIAL_SPAWN_PROFILES: readonly SpawnProfile[] = [
           terrain: 1.1,
           profile: 1.55,
         },
-      }),
+      });
+    },
   },
   {
     role: "lake_wetland_foragers",
@@ -126,12 +135,13 @@ const INITIAL_SPAWN_PROFILES: readonly SpawnProfile[] = [
     subsistenceModes: ["foraging", "aquatic", "wild_grain_collection"],
     technologies: ["basic_foraging", "fishing", "basic_storage", "basketry"],
     criteria: ["lake_wetland", "seasonal_abundance", "aquatic_resources"],
-    scoreTile: (_world, tile) =>
-      scoreSpawnSite({
+    scoreTile: (world, tile) => {
+      const ecology = getPhysicalSpawnEcology(world, tile);
+      return scoreSpawnSite({
         tile,
-        foodValue: tile.resourceProfile.baseRichness * 0.8,
-        waterValue: tile.resourceProfile.waterAccess,
-        aquaticValue: tile.resourceProfile.aquaticPotential,
+        foodValue: ecology.foodSupportScalar,
+        waterValue: ecology.water,
+        aquaticValue: ecology.aquatic,
         movementCostPenalty: movementPenalty(tile),
         riskPenalty: tile.riskProfile.floodRisk * 0.46 + tile.riskProfile.diseaseRisk * 0.32,
         terrainMatch: terrainMatch(tile, ["wetlands", "river_valley", "plains"]),
@@ -149,7 +159,8 @@ const INITIAL_SPAWN_PROFILES: readonly SpawnProfile[] = [
           terrain: 1,
           profile: 1.65,
         },
-      }),
+      });
+    },
   },
   {
     role: "highland_edge_foragers",
@@ -161,12 +172,13 @@ const INITIAL_SPAWN_PROFILES: readonly SpawnProfile[] = [
     subsistenceModes: ["foraging", "wild_grain_collection"],
     technologies: ["basic_foraging", "basketry"],
     criteria: ["mountain_edge", "pass_corridor", "low_movement_cost"],
-    scoreTile: (_world, tile) =>
-      scoreSpawnSite({
+    scoreTile: (world, tile) => {
+      const ecology = getPhysicalSpawnEcology(world, tile);
+      return scoreSpawnSite({
         tile,
-        foodValue: tile.resourceProfile.baseRichness * 0.72,
-        waterValue: tile.resourceProfile.waterAccess * 0.7,
-        aquaticValue: tile.resourceProfile.aquaticPotential * 0.1,
+        foodValue: ecology.foodSupportScalar,
+        waterValue: ecology.water * 0.7,
+        aquaticValue: ecology.aquatic * 0.1,
         movementCostPenalty: movementPenalty(tile),
         riskPenalty: tile.riskProfile.droughtRisk * 0.34 + mountainPenalty(tile),
         terrainMatch: terrainMatch(tile, ["hills", "plains", "river_valley"]),
@@ -184,7 +196,8 @@ const INITIAL_SPAWN_PROFILES: readonly SpawnProfile[] = [
           terrain: 1.05,
           profile: 1.75,
         },
-      }),
+      });
+    },
   },
   {
     role: "dry_margin_foragers",
@@ -198,12 +211,13 @@ const INITIAL_SPAWN_PROFILES: readonly SpawnProfile[] = [
     criteria: ["dry_margin_access", "manageable_risk", "low_movement_cost"],
     scoreTile: (world, tile) => {
       const nearbyOpportunity = getNearbyOpportunityValue(world, tile);
+      const ecology = getPhysicalSpawnEcology(world, tile);
 
       return scoreSpawnSite({
         tile,
-        foodValue: tile.resourceProfile.baseRichness * 0.54 + nearbyOpportunity * 0.36,
-        waterValue: tile.resourceProfile.waterAccess,
-        aquaticValue: tile.resourceProfile.aquaticPotential * 0.12,
+        foodValue: ecology.foodSupportScalar * 0.64 + nearbyOpportunity * 0.36,
+        waterValue: ecology.water,
+        aquaticValue: ecology.aquatic * 0.12,
         movementCostPenalty: movementPenalty(tile),
         riskPenalty: deepDryPenalty(tile) + tile.riskProfile.diseaseRisk * 0.12,
         terrainMatch: terrainMatch(tile, ["desert", "plains", "hills"]),
@@ -264,8 +278,7 @@ export type InitialBandPlacementInvalidReason =
   | "impassable_water"
   | "forbidden_terrain"
   | "too_costly"
-  | "occupied_start_tile"
-  | "insufficient_local_support";
+  | "occupied_start_tile";
 
 export type InitialBandPlacementValidation =
   | {
@@ -285,7 +298,51 @@ interface KnownTileWithDistance {
   readonly distance: number;
 }
 
-const INITIAL_PLACEMENT_MIN_SCORE = 0.05;
+export interface PlacementEcologyPreview {
+  readonly tileId: TileId;
+  readonly classification: "high_support" | "moderate_viable" | "marginal" | "nonviable";
+  readonly currentSupport: number;
+  readonly plant: number;
+  readonly terrestrialFauna: number;
+  readonly aquatic: number;
+  readonly water: number;
+  readonly accessibility: number;
+  readonly warning?: string;
+  readonly exactCreatorKnowledge: true;
+  readonly feedsHumanNutrition: false;
+}
+
+export function derivePlacementEcologyPreview(world: WorldState, tileId: TileId): PlacementEcologyPreview | undefined {
+  const tile = getTile(world, tileId);
+  if (tile === undefined) return undefined;
+  const ecology = getPhysicalSpawnEcology(world, tile);
+  const currentSupport = ecology.ecologicalSupportScalar;
+  const classification = ecology.water < 0.08 || currentSupport < 0.08
+    ? "nonviable"
+    : currentSupport < 0.2 || ecology.accessibility < 0.35
+      ? "marginal"
+      : currentSupport < 0.45
+        ? "moderate_viable"
+        : "high_support";
+  const warning = classification === "nonviable"
+    ? "No plausible current local support; extinction or immediate relocation is likely."
+    : classification === "marginal"
+      ? "Marginal current support; season, knowledge, labor, and movement will decide survival."
+      : undefined;
+  return {
+    tileId,
+    classification,
+    currentSupport,
+    plant: ecology.plant,
+    terrestrialFauna: ecology.terrestrialFauna,
+    aquatic: ecology.aquatic,
+    water: ecology.water,
+    accessibility: ecology.accessibility,
+    ...(warning === undefined ? {} : { warning }),
+    exactCreatorKnowledge: true,
+    feedsHumanNutrition: false,
+  };
+}
 
 export function spawnInitialBands(world: WorldState): WorldState {
   const selectedCandidates: SpawnCandidate[] = [];
@@ -451,10 +508,10 @@ export function validateInitialBandPlacement(
     return { valid: false, bandId, tileId, reason: invalidReason };
   }
 
-  if (profile.scoreTile(world, tile).finalScore < INITIAL_PLACEMENT_MIN_SCORE) {
-    return { valid: false, bandId, tileId, reason: "insufficient_local_support" };
-  }
-
+  // Setup placement is an editor action, not a survival guarantee.  Physically
+  // poor land remains selectable and is reported through
+  // derivePlacementEcologyPreview instead of being silently rejected by the
+  // obsolete static richness score.
   return { valid: true, bandId, tileId };
 }
 
@@ -985,7 +1042,7 @@ function createInitialKnowledgeState(
     knownBands: [],
     knownSettlements: [],
     knownRoutes: [],
-    placeAttachments: [createInitialPlaceAttachment(currentTile)],
+    placeAttachments: [createInitialPlaceAttachment(world, currentTile)],
     tileObservationHistory,
     rumors: [],
   };
@@ -1058,11 +1115,16 @@ function collectKnownTiles(world: WorldState, currentTile: Tile): readonly Known
   );
 }
 
-function createInitialPlaceAttachment(tile: Tile): PlaceAttachment {
+function createInitialPlaceAttachment(world: WorldState, tile: Tile): PlaceAttachment {
+  const ecology = getPhysicalSpawnEcology(world, tile);
   return {
     tileId: tile.id,
     seasonsKnown: 1,
-    practicalWeight: clamp01(tile.resourceProfile.baseRichness * 0.46 + tile.resourceProfile.waterAccess * 0.38),
+    practicalWeight: clamp01(
+      ecology.ecologicalSupportScalar * 0.58 +
+        ecology.water * 0.28 +
+        ecology.accessibility * 0.14,
+    ),
     ritualOrSymbolicWeight: 0,
     burialOrAncestorWeight: 0,
     claimStrength: 0.12,
@@ -1172,14 +1234,20 @@ function getNearbyOpportunityValue(world: WorldState, tile: Tile): number {
       continue;
     }
 
-    bestValue = Math.max(
-      bestValue,
-      knownTile.tile.resourceProfile.baseRichness * 0.58 +
-        knownTile.tile.resourceProfile.waterAccess * 0.42,
-    );
+    const ecology = getPhysicalSpawnEcology(world, knownTile.tile);
+    bestValue = Math.max(bestValue, ecology.ecologicalSupportScalar);
   }
 
   return clamp01(bestValue);
+}
+
+function getPhysicalSpawnEcology(world: WorldState, tile: Tile): CurrentLivingEcologyTileProjection {
+  const projected = deriveCurrentLivingEcologyProjection(world).tiles[tile.id] ??
+    deriveCurrentLivingEcologyTile(world, tile.id);
+  if (projected === undefined) {
+    throw new Error(`ecological projection missing spawn tile ${String(tile.id)}`);
+  }
+  return projected;
 }
 
 function getObservedRisk(tile: Tile): number {

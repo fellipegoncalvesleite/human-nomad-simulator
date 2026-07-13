@@ -111,8 +111,8 @@ function buildPressureResult(
   pressureBandIds: readonly BandId[],
   nearbyBandCount: number,
 ): NearbyBandPressure {
-  const productivityBuffer = getProductivityBuffer(tile);
-  const aridityAmplifier = clamp01(0.82 + tile.riskProfile.droughtRisk * 0.42 - productivityBuffer * 0.28);
+  const spatialCapacityBuffer = getSpatialCapacityBuffer(tile);
+  const aridityAmplifier = clamp01(0.82 + tile.riskProfile.droughtRisk * 0.42 - spatialCapacityBuffer * 0.28);
 
   return {
     tileId: tile.id,
@@ -487,12 +487,12 @@ export function getCrowdingPenalty(
   tile: Tile,
   nearby: NearbyBandPressure,
 ): number {
-  const productivityBuffer = getProductivityBuffer(tile);
+  const spatialCapacityBuffer = getSpatialCapacityBuffer(tile);
   const dryAmplifier = clamp01(0.72 + tile.riskProfile.droughtRisk * 0.46);
 
   return round2(
     clamp01(
-      nearby.weightedCrowding * dryAmplifier * (1 - productivityBuffer * 0.48),
+      nearby.weightedCrowding * dryAmplifier * (1 - spatialCapacityBuffer * 0.48),
     ),
   );
 }
@@ -685,13 +685,14 @@ function isKinOverlap(band: Band, otherBand: Band): boolean {
   );
 }
 
-function getProductivityBuffer(tile: Tile): number {
+function getSpatialCapacityBuffer(tile: Tile): number {
+  // Crowding may reflect water, passability, and physical room, but static food
+  // richness must not make a depleted camp behave as though it still has food.
   return clamp01(
-    tile.resourceProfile.baseRichness * 0.34 +
-      tile.resourceProfile.waterAccess * 0.24 +
-      tile.resourceProfile.aquaticPotential * 0.24 +
-      (tile.isCoastal || tile.terrainKind === "wetlands" ? 0.12 : 0) +
-      (tile.isFloodplain || tile.isRiverbank ? 0.1 : 0),
+    tile.resourceProfile.waterAccess * 0.44 +
+      clamp01(1 - Math.max(0, tile.movementCost - 1) / 2.5) * 0.28 +
+      (tile.terrainKind === "plains" || tile.terrainKind === "river_valley" ? 0.16 : 0) +
+      (tile.isFloodplain || tile.isRiverbank ? 0.12 : 0),
   );
 }
 

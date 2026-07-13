@@ -438,17 +438,17 @@ function computeSalientBandMemorySummary(
   const knownRecords = Object.values(band.knowledge.observedTiles);
   const knownFrontierTileIds = knownRecords
     .filter((record) => isKnownFrontierRecord(world, band, record.tileId))
-    .sort((left, right) => compareKnownTileRecordOpportunity(world, left.tileId, right.tileId))
+    .sort(compareKnownTileRecordOpportunity)
     .slice(0, MAX_FRONTIER_CANDIDATES)
     .map((record) => record.tileId);
   const knownOpportunityCandidateIds = knownRecords
     .filter((record) => isKnownOpportunityRecord(world, band, record.tileId))
-    .sort((left, right) => compareKnownTileRecordOpportunity(world, left.tileId, right.tileId))
+    .sort(compareKnownTileRecordOpportunity)
     .slice(0, MAX_OPPORTUNITY_CANDIDATES)
     .map((record) => record.tileId);
   const salientInheritedMemoryIds = knownRecords
     .filter((record) => record.knowledgeSource !== "personally_observed" && record.confidence > 0.22)
-    .sort((left, right) => compareKnownTileRecordOpportunity(world, left.tileId, right.tileId))
+    .sort(compareKnownTileRecordOpportunity)
     .slice(0, MAX_SALIENT_PLACES)
     .map((record) => record.tileId);
 
@@ -509,29 +509,25 @@ function comparePlaceMemoryImportance(
 }
 
 function compareKnownTileRecordOpportunity(
-  world: WorldState,
-  leftTileId: TileId,
-  rightTileId: TileId,
+  left: Band["knowledge"]["observedTiles"][TileId],
+  right: Band["knowledge"]["observedTiles"][TileId],
 ): number {
-  const leftTile = getTile(world, leftTileId);
-  const rightTile = getTile(world, rightTileId);
-  const leftScore = leftTile === undefined ? 0 : getTileOpportunityValue(leftTile);
-  const rightScore = rightTile === undefined ? 0 : getTileOpportunityValue(rightTile);
+  const leftScore = getRememberedOpportunityValue(left);
+  const rightScore = getRememberedOpportunityValue(right);
 
   return rightScore === leftScore
-    ? String(leftTileId).localeCompare(String(rightTileId))
+    ? String(left.tileId).localeCompare(String(right.tileId))
     : rightScore - leftScore;
 }
 
-function getTileOpportunityValue(tile: NonNullable<ReturnType<typeof getTile>>): number {
+function getRememberedOpportunityValue(record: Band["knowledge"]["observedTiles"][TileId]): number {
   return (
-    tile.resourceProfile.baseRichness * 0.34 +
-    tile.resourceProfile.waterAccess * 0.26 +
-    tile.resourceProfile.aquaticPotential * 0.16 +
-    tile.seasonalProfile.reliability * 0.12 +
-    (tile.isRiverbank || tile.isFloodplain || tile.isCoastal ? 0.08 : 0) -
-    tile.riskProfile.droughtRisk * 0.06 -
-    tile.riskProfile.diseaseRisk * 0.04
+    record.observedRichness * 0.36 +
+    (record.observedWaterAccess ?? 0) * 0.28 +
+    record.observedAquaticPotential * 0.16 +
+    (record.observedSeasonalPattern?.reliability ?? 0) * 0.1 +
+    record.confidence * 0.1 -
+    (record.observedRisk ?? 0) * 0.12
   );
 }
 

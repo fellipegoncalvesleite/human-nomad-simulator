@@ -1123,16 +1123,22 @@ function getSortedTileNeighborIds(tile: Tile): readonly TileId[] {
 }
 
 function supportAdequacy(tile: Tile, record: { readonly observedRichness: number; readonly observedAquaticPotential: number; readonly confidence: number } | undefined): number {
-  const richness = record?.observedRichness ?? tile.resourceProfile.baseRichness;
-  const aquatic = record?.observedAquaticPotential ?? tile.resourceProfile.aquaticPotential;
-  const confidence = record?.confidence ?? 0.32;
+  // A missing memory is unknown, not permission to read habitat truth.  The
+  // tile parameter remains for the common scoring signature but support comes
+  // exclusively from this band's observation record.
+  void tile;
+  const richness = record?.observedRichness ?? 0;
+  const aquatic = record?.observedAquaticPotential ?? 0;
+  const confidence = record?.confidence ?? 0;
   return clamp01(richness * 0.58 + aquatic * 0.18 + confidence * 0.12);
 }
 
 function waterRefugeAdequacy(tile: Tile, record: { readonly observedWaterAccess?: number; readonly confidence: number } | undefined): number {
-  const water = record?.observedWaterAccess ?? tile.resourceProfile.waterAccess;
-  const landWaterBonus = tile.isRiverbank || tile.isFloodplain || tile.isMarshChannel || tile.terrainKind === "wetlands" ? 0.08 : 0;
-  return clamp01(water * 0.86 + landWaterBonus + (record?.confidence ?? 0.32) * 0.04);
+  const water = record?.observedWaterAccess ?? 0;
+  const observedLandWaterBonus = record === undefined
+    ? 0
+    : tile.isRiverbank || tile.isFloodplain || tile.isMarshChannel || tile.terrainKind === "wetlands" ? 0.08 : 0;
+  return clamp01(water * 0.86 + observedLandWaterBonus + (record?.confidence ?? 0) * 0.04);
 }
 
 function nonFoodCampPressure(band: Band, signals: CampMovementSignals): number {
@@ -1247,8 +1253,8 @@ function scoreLocalShiftTile(band: Band, current: Tile, tile: Tile): LocalTarget
   const currentRecord = band.knowledge.observedTiles[current.id];
   const currentUse = localUsePressure(band, current.id);
   const targetUse = localUsePressure(band, tile.id);
-  const foodGain = (record.observedRichness ?? tile.resourceProfile.baseRichness) - (currentRecord?.observedRichness ?? current.resourceProfile.baseRichness);
-  const waterGain = (record.observedWaterAccess ?? tile.resourceProfile.waterAccess) - (currentRecord?.observedWaterAccess ?? current.resourceProfile.waterAccess);
+  const foodGain = record.observedRichness - (currentRecord?.observedRichness ?? 0);
+  const waterGain = (record.observedWaterAccess ?? 0) - (currentRecord?.observedWaterAccess ?? 0);
   const pressureRelief = currentUse - targetUse;
   const placeMemory = band.placeMemory[tile.id];
   const score = clamp01(foodGain * 0.32 + waterGain * 0.34 + pressureRelief * 0.28 + (placeMemory?.confidence ?? 0) * 0.1);

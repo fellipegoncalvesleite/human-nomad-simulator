@@ -21,7 +21,11 @@ import type {
   SetupPlacementPreview,
 } from "../render/canvasRenderer";
 import { useSimulationStore } from "../store";
-import { validateInitialBandPlacement } from "../sim/agents/spawn";
+import {
+  derivePlacementEcologyPreview,
+  validateAddedBandPlacement,
+  validateInitialBandPlacement,
+} from "../sim/agents/spawn";
 import type { TerrainPaintKind } from "../sim/runner/simRunner";
 import type { BandId, Coord, TileId } from "../sim/core/types";
 
@@ -30,8 +34,9 @@ const MAP_VIEW_MODES: readonly {
   readonly label: string;
 }[] = [
   { mode: "terrain", label: "Terrain" },
-  { mode: "richness", label: "Richness" },
-  { mode: "seasonal_food", label: "Seasonal Food" },
+  { mode: "habitat_potential", label: "Habitat Potential" },
+  { mode: "living_ecology", label: "Living Ecology · Technical" },
+  { mode: "known_opportunity", label: "Known Opportunity" },
   { mode: "water", label: "Water" },
   { mode: "elevation", label: "Elevation" },
   { mode: "movement", label: "Movement Cost" },
@@ -106,6 +111,7 @@ export function WorldCanvas({
   const strokeTilesRef = useRef<Map<string, Coord>>(new Map());
   mapEditorRef.current = mapEditor;
   const [setupDragActive, setSetupDragActive] = useState(false);
+  const [placementEcologyMessage, setPlacementEcologyMessage] = useState<string | null>(null);
   const wheelPointRef = useRef<{
     readonly point: { readonly x: number; readonly y: number };
     readonly viewport: { readonly width: number; readonly height: number };
@@ -121,6 +127,7 @@ export function WorldCanvas({
   // for the "bands move once every few ticks" jerkiness — the data was always
   // per-tick correct; React batching of rapid overlays was dropping frames).
   const mapViewMode = useSimulationStore((state) => state.mapViewMode);
+  const selectedBandId = useSimulationStore((state) => state.selectedBandId);
   const showGrid = useSimulationStore((state) => state.showGrid);
   const showRivers = useSimulationStore((state) => state.showRivers);
   const showLegend = useSimulationStore((state) => state.showLegend);
@@ -473,13 +480,25 @@ export function WorldCanvas({
         event.clientX,
         event.clientY,
       ) ?? null;
-    const validation = validateInitialBandPlacement(world, drag.bandId, tileId);
+    const isCustomBand = /^band:custom:\d+$/.test(String(drag.bandId));
+    const validation = isCustomBand
+      ? validateAddedBandPlacement(
+          { ...world, bands: Object.fromEntries(Object.entries(world.bands).filter(([id]) => id !== String(drag.bandId))) },
+          tileId,
+        )
+      : validateInitialBandPlacement(world, drag.bandId, tileId);
     const preview: SetupPlacementPreview = {
       bandId: drag.bandId,
       tileId,
       valid: validation.valid,
       reason: validation.valid ? undefined : validation.reason,
     };
+    const ecology = tileId === null ? undefined : derivePlacementEcologyPreview(world, tileId);
+    setPlacementEcologyMessage(
+      ecology === undefined
+        ? null
+        : `${ecology.classification.replace(/_/g, " ")} · support ${ecology.currentSupport.toFixed(2)} · water ${ecology.water.toFixed(2)}${ecology.warning === undefined ? "" : ` — ${ecology.warning}`}`,
+    );
 
     setupPlacementPreviewRef.current = preview;
     latestSnapshotRef.current = {
@@ -537,6 +556,7 @@ export function WorldCanvas({
     }
 
     setupPlacementPreviewRef.current = null;
+    setPlacementEcologyMessage(null);
     latestSnapshotRef.current = {
       ...latestSnapshotRef.current,
       setupPlacementPreview: null,
@@ -871,7 +891,8 @@ export function WorldCanvas({
 
         {setupPlacementEnabled ? (
           <div className="setup-placement-hint" aria-live="polite">
-            Setup mode: drag starting band before running.
+            Setup mode: drag any starting band before running.
+            {placementEcologyMessage === null ? null : <span> {placementEcologyMessage}</span>}
           </div>
         ) : null}
 
@@ -883,11 +904,32 @@ export function WorldCanvas({
                 type="button"
                 aria-pressed={mapViewMode === item.mode}
                 className={mapViewMode === item.mode ? "active" : undefined}
+                disabled={item.mode === "known_opportunity" && selectedBandId === null}
+                title={
+                  item.mode === "living_ecology"
+                    ? "Exact current physical ecology — Technical/debug world truth"
+                    : item.mode === "known_opportunity"
+                      ? "Only the selected band's observations and memories; unknown ground stays unknown"
+                      : item.mode === "habitat_potential"
+                        ? "Slow substrate potential — not current food availability"
+                        : undefined
+                }
                 onClick={() => setMapViewMode(item.mode)}
               >
                 {item.label}
               </button>
             ))}
+          </div>
+          <div className="map-layer-note" aria-live="polite">
+            {mapViewMode === "habitat_potential"
+              ? "Potential substrate only — this layer does not show current food."
+              : mapViewMode === "living_ecology"
+                ? "Technical world truth — exact physical patches and stocks; projection only."
+                : mapViewMode === "known_opportunity"
+                  ? selectedBandId === null
+                    ? "Select a living band to see its knowledge-bounded opportunity map."
+                    : "Selected-band belief — approximate, uncertain, and allowed to be stale or wrong."
+                  : ""}
           </div>
           <div className="map-controls">
             <div className="map-toggles" aria-label="Map overlays">

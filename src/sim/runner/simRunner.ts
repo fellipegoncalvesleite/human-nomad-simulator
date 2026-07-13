@@ -13,8 +13,8 @@ import {
   spawnVariedMigrationBands,
 } from "../agents/spawn";
 import type { AddedBandSpec } from "../agents/spawn";
-export { validateAddedBandPlacement, validateInitialBandPlacement, addedBandId } from "../agents/spawn";
-export type { AddedBandSpec, AddedBandKnowledgePreset, InitialBandPlacementValidation } from "../agents/spawn";
+export { derivePlacementEcologyPreview, validateAddedBandPlacement, validateInitialBandPlacement, addedBandId } from "../agents/spawn";
+export type { AddedBandSpec, AddedBandKnowledgePreset, InitialBandPlacementValidation, PlacementEcologyPreview } from "../agents/spawn";
 import { hashSeedString } from "../core/seededVariation";
 import { summarizeWorldEcology } from "../agents/ecologySummary";
 import type { WorldEcologySummary } from "../agents/ecologySummary";
@@ -174,6 +174,8 @@ export interface SimDynamicSnapshot {
   readonly currentClimateStress: WorldState["currentClimateStress"];
   readonly tileDepletion: WorldState["tileDepletion"];
   readonly faunaStocks: WorldState["faunaStocks"];
+  readonly plantPatchState: WorldState["plantPatchState"];
+  readonly forestPatchState: WorldState["forestPatchState"];
   // SIM-TOOLS-1 — tiny world-TRUTH ecology aggregate for the explicitly-labelled
   // DEBUG ecology view only (never used by the selected-band view, which derives
   // from band knowledge). Bounded to a few dozen numbers, so it rides the snapshot
@@ -190,6 +192,8 @@ export function takeDynamicSnapshot(world: WorldState): SimDynamicSnapshot {
     currentClimateStress: world.currentClimateStress,
     tileDepletion: world.tileDepletion,
     faunaStocks: world.faunaStocks,
+    plantPatchState: world.plantPatchState,
+    forestPatchState: world.forestPatchState,
     ecologySummary: summarizeWorldEcology(world),
   };
 }
@@ -207,6 +211,8 @@ export function mergeDynamicSnapshot(
     currentClimateStress: snapshot.currentClimateStress,
     tileDepletion: snapshot.tileDepletion,
     faunaStocks: snapshot.faunaStocks,
+    plantPatchState: snapshot.plantPatchState,
+    forestPatchState: snapshot.forestPatchState,
   };
 }
 

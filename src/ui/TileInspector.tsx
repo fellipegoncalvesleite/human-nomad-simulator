@@ -8,10 +8,17 @@ import {
 import { getSeasonalTileConditions } from "../sim/world/seasonal";
 import type { SeasonalTileConditions } from "../sim/world/seasonal";
 import type { Tile, WorldState } from "../sim/world/types";
+import type { BandId } from "../sim/core/types";
+import {
+  deriveBandPerceivedEcologicalTile,
+  deriveCurrentLivingEcologyTile,
+  deriveHabitatPotentialTile,
+} from "../sim/world/ecologicalProjection";
 
 export function TileInspector() {
   const world = useSimulationStore((state) => state.world);
   const selectedTileId = useSimulationStore((state) => state.selectedTileId);
+  const selectedBandId = useSimulationStore((state) => state.selectedBandId);
   const selectedTile =
     world !== null && selectedTileId !== null ? getTile(world, selectedTileId) : undefined;
   const seasonalConditions =
@@ -25,7 +32,12 @@ export function TileInspector() {
       {selectedTile === undefined ? (
         <p className="empty-panel">Click a tile to inspect it.</p>
       ) : (
-        <TileDetails world={world} tile={selectedTile} seasonalConditions={seasonalConditions} />
+        <TileDetails
+          world={world}
+          tile={selectedTile}
+          selectedBandId={selectedBandId}
+          seasonalConditions={seasonalConditions}
+        />
       )}
     </aside>
   );
@@ -34,12 +46,20 @@ export function TileInspector() {
 function TileDetails({
   world,
   tile,
+  selectedBandId,
   seasonalConditions,
 }: {
   readonly world: WorldState | null;
   readonly tile: Tile;
+  readonly selectedBandId: BandId | null;
   readonly seasonalConditions: SeasonalTileConditions | undefined;
 }) {
+  const habitat = deriveHabitatPotentialTile(tile);
+  const current = world === null ? undefined : deriveCurrentLivingEcologyTile(world, tile.id);
+  const selectedBand = world === null || selectedBandId === null ? undefined : world.bands[selectedBandId];
+  const perceived = world === null || selectedBand === undefined
+    ? undefined
+    : deriveBandPerceivedEcologicalTile(selectedBand, tile.id, world.time);
   const booleans = [
     tile.isRiver ? "river" : "not river",
     tile.isCoastal ? "coastal" : "not coastal",
@@ -53,7 +73,7 @@ function TileDetails({
       <Detail label="coord" value={`${tile.coord.x}, ${tile.coord.y}`} />
       <Detail label="regionId" value={String(tile.regionId)} />
       <Detail label="terrainKind" value={tile.terrainKind} />
-      <Detail label="baseRichness" value={formatNumber(tile.resourceProfile.baseRichness)} />
+      <Detail label="base habitat richness" value={formatNumber(tile.resourceProfile.baseRichness)} />
       <Detail label="waterAccess" value={formatNumber(tile.resourceProfile.waterAccess)} />
       <Detail
         label="aquaticPotential"
@@ -92,14 +112,42 @@ function TileDetails({
         ].filter((value): value is string => value !== undefined).join(" / ") || "none"}
       />
       <Detail label="neighbors" value={String(tile.neighbors.length)} />
+      <div className="tile-detail-heading">Habitat potential · substrate</div>
+      <Detail label="potential support" value={formatNumber(habitat.ecologicalSupportScalar)} />
+      <Detail label="plant potential" value={formatNumber(habitat.plant)} />
+      <Detail label="terrestrial fauna potential" value={formatNumber(habitat.terrestrialFauna)} />
+      <Detail label="aquatic potential" value={formatNumber(habitat.aquatic)} />
+      <Detail label="accessibility" value={formatNumber(habitat.accessibility)} />
+      <Detail label="meaning" value="what this habitat could support; not food available now" />
+      {current === undefined ? null : (
+        <>
+          <div className="tile-detail-heading">Living ecology · Technical world truth</div>
+          <Detail label="current physical support" value={formatNumber(current.ecologicalSupportScalar)} />
+          <Detail label="plant / fauna / aquatic" value={`${formatNumber(current.plant)} / ${formatNumber(current.terrestrialFauna)} / ${formatNumber(current.aquatic)}`} />
+          <Detail label="physical sources" value={`${current.plantPatchCount} plant · ${current.terrestrialFaunaStockCount} fauna · ${current.aquaticStockCount} aquatic`} />
+          <Detail label="depletion / recovery" value={`${formatNumber(current.depletion)} / ${formatNumber(current.recoverySignal)}`} />
+          <Detail label="trophic condition / predator pressure" value={`${formatNumber(current.trophicCondition)} / ${formatNumber(current.predatorPressure)}`} />
+          <Detail label="authority" value="read-only projection; never feeds nutrition" />
+        </>
+      )}
+      <div className="tile-detail-heading">Known opportunity · selected band</div>
+      {selectedBand === undefined ? (
+        <Detail label="perception" value="select a band; no omniscient fallback" />
+      ) : perceived?.known !== true ? (
+        <Detail label="perception" value={`${selectedBand.name} has no evidence for this tile`} />
+      ) : (
+        <>
+          <Detail label="band" value={selectedBand.name} />
+          <Detail label="remembered opportunity" value={formatNumber(perceived.ecologicalSupportScalar)} />
+          <Detail label="plant / fauna / aquatic" value={`${formatNumber(perceived.plant)} / ${formatNumber(perceived.terrestrialFauna)} / ${formatNumber(perceived.aquatic)}`} />
+          <Detail label="confidence / uncertainty" value={`${formatNumber(perceived.confidence)} / ${formatNumber(perceived.uncertainty)}`} />
+          <Detail label="staleness" value={`${perceived.staleness}${perceived.ageTicks === null ? "" : ` · ${perceived.ageTicks} seasonal ticks`}`} />
+        </>
+      )}
       <RiverDetails world={world} tile={tile} />
       {seasonalConditions === undefined ? null : (
         <>
-          <div className="tile-detail-heading">Current season</div>
-          <Detail
-            label="currentFoodEstimate"
-            value={formatNumber(seasonalConditions.currentFoodEstimate)}
-          />
+          <div className="tile-detail-heading">Current seasonal conditions</div>
           <Detail
             label="currentWaterStress"
             value={formatNumber(seasonalConditions.currentWaterStress)}

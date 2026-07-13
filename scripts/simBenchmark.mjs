@@ -1527,6 +1527,7 @@ async function main() {
       spawnVariedMigrationBands: (await server.ssrLoadModule("/sim/agents/spawn.ts")).spawnVariedMigrationBands,
       spawnSingleOriginBand: (await server.ssrLoadModule("/sim/agents/spawn.ts")).spawnSingleOriginBand,
       validateInitialBandPlacement: (await server.ssrLoadModule("/sim/agents/spawn.ts")).validateInitialBandPlacement,
+      derivePlacementEcologyPreview: (await server.ssrLoadModule("/sim/agents/spawn.ts")).derivePlacementEcologyPreview,
       applyInitialBandPlacements: (await server.ssrLoadModule("/sim/agents/spawn.ts")).applyInitialBandPlacements,
       spawnCustomBands: (await server.ssrLoadModule("/sim/agents/spawn.ts")).spawnCustomBands,
       removeInitialBands: (await server.ssrLoadModule("/sim/agents/spawn.ts")).removeInitialBands,
@@ -34985,6 +34986,7 @@ function runTargetedInitialPlacementAudit(modules) {
   const validTile = findInitialPlacementTile(modules, defaultWorld, firstBand.id, firstBand.position);
   const invalidWaterTile = Object.values(defaultWorld.tiles).find((tile) => tile.isAquatic === true);
   const validCheck = modules.validateInitialBandPlacement(defaultWorld, firstBand.id, validTile.id);
+  const ecologicalPreview = modules.derivePlacementEcologyPreview(defaultWorld, validTile.id);
   const invalidCheck = modules.validateInitialBandPlacement(defaultWorld, firstBand.id, invalidWaterTile?.id ?? null);
   const movedWorld = modules.initSimWorld(
     { kind: "map1", initialBandPlacements: [{ bandId: firstBand.id, tileId: validTile.id }] },
@@ -35038,6 +35040,8 @@ function runTargetedInitialPlacementAudit(modules) {
     deterministic &&
     noLiveTeleportAfterStart &&
     map2PlacementApplied &&
+    ecologicalPreview?.exactCreatorKnowledge === true &&
+    ecologicalPreview?.feedsHumanNutrition === false &&
     liveMarkerMatches
       ? "pass"
       : "review";
@@ -35063,6 +35067,17 @@ function runTargetedInitialPlacementAudit(modules) {
       validDropAccepted: validCheck.valid,
       invalidWaterRejected: invalidCheck.valid === false,
       invalidReason: invalidCheck.valid ? "none" : invalidCheck.reason,
+    },
+    ecologicalPreview: {
+      classification: ecologicalPreview?.classification,
+      currentSupport: ecologicalPreview?.currentSupport,
+      plant: ecologicalPreview?.plant,
+      terrestrialFauna: ecologicalPreview?.terrestrialFauna,
+      aquatic: ecologicalPreview?.aquatic,
+      water: ecologicalPreview?.water,
+      warning: ecologicalPreview?.warning,
+      creatorKnowledgeOnly: ecologicalPreview?.exactCreatorKnowledge === true,
+      feedsHumanNutrition: ecologicalPreview?.feedsHumanNutrition,
     },
     resetProof: {
       newOriginObserved: observedTileIds.includes(String(validTile.id)),
@@ -35091,7 +35106,8 @@ function runTargetedInitialPlacementAudit(modules) {
       liveMarkerMatches,
     },
     guards: {
-      noHiddenResourceReveal: "placement validation returns only valid/invalid and reason; no resource values are exposed",
+      normalBandKnowledgeUnaffected: "placement preview is setup-editor creator knowledge only; the spawned band still receives only its bounded initial observations",
+      projectionOnly: ecologicalPreview?.feedsHumanNutrition === false,
       noReportGeneratedAtStart: noInitialReports,
       noPostStartPlacement: noLiveTeleportAfterStart,
     },

@@ -5120,8 +5120,24 @@ input::placeholder {
 }
 
 .map-overlay .view-tabs,
+.map-overlay .map-layer-note,
 .map-overlay .map-controls > * {
   pointer-events: auto;
+}
+
+.map-layer-note {
+  max-width: 360px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--vellum) 94%, transparent);
+  color: var(--ink-muted);
+  font-size: 0.68rem;
+  line-height: 1.25;
+  padding: 5px 8px;
+}
+
+.map-layer-note:empty {
+  display: none;
 }
 
 .map-controls {

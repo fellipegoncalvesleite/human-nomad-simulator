@@ -93,10 +93,10 @@ export function updateBiomeAdaptation(input: {
     const biomeKind = getTileBiomeKind(tile);
     const existing = records[biomeKind];
     const isCurrentTile = tile.id === input.nextPosition;
-    const successValue = getObservedBiomeUseValue(tile);
     const useGain = isCurrentTile
       ? (input.moved ? 0.018 : 0.026)
       : 0.006;
+    const successValue = getObservedBiomeUseValue(input.band, tile, isCurrentTile);
     const competenceGain = successValue * useGain;
 
     records[biomeKind] = {
@@ -169,19 +169,23 @@ function getTileBiomeKind(tile: Tile): BiomeKind {
   return tile.biomeKind ?? "unknown";
 }
 
-function getObservedBiomeUseValue(tile: Tile): number {
-  const risk = clamp01(
-    tile.riskProfile.floodRisk * 0.34 +
-      tile.riskProfile.droughtRisk * 0.34 +
-      tile.riskProfile.diseaseRisk * 0.32,
-  );
+function getObservedBiomeUseValue(band: Band, tile: Tile, isCurrentTile: boolean): number {
+  // Familiarity can grow from an observation, but competence represents lived
+  // success.  Do not let static habitat richness award adaptation progress when
+  // physical activities are failing or the observed tile was never occupied.
+  if (!isCurrentTile || band.knowledge.observedTiles[tile.id] === undefined) {
+    return 0;
+  }
 
-  return clamp01(
-    tile.resourceProfile.baseRichness * 0.34 +
-      tile.resourceProfile.waterAccess * 0.26 +
-      tile.resourceProfile.aquaticPotential * 0.16 +
-      (1 - risk) * 0.24,
+  const physicalSupport = clamp01(
+    band.carryingCapacity?.perCapitaReturn.supportDebug.humanFoodLedger?.rawSupportRatio ??
+      band.seasonalSupport?.currentSeasonSupport.clampedSupportRatio ??
+      0,
   );
+  const waterSecurity = clamp01(1 - (band.pressureState?.waterStress ?? 0.5));
+  const riskSecurity = clamp01(1 - (band.pressureState?.riskPressure ?? 0.5));
+
+  return clamp01(physicalSupport * 0.62 + waterSecurity * 0.22 + riskSecurity * 0.16);
 }
 
 function getBiomeHarshness(tile: Tile): number {

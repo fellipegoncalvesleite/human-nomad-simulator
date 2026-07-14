@@ -368,6 +368,29 @@ export function App() {
       return;
     }
 
+    const addedIndex = addedBandIndexForBandId(bandId);
+    if (addedIndex !== null) {
+      const nextAdded = addedBands.map((spec, index) =>
+        index === addedIndex ? { ...spec, tileId } : spec,
+      );
+      setAddedBands(nextAdded);
+      setPaused(true);
+      loadSimWorld(
+        withInitialBandPlacements(
+          currentMap.kind,
+          initialBandPlacements,
+          removedBandIds,
+          nextAdded,
+          terrainEdits,
+        ),
+        runSeedInput,
+      );
+      setSelectedBandId(bandId);
+      setSelectedActivityTripId(null);
+      setSelectedTileId(null);
+      return;
+    }
+
     const nextPlacements = upsertInitialBandPlacement(initialBandPlacements, { bandId, tileId });
     setInitialBandPlacements(nextPlacements);
     setPaused(true);

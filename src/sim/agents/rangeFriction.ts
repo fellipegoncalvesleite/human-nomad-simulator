@@ -238,6 +238,18 @@ function deriveReportLinkedEvents(
     if (!isFrictionReport(report) || report.targetTileId === undefined) {
       continue;
     }
+    // RUMOR-LOOP FIX (2026-07-10): a band's OWN report is not evidence of
+    // another band. Without this exclusion, a band's internally generated
+    // avoid_place / bad_water_warning reports became friction events with
+    // otherBandId === itself (the self falls through every kin check →
+    // stranger-tier tension), which reportedKnowledge then re-published as
+    // "outsider_use_warning" — so even a LONE band heard perpetual rumors of
+    // outsiders, and multi-band worlds carried permanent phantom friction.
+    // Only reports that actually arrived from ANOTHER band may seed
+    // report-linked friction.
+    if (report.sourceBandId === observer.id) {
+      continue;
+    }
 
     const tier = classifyRangeTier(membership, report.targetTileId);
     if (tier === "unknown_to_observer") {

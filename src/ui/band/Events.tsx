@@ -8,6 +8,11 @@ import {
   type CanonicalEventState,
 } from "../../sim/agents/eventSystem";
 import { deriveBandChronicle } from "../../sim/agents/bandChronicle";
+import {
+  derivePublicHumanStoryProfile,
+  publicStoryForSource,
+  type PublicStoryItem,
+} from "../../sim/agents/publicHumanStory";
 import type { Band } from "../../sim/agents/types";
 import type { WorldState } from "../../sim/world/types";
 
@@ -52,6 +57,10 @@ export function Events({
     () => (world === null ? undefined : deriveCanonicalEvents(world, band)),
     [band, world],
   );
+  const storyProfile = useMemo(
+    () => (world === null ? undefined : derivePublicHumanStoryProfile(world, band)),
+    [band, world],
+  );
   const chroniclePageIds = useMemo(() => {
     if (world === null) {
       return new Set<string>();
@@ -77,10 +86,11 @@ export function Events({
     <section className="bp-section band-events" aria-label="canonical events">
       <SectionHeading icon="time">Events</SectionHeading>
       <p className="condition-note">
-        A compact timeline of things that actually changed for this band. Talk may repeat or argue about them, but the event line comes from grounded history.
+        A compact timeline of things that actually changed for this band, written as lived episodes while Technical keeps the raw proof.
       </p>
 
       <EventOverview state={eventState} />
+      <StoryHighlight stories={storyProfile?.chronicleTitles.slice(0, 3) ?? []} />
 
       <div className="event-filter-row" aria-label="event family filters">
         {EVENT_FILTERS.map((entry) => (
@@ -108,6 +118,7 @@ export function Events({
               <EventCard
                 key={event.id}
                 event={event}
+                story={storyProfile === undefined ? undefined : publicStoryForSource(storyProfile, event.id, "event_story")}
                 chroniclePageIds={chroniclePageIds}
                 onOpenChronicle={onOpenChronicle}
               />
@@ -121,6 +132,7 @@ export function Events({
                   <EventCard
                     key={event.id}
                     event={event}
+                    story={storyProfile === undefined ? undefined : publicStoryForSource(storyProfile, event.id, "event_story")}
                     chroniclePageIds={chroniclePageIds}
                     onOpenChronicle={onOpenChronicle}
                   />
@@ -131,6 +143,23 @@ export function Events({
         </>
       )}
     </section>
+  );
+}
+
+function StoryHighlight({ stories }: { readonly stories: readonly PublicStoryItem[] }) {
+  if (stories.length === 0) {
+    return null;
+  }
+  return (
+    <div className="event-overview public-story-highlight" aria-label="compact human story highlights">
+      {stories.map((story) => (
+        <div key={story.id}>
+          <span className="event-overview-label">{story.status}</span>
+          <strong className="public-story-title">{story.title}</strong>
+          <p className="public-story-line">{story.story}</p>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -191,10 +220,12 @@ function joinHumanList(items: readonly string[]): string {
 
 function EventCard({
   event,
+  story,
   chroniclePageIds,
   onOpenChronicle,
 }: {
   readonly event: CanonicalEvent;
+  readonly story?: PublicStoryItem;
   readonly chroniclePageIds: ReadonlySet<string>;
   readonly onOpenChronicle?: (pageId: string) => void;
 }) {
@@ -210,13 +241,14 @@ function EventCard({
         <span className="canonical-event-summary">
           <span className="canonical-event-topline">
             <span className="canonical-event-years">{formatEventYearRange(event.startYear, event.endYear)}</span>
-            <span className="canonical-event-title">{event.title}</span>
+            <span className="canonical-event-title public-story-title">{story?.title ?? event.title}</span>
           </span>
-          <span className="canonical-event-line">{event.summary}</span>
+          <span className="canonical-event-line public-story-line">{story?.story ?? event.summary}</span>
         </span>
         <span className="canonical-event-chips">
-          <Chip>{scopeLabel(event.memoryScope)}</Chip>
+          <Chip>{story?.status ?? scopeLabel(event.memoryScope)}</Chip>
           {event.livedStatus === "inherited_not_personally_lived" ? <Chip>inherited only</Chip> : null}
+          {story?.evidenceChips.slice(0, 1).map((chip) => <Chip key={`${event.id}:${chip}`}>{chip}</Chip>)}
         </span>
       </summary>
       <div className="canonical-event-body">

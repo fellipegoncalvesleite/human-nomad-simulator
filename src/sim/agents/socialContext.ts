@@ -21,9 +21,10 @@ import type {
   ReturnTrendMemory,
   TemporarySeparationPressure,
 } from "./types";
+import { preserveTerminalBandSnapshots } from "./bandLifecycle";
 import { getNearbyBandPressure } from "./crowding";
 import { deriveCarryingCapacity } from "./carryingCapacity";
-import { updateSeasonalSupportState } from "./seasonalSurvival";
+import { deriveCanonicalNutritionState, updateSeasonalSupportState } from "./seasonalSurvival";
 import {
   deriveInnerFissionState,
   deriveSocialTensionReadabilityState,
@@ -124,7 +125,7 @@ export function updateBandContextStates(
   world: WorldState,
   cache = buildTickContextCache(world),
 ): WorldState {
-  return applyBandReadabilityContext(applyRelationshipMemorySocialEcologyContext(applyBodyCampSurvivalLogisticsContext(applyForagingLearningAdaptationContext(applyProtoAccessContext(applyVisibleNatureContext(applyResourceEcologyContext(applyProtoCampContext(applyInnerFissionSocialReadabilityContext(
+  const updated = applyBandReadabilityContext(applyRelationshipMemorySocialEcologyContext(applyBodyCampSurvivalLogisticsContext(applyForagingLearningAdaptationContext(applyProtoAccessContext(applyVisibleNatureContext(applyResourceEcologyContext(applyProtoCampContext(applyInnerFissionSocialReadabilityContext(
     advanceRangeFriction(
       advanceReportedKnowledge(
         applyEncounterContext(
@@ -143,6 +144,7 @@ export function updateBandContextStates(
     ),
     cache,
   )))))))));
+  return preserveTerminalBandSnapshots(world, updated);
 }
 
 export function applyRangeSaturationContext(
@@ -257,6 +259,10 @@ export function applyRangeSaturationContext(
         visibleLandscapeCues,
         returnTrend: returnTrend ?? band.returnTrend,
         seasonalSupport: seasonalSupport ?? band.seasonalSupport,
+        // Compatibility mirror only; all readers of current nourishment use
+        // seasonalSupport directly. This prevents the legacy spawn value from
+        // remaining a contradictory second hunger state in snapshots.
+        hungerPressure: deriveCanonicalNutritionState(seasonalSupport ?? band.seasonalSupport).foodMovementPressure,
         exhaustedRangeAudit: exhaustedRangeAudit ?? band.exhaustedRangeAudit,
         resourceKnowledgeState: resourceKnowledgeState ?? band.resourceKnowledgeState,
       };
@@ -1626,13 +1632,17 @@ function getLocalBandCount(world: WorldState, tileId: TileId): number {
 }
 
 function getKnownHabitatSuitability(tile: Tile, record: Band["knowledge"]["observedTiles"][TileId] | undefined): number {
+  if (record === undefined) {
+    return 0;
+  }
+
   return clamp01(
-    (record?.observedRichness ?? tile.resourceProfile.baseRichness) * 0.36 +
-      (record?.observedWaterAccess ?? tile.resourceProfile.waterAccess) * 0.26 +
-      (record?.observedAquaticPotential ?? tile.resourceProfile.aquaticPotential) * 0.16 +
-      ((record?.observedSeasonalPattern?.reliability ?? tile.seasonalProfile.reliability) * 0.12) +
-      (tile.resourceProfile.storageSuitability * 0.06) -
-      ((record?.observedRisk ?? getTileRisk(tile)) * 0.14),
+    record.observedRichness * 0.36 +
+      (record.observedWaterAccess ?? 0) * 0.26 +
+      record.observedAquaticPotential * 0.16 +
+      ((record.observedSeasonalPattern?.reliability ?? 0) * 0.12) +
+      (record.observedStorageSuitability ?? 0) * 0.06 -
+      (record.observedRisk ?? 0) * 0.14,
   );
 }
 

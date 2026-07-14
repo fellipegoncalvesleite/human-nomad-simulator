@@ -9,6 +9,7 @@ import type {
   ResourceEcologySupportBreakdown,
 } from "./resourceEcologyFoundation";
 import type { Band, ResidentialMoveStatus } from "./types";
+import { deriveEngineeringSafetyRelief } from "./practicalResponses";
 
 export type PerishabilityLevel = "low" | "medium" | "high";
 export type StorageSuitabilityLevel = "none" | "poor" | "limited" | "good" | "excellent";
@@ -151,6 +152,11 @@ export interface TemporaryWatercraftAssessment {
   readonly shuttleTrips: number;
   readonly riskTolerance: number;
   readonly expectedCrossingSafety: number;
+  readonly crossingSafetyBeforeLearning: number;
+  readonly engineeringSafetyRelief: number;
+  readonly engineeringResponseActive: boolean;
+  readonly engineeringResponseId?: string;
+  readonly crossingContextKey?: string;
   readonly riverRisk: number;
   readonly seasonExposureRisk: number;
   readonly crossingPathTiles: readonly TileId[];
@@ -443,9 +449,20 @@ export function deriveTemporaryWatercraftAssessmentForMove(input: {
   const riskTolerance = round2(clamp01(0.34 + stress * 0.34 + (input.band.seasonalSupport?.hungerClassification === "crisis_deficit" ? 0.16 : 0)));
   const seasonExposureRisk = seasonalExposureRisk(input.world.time.season, river);
   const best = options[0];
-  const expectedCrossingSafety = best === undefined
+  const crossingContextKey = crossing === undefined
+    ? undefined
+    : `${String(crossing.crossing.riverId)}:${String(crossing.crossing.fromTileId)}->${String(crossing.crossing.toTileId)}`;
+  const engineeringRelief = deriveEngineeringSafetyRelief(
+    input.band,
+    Number(input.world.time.tick),
+    crossingContextKey,
+  );
+  const crossingSafetyBeforeLearning = best === undefined
     ? 0
     : round2(clamp01(best.safety - riverRisk * 0.34 - laborNeed * 0.18 - seasonExposureRisk * 0.14 + riskTolerance * 0.12));
+  const expectedCrossingSafety = round2(clamp01(
+    crossingSafetyBeforeLearning + (engineeringRelief.active ? engineeringRelief.relief : 0),
+  ));
   const shuttleTrips = best === undefined
     ? 0
     : Math.max(1, Math.ceil((population * (0.65 + carryLoad * 0.45)) / watercraftTripCapacity(best.kind)));
@@ -459,6 +476,7 @@ export function deriveTemporaryWatercraftAssessmentForMove(input: {
     expectedCrossingSafety,
     seasonExposureRisk,
     dependencyLoad,
+    engineeringResponseActive: engineeringRelief.active,
   });
   const pathTiles = result === "crossing_success" || result === "crossing_partial_success"
     ? buildWatercraftPath(input.fromTileId, input.toTileId, crossing?.crossing)
@@ -487,6 +505,11 @@ export function deriveTemporaryWatercraftAssessmentForMove(input: {
     shuttleTrips,
     riskTolerance,
     expectedCrossingSafety,
+    crossingSafetyBeforeLearning,
+    engineeringSafetyRelief: engineeringRelief.active ? engineeringRelief.relief : 0,
+    engineeringResponseActive: engineeringRelief.active,
+    engineeringResponseId: engineeringRelief.responseId,
+    crossingContextKey,
     riverRisk: round2(riverRisk),
     seasonExposureRisk,
     crossingPathTiles: pathTiles,
@@ -874,6 +897,7 @@ function classifyWatercraftResult(input: {
   readonly expectedCrossingSafety: number;
   readonly seasonExposureRisk: number;
   readonly dependencyLoad: number;
+  readonly engineeringResponseActive: boolean;
 }): TemporaryWatercraftResult {
   if (input.best === undefined || input.material.confidence < 0.18) {
     return "materials_missing";
@@ -884,7 +908,7 @@ function classifyWatercraftResult(input: {
   if (input.laborNeed >= 0.72 || (input.dependencyLoad >= 0.46 && input.best.carryingCapacity === "low")) {
     return input.directWaterBlock ? "crossing_delayed_materials" : "crossing_partial_success";
   }
-  if (input.expectedCrossingSafety >= 0.42 && input.riverRisk <= input.riskTolerance + 0.16) {
+  if (input.engineeringResponseActive && input.expectedCrossingSafety >= 0.42 && input.riverRisk <= input.riskTolerance + 0.16) {
     return "crossing_success";
   }
   if (input.expectedCrossingSafety >= 0.28) {

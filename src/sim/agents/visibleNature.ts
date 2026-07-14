@@ -483,6 +483,11 @@ function deriveVisibleFaunaCards(
 
   for (const tileId of candidateTileIds) {
     for (const stock of geography.byTile.get(tileId) ?? []) {
+      const persisted = band.animalPatternKnowledge?.records.some((record) => record.stockId === String(stock.id)) === true;
+      const directlyTraced = (band.recentIntraSeasonTrips ?? []).some((trip) => trip.animalActivityTrace?.stockId === String(stock.id));
+      if (!persisted && !directlyTraced) {
+        continue; // known terrain is not an automatic animal sighting
+      }
       const existing = byStock.get(stock.id);
       byStock.set(stock.id, {
         stock,
@@ -504,28 +509,30 @@ function deriveVisibleFaunaCards(
 function faunaCandidateToCard(world: WorldState, band: Band, candidate: FaunaCandidate): VisibleFaunaStockCard {
   const { stock } = candidate;
   const profile = classifyFaunaArchetype(world, stock);
-  const dyn = getFaunaStockDynamic(world, stock.id);
-  const seasonalAvailability = round2(seasonalAvailabilityFactor(stock, world.time.season, true));
   const relevantTrips = getRelevantAnimalTrips(band, stock.faunaClass, stock.influenceTileIds);
   const successfulTrips = relevantTrips.filter(isSuccessfulTrip).length;
   const failedTrips = relevantTrips.filter(isFailedTrip).length;
   const animalTrace = relevantTrips.find((trip) => trip.animalActivityTrace?.stockId === String(stock.id))?.animalActivityTrace;
-  const routeReliability = deriveAnimalRouteReliability(stock, dyn, seasonalAvailability, relevantTrips, candidate.seenTileIds, band);
-  const knowledgeState = getAnimalKnowledgeState(stock, profile.archetype, candidate.seenTileIds, band, relevantTrips, routeReliability);
+  const persisted = band.animalPatternKnowledge?.records.find((record) => record.stockId === String(stock.id));
+  const observedAbundance = animalTrace?.currentAbundance ?? 0.5;
+  const observedDisturbance = animalTrace?.disturbance ?? 0.25;
+  const seasonalAvailability = round2(animalTrace?.seasonalAvailability ?? 0.5);
+  const routeReliability = round2(clamp01((persisted?.confidence ?? animalTrace?.confidence ?? 0.2) * 0.7 + Math.min(0.24, (persisted?.observationCount ?? 1) * 0.06)));
+  const knowledgeState: AnimalKnowledgeState = persisted?.state === "stale" || persisted?.state === "dormant" ? "stale_route" :
+    persisted?.state === "contradicted" ? "failed_to_find" :
+    (persisted?.directObservationCount ?? 0) >= 3 ? "repeated_sighting" : "direct_sighting";
   const knownness = classifyKnownness(knowledgeState);
   const confidence = round2(clamp01(
-    stock.detectability * 0.34 +
-      stock.carryingCapacity * 0.22 +
-      seasonalAvailability * 0.14 +
+    (persisted?.confidence ?? animalTrace?.confidence ?? 0.18) * 0.62 +
+      seasonalAvailability * 0.12 +
       routeReliability * 0.14 +
-      (candidate.seenTileIds.includes(band.position) ? 0.16 : 0.04) +
       Math.min(0.18, relevantTrips.length * 0.05),
   ));
-  const wariness = round2(clamp01(dyn.disturbance * 0.46 + dyn.cumulativePressure * 0.06 + successfulTrips * 0.12 + (animalTrace?.warinessChange ?? 0)));
-  const humanTolerance = round2(clamp01(0.42 - wariness * 0.35 - stock.riskPlaceholder * 0.18 + proximityCampSignal(band, stock.anchorTileId) * 0.12));
-  const risk = round2(clamp01(stock.riskPlaceholder + (profile.tags.includes("pack_predator") ? 0.28 : 0) + failedTrips * 0.08 + (animalTrace?.dangerRisk ?? 0) * 0.12));
-  const usefulness = classifyAnimalUsefulness(profile, dyn.abundance, seasonalAvailability, risk, routeReliability, successfulTrips, failedTrips);
-  const pressure = round2(clamp01(dyn.cumulativePressure * 0.12 + successfulTrips * 0.1 + failedTrips * 0.06 + (animalTrace?.pressureApplied ?? 0) * 0.24));
+  const wariness = round2(clamp01(observedDisturbance * 0.46 + successfulTrips * 0.12 + (animalTrace?.warinessChange ?? 0)));
+  const humanTolerance = round2(clamp01(0.42 - wariness * 0.35 - (animalTrace?.dangerRisk ?? 0.2) * 0.18 + proximityCampSignal(band, stock.anchorTileId) * 0.12));
+  const risk = round2(clamp01((animalTrace?.dangerRisk ?? 0.2) + failedTrips * 0.08));
+  const usefulness = classifyAnimalUsefulness(profile, observedAbundance, seasonalAvailability, risk, routeReliability, successfulTrips, failedTrips);
+  const pressure = round2(clamp01(successfulTrips * 0.1 + failedTrips * 0.06 + (animalTrace?.pressureApplied ?? 0) * 0.24));
   const recentEvidence = deriveRecentAnimalEvidence(stock, profile, candidate.seenTileIds, relevantTrips, animalTrace, band);
 
   return {
@@ -543,7 +550,7 @@ function faunaCandidateToCard(world: WorldState, band: Band, candidate: FaunaCan
     usefulness,
     confidence,
     routeReliability,
-    perceivedAbundance: abundanceBand(dyn.abundance),
+    perceivedAbundance: abundanceBand(observedAbundance),
     seasonalAvailability,
     huntingOrFishingPressure: pressure,
     risk,
@@ -552,9 +559,9 @@ function faunaCandidateToCard(world: WorldState, band: Band, candidate: FaunaCan
     habitatSuitability: stock.habitatSuitability,
     habitatReason: stock.habitatBasis.join("; "),
     recentEvidence,
-    perception: derivePerceptionKinds(profile, risk, dyn.abundance, wariness, successfulTrips, failedTrips, routeReliability, usefulness),
-    topReasons: topFaunaReasons(stock, profile, seasonalAvailability, dyn.abundance, relevantTrips.length, routeReliability),
-    rawSource: "deriveFaunaStockGeography + known/visited candidate tiles + recentIntraSeasonTrips",
+    perception: derivePerceptionKinds(profile, risk, observedAbundance, wariness, successfulTrips, failedTrips, routeReliability, usefulness),
+    topReasons: topFaunaReasons(stock, profile, seasonalAvailability, observedAbundance, relevantTrips.length, routeReliability),
+    rawSource: "persisted AnimalPatternKnowledge + recent observed AnimalActivityTrace (no current hidden stock read)",
     noExactHiddenLocation: true,
   };
 }
@@ -644,21 +651,32 @@ function derivePredatorSignCards(
     return [];
   }
 
-  const hash = hashUnit(String(world.seed), [String(band.id), prey.stockId, "predator_sign"]);
+  const geography = deriveFaunaStockGeography(world);
+  const predator = geography.stocks
+    .filter((stock) => stock.trophicRole === "predator" &&
+      (stock.regionId === world.tiles[prey.anchorTileId]?.regionId || stock.influenceTileIds.some((tileId) => prey.seenTileIds.includes(tileId))))
+    .sort((left, right) => String(left.id).localeCompare(String(right.id)))[0];
+  if (predator === undefined) return [];
+
+  const hash = hashUnit(String(world.seed), [String(band.id), String(predator.id), prey.stockId, "predator_sign"]);
   if (hash < 0.28 && prey.risk < 0.34) {
     return [];
   }
 
   const risk = round2(clamp01(0.32 + prey.confidence * 0.24 + prey.risk * 0.2));
   return [{
-    stockId: `predator-sign:${prey.stockId}`,
-    derivedFromStockId: prey.stockId,
+    stockId: `predator-sign:${String(predator.id)}`,
+    derivedFromStockId: String(predator.id),
     faunaClass: "animal_food",
     archetype: "wolves",
     label: "wolf-like predator signs",
     sourceKind: "predator_sign",
-    habitat: prey.habitat,
-    anchorTileId: prey.anchorTileId,
+    habitat: predator.habitat,
+    // ANTI-OMNISCIENCE: an inferred predator is NEVER observed, so its card must
+    // not carry the predator's exact hidden anchor tile (which would leak into
+    // isCardNearTile-based access-norm/proto-camp reasoning). Anchor the sign to
+    // a tile where the band actually saw the prey — uncertain direction only.
+    anchorTileId: prey.seenTileIds[0] ?? prey.anchorTileId,
     seenTileIds: prey.seenTileIds.slice(0, 3),
     tags: ["pack_predator", "scavenger", "camp_follower_candidate", "seasonal_mover", "high_risk", "trackable"],
     knowledgeState: risk >= 0.48 ? "dangerous" : "inferred_from_tracks",
@@ -672,12 +690,12 @@ function derivePredatorSignCards(
     risk,
     wariness: 0.36,
     humanTolerance: 0.18,
-    habitatSuitability: prey.habitatSuitability,
-    habitatReason: `predator signs inferred from prey route; ${prey.habitatReason}`,
+    habitatSuitability: predator.habitatSuitability,
+    habitatReason: `signs from a physical predator stock overlapping a known prey route; ${prey.habitatReason}`,
     recentEvidence: ["predator signs near visible prey route"],
     perception: risk >= 0.48 ? ["feared", "dangerous", "watched"] : ["watched", "unpredictable"],
-    topReasons: ["predator signs derived from visible prey route", "risk only: no predator agents or attack story"],
-    rawSource: "VisibleNatureState fauna prey card + deterministic predator-sign gate",
+    topReasons: ["physical predator and visible prey overlap", "sign confidence remains uncertain"],
+    rawSource: "VisibleNatureState actual predator stock overlap + band-known prey route + deterministic sign gate",
     noExactHiddenLocation: true,
   }];
 }
@@ -696,6 +714,17 @@ function deriveVisiblePlantCards(
       continue;
     }
     for (const patch of derivePlantPatchesForTile(tile, world.time, 3)) {
+      const linkedResourceClassId = mapPlantToResourceEcologyClass(patch.plantClassId);
+      const remembered = linkedResourceClassId !== undefined &&
+        band.resourceEcology?.knowledge.topMemories.some((memory) =>
+          memory.placeTileId === tileId && memory.resourceClassId === linkedResourceClassId,
+        ) === true;
+      const encountered = tileId === band.position || (band.recentIntraSeasonTrips ?? []).some((trip) =>
+        trip.targetTileId === tileId && trip.physicalFoodHarvest?.sourceKind === "plant_patch",
+      );
+      if (!remembered && !encountered) {
+        continue;
+      }
       cards.push(plantPatchToCard(world, band, patch, tileId, grazingPressureForTile(faunaCards, tileId)));
     }
   }
@@ -859,10 +888,23 @@ function plantPatchToCard(
     : band.resourceEcology?.knowledge.topMemories.find((memory) =>
       memory.placeTileId === tileId && memory.resourceClassId === linkedResourceClassId,
     );
-  const state = world.plantPatchState?.[String(patch.patchId)];
-  const humanPressure = state?.depletion ?? patch.depletion;
+  const directEncounter = tileId === band.position;
+  const harvestReceipt = (band.recentIntraSeasonTrips ?? [])
+    .map((trip) => trip.physicalFoodHarvest)
+    .find((receipt) => receipt?.sourceKind === "plant_patch" && receipt.sourceId === String(patch.patchId));
+  // Normal band state uses only remembered/directly experienced quantities.
+  // Exact sparse patch depletion remains world truth and is shown only in Technical.
+  const humanPressure = harvestReceipt === undefined || harvestReceipt.physicalAvailability <= 0
+    ? matchingMemory?.knowledgeState === "avoided" ? 0.55 : 0
+    : clamp01(harvestReceipt.depletionApplied / harvestReceipt.physicalAvailability);
   const pressure = round2(clamp01(humanPressure + animalGrazingPressure * 0.18));
-  const abundance = round2(clamp01(patch.currentAbundance * (1 - pressure)));
+  const abundance = round2(clamp01(
+    harvestReceipt !== undefined
+      ? (harvestReceipt.physicalAvailability - harvestReceipt.harvestedAmount) / Math.max(0.0001, harvestReceipt.physicalAvailability)
+      : directEncounter
+        ? Math.round(patch.currentAbundance * 4) / 4
+        : (matchingMemory?.confidence ?? 0.2) * (matchingMemory?.seasonalReliability ?? 0.5),
+  ));
   const knowledgeState = translatePlantKnowledgeState(matchingMemory?.knowledgeState, tileId === band.position, pressure, patch);
   const confidence = round2(clamp01(
     (matchingMemory?.confidence ?? 0) * 0.56 +
@@ -879,26 +921,30 @@ function plantPatchToCard(
     ...(linkedResourceClassId === undefined ? {} : { linkedResourceClassId }),
     knowledgeState,
     confidence,
-    seasonalAvailability: patch.currentSeasonalAvailability,
-    previousSeasonalAvailability: patch.previousAvailability,
-    seasonalModifier: round2(patch.seasonalModifier),
-    seasonalPulseStrength: round2(clamp01(patch.seasonalPulseStrength)),
-    abundanceTrend: patch.abundanceTrend,
-    lifecycleState: patch.lifecycleState,
+    seasonalAvailability: directEncounter || harvestReceipt !== undefined ? patch.currentSeasonalAvailability : "unreliable",
+    previousSeasonalAvailability: directEncounter || harvestReceipt !== undefined ? patch.previousAvailability : "unreliable",
+    seasonalModifier: directEncounter || harvestReceipt !== undefined ? round2(patch.seasonalModifier) : 1,
+    seasonalPulseStrength: directEncounter || harvestReceipt !== undefined ? round2(clamp01(patch.seasonalPulseStrength)) : 0,
+    abundanceTrend: directEncounter || harvestReceipt !== undefined ? patch.abundanceTrend : "unreliable",
+    lifecycleState: directEncounter || harvestReceipt !== undefined ? patch.lifecycleState : "unreliable",
     abundance,
     pressure,
     depletion: round2(clamp01(humanPressure)),
-    recovery: round2(clamp01(patch.naturalRecoveryProgress + patch.naturalRegrowthModifier * 0.4)),
+    recovery: directEncounter || harvestReceipt !== undefined
+      ? round2(clamp01(patch.naturalRecoveryProgress + patch.naturalRegrowthModifier * 0.4))
+      : 0,
     animalGrazingPressure: round2(animalGrazingPressure),
-    reliability: round2(patch.reliabilityThisSeason),
-    risk: patch.safetyRisk,
-    laborCost: round2(clamp01(patch.laborCost)),
+    reliability: directEncounter || harvestReceipt !== undefined
+      ? round2(patch.reliabilityThisSeason)
+      : round2(matchingMemory?.seasonalReliability ?? 0.2),
+    risk: directEncounter || harvestReceipt !== undefined ? patch.safetyRisk : "unknown",
+    laborCost: directEncounter || harvestReceipt !== undefined ? round2(clamp01(patch.laborCost)) : 0.5,
     fallbackRole: patch.fallbackRole,
     fallbackRank: round2(clamp01(patch.fallbackRank)),
     plantPatchEffect: classifyPlantPatchEffect(patch, pressure, knowledgeState),
     useStatus: getPlantUseStatus(knowledgeState, pressure, patch),
     topReasons: topPlantReasons(patch, pressure, animalGrazingPressure, matchingMemory?.rawSource),
-    rawSource: "derivePlantPatchesForTile on band-known/current candidate tiles + ResourceEcology knowledge memory",
+    rawSource: "band resource memory or direct/current plant encounter; exact world depletion excluded",
   };
 }
 
@@ -907,35 +953,45 @@ function deriveAnimalKnowledge(
   band: Band,
   faunaCards: readonly VisibleFaunaStockCard[],
 ): readonly AnimalKnowledgeMemory[] {
-  return faunaCards
-    .map((card) => {
-      const relevantTrips = getRelevantAnimalTripsBySeenTiles(band, card.seenTileIds);
-      const source: AnimalKnowledgeMemory["source"] = card.sourceKind === "predator_sign"
-        ? "predator_sign"
-        : relevantTrips.some((trip) => trip.taskGroupType === "fishing_group")
-          ? "fishing"
-          : relevantTrips.some((trip) => trip.taskGroupType === "hunting_group")
-            ? "hunt"
-            : card.knowledgeState === "direct_sighting" || card.knowledgeState === "repeated_sighting"
-              ? "sighting"
-              : "tracks";
-      const successCount = relevantTrips.filter(isSuccessfulTrip).length;
-      const failureCount = relevantTrips.filter(isFailedTrip).length;
+  // ROUTINES-2: this is now a projection of persisted observations, never a
+  // fresh hidden-stock read. faunaCards supply an archetype label only when a
+  // matching observed record already exists.
+  return (band.animalPatternKnowledge?.records ?? [])
+    .map((record) => {
+      const card = faunaCards.find((entry) => entry.stockId === record.stockId);
+      const state: AnimalKnowledgeState = record.state === "stale" || record.state === "dormant"
+        ? "stale_route"
+        : record.state === "contradicted"
+          ? "failed_to_find"
+          : record.directObservationCount >= 3
+            ? "repeated_sighting"
+            : record.directObservationCount > 0
+              ? "direct_sighting"
+              : "inferred_from_tracks";
+      const lastSeason = record.seasonsObserved[record.seasonsObserved.length - 1] ?? world.time.season;
       return {
-        archetype: card.archetype,
-        stockId: card.stockId,
-        state: card.knowledgeState,
-        confidence: card.confidence,
-        source,
-        lastUpdatedYear: world.time.year,
-        lastUpdatedSeason: world.time.season,
-        successCount,
-        failureCount,
-        ...(card.risk >= 0.55 ? { riskOrAvoidanceNote: "animal signs raised route or activity caution" } : {}),
+        archetype: card?.archetype ?? archetypeForPersistedFaunaKind(record.faunaKind),
+        stockId: record.stockId,
+        state,
+        confidence: record.confidence,
+        source: record.directObservationCount > 0 ? "sighting" as const : "tracks" as const,
+        lastUpdatedYear: Math.floor(Number(record.lastObservedTick) / 4),
+        lastUpdatedSeason: lastSeason,
+        successCount: Math.max(0, record.observationCount - record.contradictionCount),
+        failureCount: record.contradictionCount,
+        ...(record.contradictionCount > 0 ? { riskOrAvoidanceNote: "later observation contradicted part of the remembered pattern" } : {}),
       };
     })
     .sort((left, right) => right.confidence - left.confidence || left.stockId.localeCompare(right.stockId))
     .slice(0, ANIMAL_KNOWLEDGE_CAP);
+}
+
+function archetypeForPersistedFaunaKind(kind: string): VisibleFaunaArchetype {
+  if (kind.includes("fish") || kind === "waterfowl" || kind === "shellfish_reedbed") return "fish_waterfowl_shellfish";
+  if (kind === "large_game") return "wild_cattle";
+  if (kind === "small_game") return "hares_rabbits_small_game";
+  if (kind === "forest_edge_game") return "boar";
+  return "deer_sheep_goat_like_herd";
 }
 
 function deriveAnimalPerceptions(faunaCards: readonly VisibleFaunaStockCard[]): readonly AnimalPerceptionMemory[] {
@@ -955,31 +1011,29 @@ function deriveDomesticationTrajectories(
   band: Band,
   faunaCards: readonly VisibleFaunaStockCard[],
 ): readonly DomesticationTrajectoryState[] {
-  return faunaCards
-    .filter((card) =>
-      card.tags.includes("future_domestication_candidate") ||
-      card.tags.includes("camp_follower_candidate") ||
-      card.tags.includes("future_herd_management_candidate"),
-    )
-    .map((card) => {
-      const contactSeasons = estimateContactSeasons(world, band, card);
-      const huntingPressure = card.huntingOrFishingPressure;
-      const stablePlace = proximityCampSignal(band, card.anchorTileId);
-      const animalTolerance = round2(clamp01(card.humanTolerance * 0.5 + stablePlace * 0.18 - huntingPressure * 0.28));
-      const failurePressure = round2(clamp01(card.risk * 0.34 + huntingPressure * 0.35 + (stablePlace < 0.2 ? 0.18 : 0)));
-      const stage = getDomesticationStage(card, contactSeasons, stablePlace, animalTolerance, failurePressure);
+  return (band.animalManagement?.records ?? [])
+    .map((record) => {
+      const archetype = faunaCards.find((card) => card.stockId === record.stockId)?.archetype ?? archetypeForPersistedFaunaKind(record.faunaKind);
+      const failurePressure = round2(clamp01(record.failures * 0.22 + record.stressObserved * 0.5));
+      const stage: DomesticationRelationshipStage = record.status === "holding" && record.outcome === "holding_succeeded"
+        ? "camp_following_or_managed_contact"
+        : record.status === "feeding" && record.successes > 0
+          ? "tolerated_proximity"
+          : record.status === "abandoned"
+            ? "wild_no_relationship"
+            : "repeatedly_seen";
       return {
-        archetype: card.archetype,
+        archetype,
         stage,
-        pathway: getDomesticationPathway(card),
-        candidate: stage === "management_candidate" || stage === "domestication_candidate",
-        yearsOrSeasonsOfContact: contactSeasons,
-        humanTolerance: card.humanTolerance,
-        animalTolerance,
-        warinessFromHunting: card.wariness,
+        pathway: "prey_management" as const,
+        candidate: record.status === "feeding" || record.status === "holding",
+        yearsOrSeasonsOfContact: record.contactSeasons,
+        humanTolerance: record.willingness,
+        animalTolerance: record.animalToleranceObserved,
+        warinessFromHunting: record.stressObserved,
         failurePressure,
-        failureReasons: getDomesticationFailureReasons(card, stablePlace, huntingPressure, failurePressure),
-        explicitLimits: explicitDomesticationLimits(card),
+        failureReasons: record.failures === 0 ? [] : [record.outcome, record.reason],
+        explicitLimits: ["temporary contact only", "no ownership or breeding program", "feeding/holding can fail or go dormant"],
       };
     })
     .sort((left, right) =>
@@ -997,21 +1051,23 @@ function deriveAcuteEpisodes(
 ): readonly AcuteRiskEpisode[] {
   const support = band.seasonalSupport?.currentSeasonSupport;
   const latestMove = band.recentResidentialMoveEvents?.[0];
+  const latestIntentOutcome = band.residentialMovementIntentOutcomes?.[0];
+  const rejectedMovementIntent = latestIntentOutcome?.outcome === "rejected";
   const latestTrip = band.recentIntraSeasonTrips?.[0];
   const episodes: AcuteRiskEpisode[] = [];
 
-  if ((support?.waterStress ?? 0) >= 0.52 || latestMove?.hardshipOutcome === "rejected") {
+  if ((support?.waterStress ?? 0) >= 0.52 || latestMove?.hardshipOutcome === "rejected" || rejectedMovementIntent) {
     episodes.push({
       id: `acute:${band.id}:${world.time.tick}:dehydration`,
       kind: "acute_dehydration",
-      trigger: latestMove?.hardshipOutcome === "rejected" ? "rejected hard route" : "high seasonal water stress",
-      cause: latestMove?.hardshipReason ?? "water stress and known-route uncertainty",
+      trigger: latestMove?.hardshipOutcome === "rejected" || rejectedMovementIntent ? "rejected hard route" : "high seasonal water stress",
+      cause: latestMove?.hardshipReason ?? latestIntentOutcome?.reason ?? "water stress and known-route uncertainty",
       severity: round2(Math.max(support?.waterStress ?? 0, latestMove?.hardshipRisk ?? 0)),
       durationClass: "day",
       exposedCohorts: ["dependents", "elders", "adults"],
-      mitigation: latestMove?.hardshipOutcome === "rejected" ? "route rejected before unexplained deaths" : "staying near known water reduced the episode to caution",
+      mitigation: latestMove?.hardshipOutcome === "rejected" || rejectedMovementIntent ? "route rejected before unexplained deaths" : "staying near known water reduced the episode to caution",
       outcome: (band.demography.demographicChurn?.waterStressDeathsThisYear ?? 0) > 0 ? "mortality_recorded_elsewhere" : "route_rejected",
-      rawGrounding: "Band.seasonalSupport.currentSeasonSupport.waterStress + recentResidentialMoveEvents.hardshipOutcome",
+      rawGrounding: "Band.seasonalSupport.currentSeasonSupport.waterStress + residential movement intent/execution outcome",
       reasonIds: [
         `reason:acute:${band.id}:${world.time.tick}:dehydration:${band.position}` as ReasonId,
         ...(band.seasonalSupport?.reasonIds ?? []).slice(-3),
@@ -1084,6 +1140,15 @@ function deriveAcuteEpisodes(
 }
 
 function classifyFaunaArchetype(world: WorldState, stock: FaunaStockGeo): FaunaArchetypeProfile {
+  if (stock.trophicRole === "predator") {
+    return {
+      archetype: "wolves",
+      label: stock.kind === "large_predator" ? "large pack-predator stock" : "small predator stock",
+      tags: stock.kind === "large_predator"
+        ? ["pack_predator", "high_risk", "seasonal_mover", "trackable"]
+        : ["lone_predator", "scavenger", "seasonal_mover", "trackable"],
+    };
+  }
   if (stock.faunaClass === "aquatic_food") {
     return {
       archetype: "fish_waterfowl_shellfish",

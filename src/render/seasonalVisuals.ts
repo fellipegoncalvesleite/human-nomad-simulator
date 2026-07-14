@@ -16,7 +16,7 @@ export type SeasonalVisualClimateProfile =
 export interface SeasonalVisualProfile {
   readonly climateProfile: SeasonalVisualClimateProfile;
   readonly conditions: SeasonalTileConditions;
-  readonly productivity: number;
+  readonly seasonalVegetationPotential: number;
   readonly stress: number;
   readonly tint: ColorTint;
   readonly visualOnly: true;
@@ -53,7 +53,9 @@ const DEFAULT_GLOBAL_SEASONAL_VISUAL_STRATEGY: SeasonalVisualStrategy = {
   id: "default_global",
   deriveProfile: (world, tile, conditions) => {
     const weights = deriveSeasonalVisualWeights(world.time);
-    const productivity = clamp01(conditions.currentFoodEstimate / 82);
+    // Cosmetic substrate tint only. The legacy seasonal estimate describes how
+    // green/dormant the habitat may look; it is not the Living Ecology layer.
+    const seasonalVegetationPotential = clamp01(conditions.currentFoodEstimate / 82);
     const stress = clamp01(
       conditions.currentWaterStress * 0.42 +
         conditions.currentDroughtStress * 0.34 +
@@ -67,37 +69,22 @@ const DEFAULT_GLOBAL_SEASONAL_VISUAL_STRATEGY: SeasonalVisualStrategy = {
     return {
       climateProfile: "default_global",
       conditions,
-      productivity,
+      seasonalVegetationPotential,
       stress,
       visualOnly: true,
       tint: {
         warmDry: clamp01((leanWeight * 0.16 + stress * 0.24 + weights.summer * dryness * 0.16) * (1 - weights.winter * 0.32)),
         coolWet: clamp01((conditions.currentFloodStress * 0.2 + weights.spring * 0.05 + weights.winter * 0.06) * (1 - dryness * 0.36)),
-        springGreen: clamp01(weights.spring * vegetation * (0.28 + productivity * 0.26) * (1 - dryness * 0.48)),
-        lush: clamp01((weights.summer * 0.26 + peakWeight * 0.22) * vegetation * (0.58 + productivity * 0.54) * (1 - dryness * 0.34)),
+        springGreen: clamp01(weights.spring * vegetation * (0.28 + seasonalVegetationPotential * 0.26) * (1 - dryness * 0.48)),
+        lush: clamp01((weights.summer * 0.26 + peakWeight * 0.22) * vegetation * (0.58 + seasonalVegetationPotential * 0.54) * (1 - dryness * 0.34)),
         dormant: clamp01((weights.winter * (0.2 + dryness * 0.12) + weights.autumn * 0.05) * (1 - vegetation * 0.18)),
-        autumnFoliage: clamp01(weights.autumn * vegetation * (0.32 + productivity * 0.24) * (1 - dryness * 0.42)),
+        autumnFoliage: clamp01(weights.autumn * vegetation * (0.32 + seasonalVegetationPotential * 0.24) * (1 - dryness * 0.42)),
         frost: clamp01(weights.winter * (0.09 + tile.elevation * 0.18 + conditions.currentWaterStress * 0.05) * (1 - dryness * 0.34)),
         snow: clamp01(weights.winter * deriveSnowStrength(tile, conditions, dryness)),
       },
     };
   },
 };
-
-const SEASONAL_FOOD_BASE_COLORS: readonly [string, string, string, string, string] = [
-  "#6d5532",
-  "#947042",
-  "#9a944f",
-  "#4f9654",
-  "#1f7446",
-];
-
-export function getSeasonalFoodColor(world: WorldState, tile: Tile): string {
-  const profile = deriveSeasonalVisualProfile(world, tile);
-  const baseColor = getSteppedColor(profile.productivity, SEASONAL_FOOD_BASE_COLORS);
-
-  return applySeasonalTint(baseColor, profile.tint);
-}
 
 export function getSeasonalTerrainColor(
   world: WorldState,
@@ -349,31 +336,6 @@ function deriveSnowStrength(
   const waterStressPenalty = conditions.currentWaterStress * 0.18;
 
   return clamp01((highElevationSnow + coldBiomeSnow + wetGroundFrost) * (1 - dryPenalty) - waterStressPenalty);
-}
-
-function getSteppedColor(
-  value: number,
-  colors: readonly [string, string, string, string, string],
-): string {
-  const normalized = clamp01(value);
-
-  if (normalized < 0.2) {
-    return colors[0];
-  }
-
-  if (normalized < 0.4) {
-    return colors[1];
-  }
-
-  if (normalized < 0.6) {
-    return colors[2];
-  }
-
-  if (normalized < 0.8) {
-    return colors[3];
-  }
-
-  return colors[4];
 }
 
 function parseHexColor(color: string): RgbColor {

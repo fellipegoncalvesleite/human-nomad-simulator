@@ -40,6 +40,9 @@ let workerFailed = false;
 let staticWorld: WorldState | null = null;
 let fallbackWorld: WorldState | null = null;
 let fallbackTimer: number | null = null;
+// CAUSAL-REPAIR-2: remembers the playback resolution so paused/fallback
+// overlays stage residential markers the same way the running loop does.
+let lastStepMode: StepMode = "seasonal";
 let lastFallbackSnapshotAt = 0;
 let lastFallbackSelectedBandPanelAt = 0;
 let selectedBandSubscriptionStarted = false;
@@ -195,6 +198,7 @@ export function runSim(
   fullSnapshotIntervalMs?: number,
 ): void {
   stopFallbackLoop();
+  lastStepMode = stepMode;
   const batchedSteps = Math.max(1, Math.floor(stepsPerInterval));
   const normalizedFullSnapshotIntervalMs = normalizeFullSnapshotIntervalMs(fullSnapshotIntervalMs);
 
@@ -218,7 +222,9 @@ export function runSim(
     }
 
     fallbackWorld = stepSim(fallbackWorld, batchedSteps, stepMode);
-    useSimulationStore.getState().setLiveOverlay(takeLiveOverlay(fallbackWorld));
+    useSimulationStore.getState().setLiveOverlay(
+      takeLiveOverlay(fallbackWorld, { subSeasonPlayback: stepMode !== "seasonal" }),
+    );
     publishSelectedBandPanelProjection(fallbackWorld, false);
     const now = Date.now();
 
@@ -233,7 +239,9 @@ export function pauseSim(): void {
   stopFallbackLoop();
   if (!send({ type: "pause" }) && fallbackWorld !== null) {
     publishWorld(fallbackWorld);
-    useSimulationStore.getState().setLiveOverlay(takeLiveOverlay(fallbackWorld));
+    useSimulationStore.getState().setLiveOverlay(
+      takeLiveOverlay(fallbackWorld, { subSeasonPlayback: lastStepMode !== "seasonal" }),
+    );
     publishSelectedBandPanelProjection(fallbackWorld, true);
   }
 }

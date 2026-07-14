@@ -499,9 +499,9 @@ function buildFoodWorkKnowledge(band: Band, events: readonly CanonicalEvent[]): 
     trip.taskGroupType === "hunting_group" ||
     trip.taskGroupType === "plant_followup_group");
   const foodReturns = (band.activityOutcomeSummary?.returnsByResourceKind ?? []).filter((entry) =>
-    entry.returnedResourceKind === "gathered_food_placeholder" ||
-    entry.returnedResourceKind === "fish_placeholder" ||
-    entry.returnedResourceKind === "hunted_food_placeholder" ||
+    entry.returnedResourceKind === "gathered_plant_food" ||
+    entry.returnedResourceKind === "harvested_aquatic_food" ||
+    entry.returnedResourceKind === "hunted_fauna_food" ||
     entry.returnedResourceKind === "plant_information" ||
     entry.returnedResourceKind === "food_observation_only");
   const foodEvents = events.filter((event) => event.family === "food_water_pressure");
@@ -1115,12 +1115,16 @@ function activityFoodLabel(trip: IntraSeasonTripRecord): string {
 function activityReturnLabel(kind: ActivityReturnResourceKind, count: number): string {
   const times = timesLabel(count);
   switch (kind) {
-    case "gathered_food_placeholder":
+    case "gathered_plant_food":
       return `gathered food returned ${times}`;
-    case "fish_placeholder":
+    case "harvested_aquatic_food":
       return `fish returned ${times}`;
-    case "hunted_food_placeholder":
+    case "hunted_fauna_food":
       return `hunting returned ${times}`;
+    case "gathered_fiber_material":
+      return `fiber material returned ${times}`;
+    case "gathered_fuel_material":
+      return `fuel material returned ${times}`;
     case "plant_information":
       return `plant information returned ${times}`;
     case "food_observation_only":

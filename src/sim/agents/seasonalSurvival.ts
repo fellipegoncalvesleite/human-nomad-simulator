@@ -11,6 +11,72 @@ import type { ReasonId, WorldTime } from "../core/types";
 const SEASONAL_MEMORY_WINDOW = 8;
 const SHORT_WINDOW = 4;
 
+export interface CanonicalNutritionState {
+  readonly currentFoodStress: number;
+  readonly recentFoodStress: number;
+  readonly chronicFoodStress: number;
+  readonly recoveryRelief: number;
+  readonly foodMovementPressure: number;
+  readonly foodDemographicPressure: number;
+  // False ONLY when nutrition has not yet been measured (no physical-food interval
+  // has completed for this band): a new/daughter band, an audit fixture with no
+  // seasonalSupport, or a migrated legacy snapshot. Distinguishes "unknown / not
+  // yet measured" (neutral) from a measured deficit (which can be severe).
+  readonly nutritionStateAvailable: boolean;
+}
+
+// One authoritative translation from physical-support history into nutritional
+// consequences. It never adds support and never reads habitat potential,
+// remembered richness, projected trips, or the legacy hungerPressure field.
+export function deriveCanonicalNutritionState(
+  support: SeasonalSupportState | undefined,
+): CanonicalNutritionState {
+  if (support === undefined) {
+    // UNMEASURED, not starving. `undefined` means the band has not yet completed a
+    // physical-food interval (new/daughter/fixture/legacy) — treating that as
+    // chronic hunger wrongly punished comfortable bands and daughter bands. It is
+    // neutral. A KNOWN zero-food state is a DEFINED support with foodStress≈1 below,
+    // which still yields severe stress, so this is not a free-food loophole:
+    // production active bands receive a defined seasonalSupport once carrying state
+    // exists (their first observed-tile interval), so this branch is transient.
+    return {
+      currentFoodStress: 0,
+      recentFoodStress: 0,
+      chronicFoodStress: 0,
+      recoveryRelief: 0,
+      foodMovementPressure: 0,
+      foodDemographicPressure: 0,
+      nutritionStateAvailable: false,
+    };
+  }
+
+  const currentFoodStress = clamp01(support.currentSeasonSupport.foodStress);
+  const recentFoodStress = clamp01(1 - support.rolling4SeasonSupport);
+  const chronicFoodStress = clamp01(
+    (support.chronicDeficitStreak / SEASONAL_MEMORY_WINDOW) * 0.58 +
+      (support.deficitSeasonsLast8 / SEASONAL_MEMORY_WINDOW) * 0.42,
+  );
+  const recoveryRelief = clamp01(support.seasonalRecoveryStreak / SHORT_WINDOW);
+
+  return {
+    currentFoodStress: round2(currentFoodStress),
+    recentFoodStress: round2(recentFoodStress),
+    chronicFoodStress: round2(chronicFoodStress),
+    recoveryRelief: round2(recoveryRelief),
+    foodMovementPressure: round2(clamp01(
+      currentFoodStress * 0.42 + recentFoodStress * 0.34 + chronicFoodStress * 0.34 - recoveryRelief * 0.16,
+    )),
+    foodDemographicPressure: round2(clamp01(
+      currentFoodStress * 0.38 + recentFoodStress * 0.26 + chronicFoodStress * 0.48 - recoveryRelief * 0.14,
+    )),
+    nutritionStateAvailable: true,
+  };
+}
+
+export function getCanonicalFoodStress(band: Band): number {
+  return deriveCanonicalNutritionState(band.seasonalSupport).foodMovementPressure;
+}
+
 export function updateSeasonalSupportState(
   previous: SeasonalSupportState | undefined,
   carrying: CarryingCapacityState | undefined,
@@ -22,11 +88,21 @@ export function updateSeasonalSupportState(
   }
 
   const support = carrying.perCapitaReturn.supportDebug;
-  const yieldState = carrying.seasonalEffectiveYield;
+  // This is a demographic/readability trend, not a second food estimate.  The
+  // old version compared two generic habitat-yield projections, so a depleted
+  // tile could still look like a food pulse.  Compare the current physical
+  // receipt ratio with the band's own recent physical-receipt baseline instead.
+  const currentRatio = Math.max(0, support.rawSupportRatio);
+  const recentPhysicalBaseline = previous === undefined
+    ? currentRatio
+    : Math.max(0.05, previous.rolling4SeasonSupport);
   const seasonalModifier = round2(
-    yieldState.basePotential <= 0 ? 1 : yieldState.effectiveYield / yieldState.basePotential,
+    previous === undefined ? 1 : Math.max(0, Math.min(2, currentRatio / recentPhysicalBaseline)),
   );
-  const foodStress = clamp01(Math.max(band.pressureState?.foodStress ?? 0, support.deficitRatio));
+  // Current nourishment is owned by the canonical physical ledger. Do not feed
+  // last tick's behavioral pressure back into food history: that stale loop made
+  // a good harvest unable to clear hunger.
+  const foodStress = clamp01(support.humanFoodLedger?.foodStress ?? support.deficitRatio);
   const waterStress = clamp01(band.pressureState?.waterStress ?? 0);
   const sample: SeasonalSupportSample = {
     tick: time.tick,
@@ -92,7 +168,7 @@ export function updateSeasonalSupportState(
     seasonalRecoveryStreak,
   });
 
-  return {
+  const baseState: SeasonalSupportState = {
     bandId: band.id,
     lastUpdatedTick: time.tick,
     currentSeasonSupport: sample,
@@ -116,6 +192,12 @@ export function updateSeasonalSupportState(
     populationStableDespiteRecurringHunger: hasStablePopulationButRecurringHunger(band, deficitSeasonsLast8),
     topSeasonalSupportReasons: getTopSeasonalSupportReasons(carrying, sample),
     reasonIds: makeSeasonalSupportReasonIds(band, time, hungerClassification),
+  };
+  const nutrition = deriveCanonicalNutritionState(baseState);
+
+  return {
+    ...baseState,
+    ...nutrition,
   };
 }
 
@@ -236,7 +318,6 @@ function getTopSeasonalSupportReasons(
   sample: SeasonalSupportSample,
 ): readonly string[] {
   const support = carrying.perCapitaReturn.supportDebug;
-  const yieldState = carrying.seasonalEffectiveYield;
   const reasons: string[] = [];
 
   if (sample.mode === "lean") {
@@ -268,13 +349,6 @@ function getTopSeasonalSupportReasons(
   if ((support.plantSupportLoss ?? 0) > 0.3) {
     reasons.push("plant patches are giving thin returns");
   }
-  if (yieldState.localUsePenalty > 0.2) {
-    reasons.push("the closest ground is overused");
-  }
-  if (yieldState.recoveryBonus > 0.18) {
-    reasons.push("rested ground nearby is bouncing back");
-  }
-
   return reasons.length === 0 ? ["the season is treating them about evenly"] : reasons.slice(0, 5);
 }
 

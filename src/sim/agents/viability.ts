@@ -9,6 +9,12 @@ import { getTile } from "../world/generate";
 import type { WorldState } from "../world/types";
 
 const MINIMUM_VIABLE_POPULATION = 14;
+// A remnant below nine people on completely failed ground could previously
+// remain at eight indefinitely: even maximal chronic food+water stress topped
+// out below the old 0.82 gate once deterministic replacement births balanced
+// annual losses.  0.76 is still a high-risk gate (low population alone cannot
+// reach it) but makes prolonged, physically nonviable collapse reachable.
+const LOW_POPULATION_COLLAPSE_RISK = 0.76;
 
 export function updateBandViabilityStates(world: WorldState): WorldState {
   let bandsById: Record<string, Band> = Object.values(world.bands)
@@ -22,6 +28,13 @@ export function updateBandViabilityStates(world: WorldState): WorldState {
     }, {});
 
   for (const band of Object.values(bandsById).sort(compareBands)) {
+    if (band.viability?.status === "extinct") {
+      if (band.status !== "dispersed") {
+        bandsById[band.id] = terminalizeExtinctBand(world, band, "demographic_zero");
+      }
+      continue;
+    }
+
     if (
       band.viability === undefined ||
       band.viability.status !== "nonviable" ||
@@ -102,61 +115,101 @@ export function updateBandViabilityStates(world: WorldState): WorldState {
     // its working adults cannot sustain itself even at a slightly larger size.
     // Both are gated by a high extinction risk so only genuinely-failed, unabsorbed
     // bands collapse (kin-adjacent failing bands are absorbed earlier).
-    const lowPopulationCollapse = band.viability.extinctionRisk >= 0.82 && band.demography.population < 9;
+    const lowPopulationCollapse = band.viability.extinctionRisk >= LOW_POPULATION_COLLAPSE_RISK && band.demography.population < 9;
     const laborCollapse =
       band.viability.extinctionRisk >= 0.74 &&
       band.demography.workingAdults < 4 &&
       band.demography.population < 16;
 
     if (lowPopulationCollapse || laborCollapse) {
-      const extinctReasonId = makeViabilityReasonId(
+      bandsById[band.id] = terminalizeExtinctBand(
         world,
-        band.id,
-        laborCollapse && !lowPopulationCollapse ? "band_collapse_labor_failure" : "band_extinct_low_population",
+        band,
+        laborCollapse && !lowPopulationCollapse ? "labor_collapse" : "low_population_collapse",
       );
-      const removedPopulation = toPopulationCount(band.demography.population);
-
-      bandsById[band.id] = {
-        ...band,
-        size: 0,
-        status: "dispersed",
-        demography: recomputeDemographicCounts({
-          ...band.demography,
-          population: 0,
-          growthAccumulator: 0,
-          mortalityAccumulator: 0,
-          lastPopulationChangeReasonIds: [extinctReasonId],
-          splitPressure: 0,
-        }),
-        viability: {
-          ...band.viability,
-          status: "extinct",
-          weakBandClassification: "disappeared_collapsed",
-          weakBandFate: "collapsed",
-          populationRemoved: removedPopulation,
-          populationTransferred: 0,
-          populationConservationSummary: `transferred 0; removed ${removedPopulation}`,
-          reasonIds: [...band.viability.reasonIds, extinctReasonId].slice(-10),
-        },
-        causalTraces: [
-          ...band.causalTraces,
-          makeViabilityTrace(
-            world,
-            band.id,
-            "band_extinct",
-            band.position,
-            undefined,
-            removedPopulation,
-            extinctReasonId,
-          ),
-        ].slice(-80),
-      };
     }
   }
 
   return {
     ...world,
     bands: bandsById as Readonly<Record<BandId, Band>>,
+  };
+}
+
+function terminalizeExtinctBand(
+  world: WorldState,
+  band: Band,
+  cause: "demographic_zero" | "low_population_collapse" | "labor_collapse",
+): Band {
+  const removedPopulation = toPopulationCount(band.demography.population);
+  const inferredPopulationBeforeZero = cause === "demographic_zero"
+    ? Math.max(0, removedPopulation - (band.demography.lastBirths ?? 0) + (band.demography.lastDeaths ?? 0))
+    : removedPopulation;
+  const extinctReasonId = makeViabilityReasonId(
+    world,
+    band.id,
+    cause === "labor_collapse" ? "band_collapse_labor_failure" :
+      cause === "demographic_zero" ? "band_extinct_demographic_zero" :
+      "band_extinct_low_population",
+  );
+  const viability = band.viability ?? deriveBandViabilityState(world, band);
+  return {
+    ...band,
+    size: 0,
+    status: "dispersed",
+    currentIntent: undefined,
+    demography: recomputeDemographicCounts({
+      ...band.demography,
+      population: 0,
+      growthAccumulator: 0,
+      mortalityAccumulator: 0,
+      dependentToAdultAccumulator: 0,
+      adultToElderAccumulator: 0,
+      elderMortalityAccumulator: 0,
+      birthAccumulator: 0,
+      lastPopulationChangeReasonIds: [extinctReasonId],
+      splitPressure: 0,
+    }),
+    viability: {
+      ...viability,
+      population: 0,
+      status: "extinct",
+      weakBandClassification: "disappeared_collapsed",
+      weakBandFate: "collapsed",
+      populationRemoved: removedPopulation,
+      populationTransferred: 0,
+      populationConservationSummary: `transferred 0; removed ${removedPopulation}`,
+      terminalSnapshot: {
+        tick: world.time.tick,
+        year: world.time.year,
+        season: world.time.season,
+        cause,
+        populationBeforeRemoval: inferredPopulationBeforeZero,
+        dependentsBeforeRemoval: cause === "demographic_zero"
+          ? band.demography.dependents + (band.demography.lastDependentDeaths ?? 0)
+          : band.demography.dependents,
+        workingAdultsBeforeRemoval: cause === "demographic_zero"
+          ? band.demography.workingAdults + (band.demography.lastAdultDeaths ?? 0)
+          : band.demography.workingAdults,
+        eldersBeforeRemoval: cause === "demographic_zero"
+          ? band.demography.elders + (band.demography.lastEldersDied ?? 0)
+          : band.demography.elders,
+        finalPopulationChangeReasonIds: band.demography.lastPopulationChangeReasonIds,
+      },
+      reasonIds: [...viability.reasonIds, extinctReasonId].slice(-10),
+    },
+    causalTraces: [
+      ...band.causalTraces,
+      makeViabilityTrace(
+        world,
+        band.id,
+        "band_extinct",
+        band.position,
+        undefined,
+        Math.max(removedPopulation, inferredPopulationBeforeZero),
+        extinctReasonId,
+      ),
+    ].slice(-80),
   };
 }
 

@@ -19,7 +19,13 @@ import {
   getForestPatchState,
 } from "../sim/agents/forestPatches";
 import type { Tile, WorldState } from "../sim/world/types";
-import { getSeasonalFoodColor, getSeasonalTerrainColor, getSeasonalVisualTimeKey } from "./seasonalVisuals";
+import {
+  deriveBandPerceivedEcologicalOpportunity,
+  deriveCurrentLivingEcologyTile,
+  deriveHabitatPotentialTile,
+  type BandPerceivedEcologicalOpportunityProjection,
+} from "../sim/world/ecologicalProjection";
+import { getSeasonalTerrainColor, getSeasonalVisualTimeKey } from "./seasonalVisuals";
 
 // RANGE-3 Part 5: per-tick memo for identity colors — rebuilt once per tick,
 // reused across frames within the same tick (cheap: one derivation per band per tick).
@@ -67,8 +73,9 @@ function getCachedFamiliarCountry(band: Band, world: WorldState): ReturnType<typ
 
 export type MapViewMode =
   | "terrain"
-  | "richness"
-  | "seasonal_food"
+  | "habitat_potential"
+  | "living_ecology"
+  | "known_opportunity"
   | "water"
   | "elevation"
   | "movement";
@@ -2517,6 +2524,7 @@ function isTileVisible(tile: Tile, visibleBounds: VisibleTileBounds): boolean {
 interface TileFillColorCache {
   timeKey: string;
   mode: MapViewMode;
+  selectedBandId: BandId | null;
   seasonalVisualsEnabled: boolean;
   colorWorld: WorldState | null;
   colors: Map<TileId, string>;
@@ -2538,11 +2546,13 @@ function getCachedTileFillColor(tile: Tile, snapshot: CanvasRenderSnapshot): str
     cache === undefined ||
     cache.timeKey !== timeKey ||
     cache.mode !== snapshot.mapViewMode ||
+    cache.selectedBandId !== snapshot.selectedBandId ||
     cache.seasonalVisualsEnabled !== snapshot.seasonalVisualsEnabled
   ) {
     cache = {
       timeKey,
       mode: snapshot.mapViewMode,
+      selectedBandId: snapshot.selectedBandId,
       seasonalVisualsEnabled: snapshot.seasonalVisualsEnabled,
       colorWorld: getTileFillColorWorld(snapshot),
       colors: new Map(),
@@ -2573,8 +2583,9 @@ function getTileColor(
 ): string {
   const mode = snapshot.mapViewMode;
 
-  if (mode === "richness") {
-    return getSteppedColor(tile.resourceProfile.baseRichness, [
+  if (mode === "habitat_potential" && colorWorld !== null) {
+    const potential = deriveHabitatPotentialTile(tile);
+    return getSteppedColor(potential.ecologicalSupportScalar, [
       "#7d5d34",
       "#a47a43",
       "#9aa15e",
@@ -2583,8 +2594,29 @@ function getTileColor(
     ]);
   }
 
-  if (mode === "seasonal_food" && colorWorld !== null) {
-    return getSeasonalFoodColor(colorWorld, tile);
+  if (mode === "living_ecology" && colorWorld !== null) {
+    const ecology = deriveCurrentLivingEcologyTile(colorWorld, tile.id);
+    return getSteppedColor(ecology?.ecologicalSupportScalar ?? 0, [
+      "#4d4538",
+      "#79623f",
+      "#8a864a",
+      "#4c8b55",
+      "#17694b",
+    ]);
+  }
+
+  if (mode === "known_opportunity" && colorWorld !== null) {
+    const band = snapshot.selectedBandId === null ? undefined : colorWorld.bands[snapshot.selectedBandId];
+    if (band === undefined) return "#303735";
+    const perceived = getCachedBandPerceivedProjection(band, colorWorld).tiles[tile.id];
+    if (perceived === undefined || !perceived.known) return "#303735";
+    return getSteppedColor(perceived.ecologicalSupportScalar * (0.55 + perceived.confidence * 0.45), [
+      "#514838",
+      "#746444",
+      "#8b874f",
+      "#5f8c59",
+      "#2e7254",
+    ]);
   }
 
   if (mode === "water") {
@@ -2632,7 +2664,7 @@ function getStaticLayerTimeKey(snapshot: CanvasRenderSnapshot): string {
   }
 
   if (!isTimeSensitiveTileColor(snapshot)) {
-    return String(Number(snapshot.world.time.tick));
+    return "static";
   }
 
   return getSeasonalVisualTimeKey(getTileFillColorTime(snapshot));
@@ -2640,7 +2672,7 @@ function getStaticLayerTimeKey(snapshot: CanvasRenderSnapshot): string {
 
 function getTileFillColorTimeKey(snapshot: CanvasRenderSnapshot): string {
   if (snapshot.world === null || !isTimeSensitiveTileColor(snapshot)) {
-    return snapshot.world === null ? "none" : String(Number(snapshot.world.time.tick));
+    return snapshot.world === null ? "none" : "static";
   }
 
   return getSeasonalVisualTimeKey(getTileFillColorTime(snapshot));
@@ -2681,7 +2713,26 @@ function getTileFillColorTime(snapshot: CanvasRenderSnapshot): WorldState["time"
 }
 
 function isTimeSensitiveTileColor(snapshot: CanvasRenderSnapshot): boolean {
-  return snapshot.mapViewMode === "seasonal_food" || (snapshot.mapViewMode === "terrain" && snapshot.seasonalVisualsEnabled);
+  return snapshot.mapViewMode === "living_ecology" ||
+    snapshot.mapViewMode === "known_opportunity" ||
+    (snapshot.mapViewMode === "terrain" && snapshot.seasonalVisualsEnabled);
+}
+
+const perceivedEcologyByBand = new WeakMap<Band, {
+  readonly tick: number;
+  readonly projection: BandPerceivedEcologicalOpportunityProjection;
+}>();
+
+function getCachedBandPerceivedProjection(
+  band: Band,
+  world: WorldState,
+): BandPerceivedEcologicalOpportunityProjection {
+  const tick = Number(world.time.tick);
+  const cached = perceivedEcologyByBand.get(band);
+  if (cached !== undefined && cached.tick === tick) return cached.projection;
+  const projection = deriveBandPerceivedEcologicalOpportunity(band, world.time);
+  perceivedEcologyByBand.set(band, { tick, projection });
+  return projection;
 }
 
 function getCalendarDayValue(time: WorldState["time"]): number {
@@ -3223,23 +3274,34 @@ function drawMapAtmosphere(
 }
 
 function getLegendItems(mode: MapViewMode): readonly LegendItem[] {
-  if (mode === "richness") {
+  if (mode === "habitat_potential") {
     return [
-      { color: "#7d5d34", label: "poor" },
-      { color: "#a47a43", label: "low" },
-      { color: "#9aa15e", label: "medium" },
-      { color: "#5d9958", label: "rich" },
-      { color: "#237a4c", label: "very rich" },
+      { color: "#7d5d34", label: "low potential" },
+      { color: "#a47a43", label: "limited potential" },
+      { color: "#9aa15e", label: "moderate potential" },
+      { color: "#5d9958", label: "high potential" },
+      { color: "#237a4c", label: "very high potential" },
     ];
   }
 
-  if (mode === "seasonal_food") {
+  if (mode === "living_ecology") {
     return [
-      { color: "#6d5532", label: "scarce" },
-      { color: "#947042", label: "low food" },
-      { color: "#9a944f", label: "moderate" },
-      { color: "#4f9654", label: "abundant" },
-      { color: "#1f7446", label: "peak yield" },
+      { color: "#4d4538", label: "no current support" },
+      { color: "#79623f", label: "low current support" },
+      { color: "#8a864a", label: "moderate current support" },
+      { color: "#4c8b55", label: "high current support" },
+      { color: "#17694b", label: "very high current support · Technical" },
+    ];
+  }
+
+  if (mode === "known_opportunity") {
+    return [
+      { color: "#303735", label: "unknown" },
+      { color: "#514838", label: "low / uncertain" },
+      { color: "#746444", label: "limited remembered" },
+      { color: "#8b874f", label: "moderate remembered" },
+      { color: "#5f8c59", label: "promising known" },
+      { color: "#2e7254", label: "strong known evidence" },
     ];
   }
 

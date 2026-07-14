@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { Band } from "../../sim/agents/types";
+import { derivePublicHumanStoryProfile } from "../../sim/agents/publicHumanStory";
 import type { StepMode, TickNumber } from "../../sim/core/types";
 import type { Decision } from "../../sim/rules/types";
 import type { Tile, WorldState } from "../../sim/world/types";
@@ -8,6 +9,7 @@ import type { Tile, WorldState } from "../../sim/world/types";
 import { Icon } from "../icons";
 import { Affordances } from "./Affordances";
 import { CampFootholds } from "./CampFootholds";
+import { CampMovement } from "./CampMovement";
 import { Doing } from "./Doing";
 import { Events } from "./Events";
 import { Food } from "./Food";
@@ -19,6 +21,8 @@ import { Overview } from "./Overview";
 import { People } from "./People";
 import { Place } from "./Place";
 import { PracticeFeedback } from "./PracticeFeedback";
+import { BetweenBands } from "./BetweenBands";
+import { IdeasSolutions } from "./IdeasSolutions";
 import { ProblemsAndTrials } from "./ProblemsAndTrials";
 import { Survival } from "./Survival";
 import { Technical } from "./Technical";
@@ -33,10 +37,13 @@ type ExportSectionId =
   | "nature"
   | "place"
   | "camp"
+  | "movementCamp"
   | "people"
   | "affordances"
   | "problems"
   | "feedback"
+  | "between"
+  | "ideas"
   | "knowledge"
   | "identity"
   | "events"
@@ -54,10 +61,13 @@ const EXPORT_SECTIONS: readonly {
   { id: "nature", label: "Nature" },
   { id: "place", label: "Place" },
   { id: "camp", label: "Camp & Footholds" },
+  { id: "movementCamp", label: "Movement & Camp" },
   { id: "people", label: "People" },
   { id: "affordances", label: "Affordances" },
   { id: "problems", label: "Problems & Trials" },
   { id: "feedback", label: "Practice Feedback" },
+  { id: "between", label: "Between Bands" },
+  { id: "ideas", label: "Ideas & Solutions" },
   { id: "knowledge", label: "Knowledge" },
   { id: "identity", label: "Identity" },
   { id: "events", label: "Events" },
@@ -91,6 +101,9 @@ const TEXT_BLOCK_SELECTOR = [
   ".stat-tile",
   ".status-chip",
   ".story-block",
+  ".human-story-card",
+  ".public-story-title",
+  ".public-story-line",
   ".support-pressure > .chip",
   ".talk-card",
   ".talk-empty",
@@ -139,6 +152,7 @@ export function BandMarkdownExport({
     DEFAULT_SECTION_IDS,
   );
   const [markdown, setMarkdown] = useState("");
+  const [sourceRequested, setSourceRequested] = useState(false);
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">("idle");
   const sourceRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -150,11 +164,13 @@ export function BandMarkdownExport({
 
   useEffect(() => {
     setSelectedSections(DEFAULT_SECTION_IDS);
+    setMarkdown("");
+    setSourceRequested(false);
     setCopyStatus("idle");
   }, [band.id]);
 
   useEffect(() => {
-    if (!open) {
+    if (!open || !sourceRequested) {
       return;
     }
 
@@ -167,6 +183,7 @@ export function BandMarkdownExport({
         selectedLabels,
       }),
     );
+    setSourceRequested(false);
   }, [
     band,
     currentTile,
@@ -177,11 +194,15 @@ export function BandMarkdownExport({
     selectedActivityTripId,
     selectedKey,
     selectedLabels,
+    sourceRequested,
     stepMode,
     world,
   ]);
 
   function toggleSection(sectionId: ExportSectionId, checked: boolean) {
+    setMarkdown("");
+    setSourceRequested(false);
+    setCopyStatus("idle");
     setSelectedSections((current) => {
       const next = new Set(current);
 
@@ -197,6 +218,15 @@ export function BandMarkdownExport({
 
   function setAllSections(checked: boolean) {
     setSelectedSections(checked ? DEFAULT_SECTION_IDS : []);
+    setMarkdown("");
+    setSourceRequested(false);
+    setCopyStatus("idle");
+  }
+
+  function requestMarkdownGeneration() {
+    setMarkdown("");
+    setCopyStatus("idle");
+    setSourceRequested(true);
   }
 
   async function copyMarkdown() {
@@ -250,6 +280,10 @@ export function BandMarkdownExport({
           <div className="band-export-head">
             <strong>Band information</strong>
             <div className="band-export-actions">
+              <button type="button" onClick={requestMarkdownGeneration} disabled={sourceRequested}>
+                <Icon name="file" />
+                <span>{sourceRequested ? "Generating" : "Generate .md"}</span>
+              </button>
               <button type="button" onClick={copyMarkdown} disabled={markdown.length === 0}>
                 <Icon name="copy" />
                 <span>{copyStatus === "copied" ? "Copied" : copyStatus === "failed" ? "Copy failed" : "Copy"}</span>
@@ -292,31 +326,33 @@ export function BandMarkdownExport({
             aria-label="Band information markdown"
           />
 
-          <div ref={sourceRef} className="band-export-source" hidden>
-            {selectedSections.map((sectionId) => {
-              const section = EXPORT_SECTIONS.find((entry) => entry.id === sectionId);
+          {sourceRequested ? (
+            <div ref={sourceRef} className="band-export-source" hidden>
+              {selectedSections.map((sectionId) => {
+                const section = EXPORT_SECTIONS.find((entry) => entry.id === sectionId);
 
-              return (
-                <div
-                  key={sectionId}
-                  data-export-view={sectionId}
-                  data-export-label={section?.label ?? sectionId}
-                >
-                  {renderExportSection({
-                    sectionId,
-                    band,
-                    world,
-                    currentTile,
-                    latestDecision,
-                    selectedActivityTripId,
-                    season,
-                    currentTick,
-                    stepMode,
-                  })}
-                </div>
-              );
-            })}
-          </div>
+                return (
+                  <div
+                    key={sectionId}
+                    data-export-view={sectionId}
+                    data-export-label={section?.label ?? sectionId}
+                  >
+                    {renderExportSection({
+                      sectionId,
+                      band,
+                      world,
+                      currentTile,
+                      latestDecision,
+                      selectedActivityTripId,
+                      season,
+                      currentTick,
+                      stepMode,
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -377,6 +413,8 @@ function renderExportSection({
       return <Place band={band} world={world} currentTick={currentTick} />;
     case "camp":
       return <CampFootholds band={band} world={world} />;
+    case "movementCamp":
+      return <CampMovement band={band} world={world} />;
     case "people":
       return <People band={band} world={world} defaultExpanded />;
     case "affordances":
@@ -385,6 +423,10 @@ function renderExportSection({
       return <ProblemsAndTrials band={band} world={world} />;
     case "feedback":
       return <PracticeFeedback band={band} world={world} />;
+    case "between":
+      return <BetweenBands band={band} world={world} />;
+    case "ideas":
+      return <IdeasSolutions band={band} world={world} />;
     case "knowledge":
       return <Knowledge band={band} world={world} />;
     case "identity":
@@ -429,6 +471,28 @@ function buildMarkdownFromExportSource({
   }
 
   lines.push("");
+
+  if (world !== null && shouldExportPublicStories(selectedLabels)) {
+    const storyProfile = derivePublicHumanStoryProfile(world, band);
+    const stories = [
+      ...storyProfile.internalTalks.slice(0, 3),
+      ...storyProfile.outerTalks.slice(0, 3),
+      ...storyProfile.eventStories.slice(0, 4),
+      ...storyProfile.ideaStories.slice(0, 4),
+      ...storyProfile.attemptStories.slice(0, 3),
+      ...storyProfile.routineStories.slice(0, 3),
+      ...storyProfile.campStories.slice(0, 3),
+      ...storyProfile.rangeRotationStories.slice(0, 3),
+    ].slice(0, 18);
+
+    if (stories.length > 0) {
+      lines.push("## Public human stories", "");
+      for (const story of stories) {
+        lines.push(`- **${story.title}** (${story.status}) - ${story.story}`);
+      }
+      lines.push("");
+    }
+  }
 
   if (root === null || selectedLabels.length === 0) {
     lines.push("_No band sections selected._");
@@ -557,6 +621,15 @@ function normalizeText(value: string): string {
 
 function finishMarkdown(lines: readonly string[]): string {
   return `${lines.join("\n").replace(/\n{3,}/g, "\n\n").trim()}\n`;
+}
+
+function shouldExportPublicStories(selectedLabels: readonly string[]): boolean {
+  return selectedLabels.some((label) =>
+    label === "Events" ||
+    label === "Ideas & Solutions" ||
+    label === "Movement & Camp" ||
+    label === "Between Bands" ||
+    label === "Chronicle");
 }
 
 function capitalize(value: string): string {

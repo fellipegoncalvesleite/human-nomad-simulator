@@ -56,7 +56,7 @@ const RETURN_RELIEF = 0.85;
 const MIN_ORIGIN_PULL = 0.15;
 // "Reached a frontier" gates (Manhattan tiles from her LINEAGE origin — the founder's
 // ancestral tile, band-known lineage knowledge). Residence must NOT engage near the
-// origin (that would just freeze a daughter locally and KILL reach, the M0.4
+  // origin (that would just freeze a daughter locally and break reach, the M0.4
 // regression we saw); it only acts on a locus she has genuinely pushed out to. Three
 // thresholds, all matching the audit's Manhattan distance-from-origin metric:
 //   ENGAGE   — she must have reached at least the origin-band edge to first establish.

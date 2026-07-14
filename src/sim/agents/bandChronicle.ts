@@ -27,10 +27,10 @@ const IMPORTANT_ROUTE_CAP = 6;
 const IMPORTANT_RESOURCE_CAP = 8;
 const IMPORTANT_RELATION_CAP = 6;
 const TALK_THEME_CAP = 8;
-const LINK_TARGET_CAP = 40;
+const LINK_TARGET_CAP = 36;
 const PROOF_ID_CAP = 12;
 const YEAR_SOURCE_CAP = 5;
-const TECHNICAL_PROOF_SECTION_CAP = 16;
+const TECHNICAL_PROOF_SECTION_CAP = 14;
 
 // BAND-CHRONICLE-WIKI-EXPANSION-1 — bounded wiki/article layer. Caps are sized
 // so the whole selected-band projection (foundation + wiki) stays inside the
@@ -54,7 +54,7 @@ const ROUTE_PAGE_CAP = 6;
 const RESOURCE_PAGE_CAP = 6;
 const RELATED_LINKS_PER_PAGE_CAP = 4;
 const PAGE_FACT_CAP = 6;
-const PAGE_PARAGRAPH_CAP = 4;
+const PAGE_PARAGRAPH_CAP = 3;
 const TEMPLATE_PROOF_CAP = 16;
 // 1C — century-scale framing: bands older than this get a long-story lead and
 // era list built from durable signals; SLACK is how much older than the
@@ -795,6 +795,7 @@ function buildShortArticleSummary(
     : chronicleAge > world.time.year - firstRecordedYear + 10
       ? `Detailed records cover Years ${firstRecordedYear}–${world.time.year}; the older story survives in places, routes, and people.`
       : `The recorded chronicle covers Years ${firstRecordedYear}–${world.time.year}.`;
+  const invention = buildCanonicalInventionChronicleLine(band);
 
   if (mainArc !== undefined) {
     return joinSentences([
@@ -803,6 +804,7 @@ function buildShortArticleSummary(
       `${mainArc.summary}`,
       place === undefined ? undefined : `The most important remembered place is ${lowerFirst(place)}.`,
       resource === undefined ? undefined : `Food history most often points to ${lowerFirst(resource)}.`,
+      invention,
     ]);
   }
 
@@ -811,6 +813,24 @@ function buildShortArticleSummary(
     period,
     place === undefined ? "No single place dominates the recorded history yet." : `${place} is the strongest place in the record.`,
     resource === undefined ? undefined : `${resource} is the clearest food or ecology theme.`,
+    invention,
+  ]);
+}
+
+function buildCanonicalInventionChronicleLine(band: Band): string | undefined {
+  const state = band.practicalAdaptation;
+  const experiment = state?.experiments?.[0];
+  if (state === undefined || experiment === undefined) return undefined;
+  const problem = state.problems?.find((entry) => entry.id === experiment.problemId);
+  const idea = state.ideas?.find((entry) => entry.id === experiment.ideaId);
+  const response = state.responses.find((entry) => entry.id === experiment.responseId);
+  if (problem === undefined || idea === undefined || response === undefined) return undefined;
+  return joinSentences([
+    `A lived problem — ${lowerFirst(problem.publicLabel)} — led people to consider ${lowerFirst(idea.publicLabel)}.`,
+    experiment.observedOutcome === undefined
+      ? `They are physically testing it; no result is claimed yet.`
+      : `The test was observed as ${lowerFirst(experiment.observedOutcome)}.`,
+    `The resulting ${lowerFirst(response.publicLabel)} remains ${response.status} and context-bound.`,
   ]);
 }
 
@@ -819,11 +839,12 @@ function buildCurrentEra(context: ChronicleContext, arcs: readonly BandChronicle
   const strongest = arcs[0];
 
   if (band.viability?.status === "extinct") {
-    return `Ended by year ${world.time.year}`;
+    const terminalYear = band.viability.terminalSnapshot?.year ?? band.deepHistory?.terminalRecord?.year ?? world.time.year;
+    return `Ended by year ${terminalYear}`;
   }
 
   if (band.viability?.status === "absorbed") {
-    return `Absorbed by year ${world.time.year}`;
+    return `Absorbed by year ${band.deepHistory?.terminalRecord?.year ?? world.time.year}`;
   }
 
   if (strongest !== undefined && strongest.kind === "recovery") {
@@ -3904,11 +3925,12 @@ function deepEpisodeDisplay(
   episode: BandChronicleDeepHistoryEpisodeRecord,
   provenance: "lived" | "inherited",
 ): BandChronicleDeepHistoryEpisode {
+  const summary = deepEpisodeSummary(episode);
   return {
     id: `deep-episode:${episode.id}`,
     title: deepEpisodeTitle(episode.type),
     yearRange: formatDeepYearRange(episode.startYear, episode.endYear ?? episode.lastUpdatedYear),
-    summary: deepEpisodeSummary(episode),
+    summary: provenance === "inherited" ? `Lineage memory, not a lived episode: ${summary}` : summary,
     provenance,
     evidenceChips: evidenceChips(episode.evidence),
   };

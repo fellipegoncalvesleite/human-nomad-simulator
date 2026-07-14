@@ -18,6 +18,7 @@ import { classifyMovementContext, deriveFamiliarCountry, deriveInheritedRangeCon
 import { deriveSocialRangeRecognition } from "../../sim/agents/socialRangeRecognition";
 import { deriveLineageIdentity } from "../../sim/agents/lineageIdentity";
 import { deriveFordContext } from "../../sim/agents/fordContext";
+import { deriveDemographicRenewal } from "../../sim/agents/demographicRenewal";
 
 // 2K.3D: the cause-attributed nonlethal stress increment is feature-flagged and OFF by
 // default in the UI (it is a separately-reported contribution, never wired into movement).
@@ -500,7 +501,11 @@ export function CausalPressureDetails({
         <Detail label="state" value="not evaluated yet" />
       ) : (
         <>
-          <Detail label="food stress" value={formatNumber(pressureState.foodStress)} />
+          <Detail
+            label="food stress (canonical)"
+            value={`${formatNumber(pressureState.foodStress)} · ${pressureState.foodStressSource ?? "legacy/unknown"}`}
+          />
+          <Detail label="food movement contribution" value={formatNumber(pressureState.foodMovementPressure ?? 0)} />
           <Detail label="water stress" value={formatNumber(pressureState.waterStress)} />
           <Detail label="mobility pressure" value={formatNumber(pressureState.mobilityPressure)} />
           <Detail label="fatigue pressure" value={formatNumber(pressureState.fatiguePressure)} />
@@ -551,39 +556,6 @@ export function CausalPressureDetails({
   );
 }
 
-// DEMOGRAPHY-MORTALITY-1 — compact demographic outlook + a death-cause hint from
-// the band's own cohort/stress state (no hidden truth).
-function demographicOutlook(band: Band): string {
-  const demo = band.demography;
-  const viability = band.viability?.status;
-
-  if (viability === "extinct" || viability === "nonviable") {
-    return "critical — at risk of collapse";
-  }
-
-  const base =
-    viability === "fragile"
-      ? "fragile / shrinking"
-      : demo.mortalityPressure > demo.fertilityPressure + 0.12
-        ? "shrinking"
-        : demo.fertilityPressure > demo.mortalityPressure + 0.12
-          ? "growing"
-          : "stable";
-
-  if ((demo.lastDeaths ?? 0) <= 0) {
-    return base;
-  }
-
-  const cause =
-    (demo.lastEldersDied ?? 0) >= (demo.lastDeaths ?? 0) * 0.5
-      ? "mostly old age"
-      : demo.foodPerPersonStress > 0.55
-        ? "hunger / food deficit"
-        : "sustained crisis";
-
-  return `${base} · recent deaths: ${cause}`;
-}
-
 export function DemographyFissionDetails({
   band,
   world,
@@ -591,6 +563,7 @@ export function DemographyFissionDetails({
   readonly band: Band;
   readonly world: WorldState | null;
 }) {
+  const renewal = deriveDemographicRenewal(band);
   const latestFission = band.fissionEvents[band.fissionEvents.length - 1];
   const parentBand = band.parentBandId === undefined || world === null
     ? undefined
@@ -620,12 +593,15 @@ export function DemographyFissionDetails({
       />
       <Detail label="fertility pressure" value={formatNumber(band.demography.fertilityPressure)} />
       <Detail label="mortality pressure" value={formatNumber(band.demography.mortalityPressure)} />
+      <Detail label="· food mortality contribution" value={formatNumber(band.demography.foodMortalityContribution ?? 0)} />
       <Detail
         label="recent births / deaths (DEMOGRAPHY-MORTALITY-1)"
         value={`${band.demography.lastBirths ?? 0} born · ${band.demography.lastDeaths ?? 0} died · matured ${band.demography.lastDependentsMatured ?? 0} · aged-to-elder ${band.demography.lastAdultsAged ?? 0} · elders died ${band.demography.lastEldersDied ?? 0}`}
       />
-      <Detail label="demographic outlook" value={demographicOutlook(band)} />
+      <Detail label="demographic renewal" value={renewal.label} />
+      <Detail label="renewal evidence" value={renewal.summary} />
       <Detail label="food/person stress" value={formatNumber(band.demography.foodPerPersonStress)} />
+      <Detail label="· food fertility suppression" value={formatNumber(band.demography.foodFertilitySuppression ?? 0)} />
       <Detail label="household crowding" value={formatNumber(band.demography.householdCrowdingPressure)} />
       <Detail label="split pressure" value={formatNumber(band.demography.splitPressure)} />
       <Detail label="fission threshold" value="split >= 0.64 and population >= 46" />
@@ -713,6 +689,7 @@ export function SeasonalSupportDetails({ band }: { readonly band: Band }) {
 
 export function DemographicChurnDetails({ band }: { readonly band: Band }) {
   const churn = band.demography.demographicChurn;
+  const renewal = deriveDemographicRenewal(band);
 
   if (churn === undefined) {
     return (
@@ -735,14 +712,16 @@ export function DemographicChurnDetails({ band }: { readonly band: Band }) {
         value={`matured ${churn.dependentsMaturedThisYear} (${churn.dependentsMaturedLast10Years}/10y) · aged ${churn.adultsAgedThisYear} (${churn.adultsAgedLast10Years}/10y)`}
       />
       <Detail
-        label="death causes this year"
+        label="death attributions this year (overlap; do not sum)"
         value={`elder ${churn.elderDeathsThisYear} · dependent ${churn.dependentDeathsThisYear} · adult ${churn.adultDeathsThisYear} · crisis ${churn.crisisDeathsThisYear} · water ${churn.waterStressDeathsThisYear} · food ${churn.starvationDeathsThisYear} · migration ${churn.migrationHardshipDeathsThisYear}`}
       />
       <Detail
-        label="death causes last 10 years"
+        label="death attributions last 10 years (overlap; do not sum)"
         value={`elder ${churn.elderDeathsLast10Years} · dependent ${churn.dependentDeathsLast10Years} · adult ${churn.adultDeathsLast10Years} · crisis ${churn.crisisDeathsLast10Years} · water ${churn.waterStressDeathsLast10Years} · food ${churn.starvationDeathsLast10Years} · migration ${churn.migrationHardshipDeathsLast10Years}`}
       />
-      <Detail label="demographic outlook" value={churn.demographicOutlook} />
+      <Detail label="demographic renewal" value={renewal.label} />
+      <Detail label="renewal evidence" value={renewal.summary} />
+      <Detail label="renewal limitation" value={renewal.limitations[0]} />
       <Detail
         label="stable hides churn"
         value={churn.stablePopulationHidesChurn ? `yes: births ${churn.birthsLast10Years} / deaths ${churn.deathsLast10Years}` : "no"}
@@ -1903,7 +1882,7 @@ export function DailyTaskGroupDetails({
         label="latest return"
         value={`${latest.resourceReturn.returnedResourceKind}; value=${formatNumber(
           latest.resourceReturn.estimatedReturnValue,
-        )}; conf=${formatNumber(latest.resourceReturn.returnConfidence)}; consumed=no`}
+        )}; conf=${formatNumber(latest.resourceReturn.returnConfidence)}; consumed=${String(latest.resourceReturn.consumedByEconomy)}`}
       />
       <Detail label="latest seasonal" value={formatSeasonalEcology(latest)} />
       <Detail label="latest guard" value={formatTripGuard(latest)} />
@@ -1954,7 +1933,7 @@ export function ActivityOutcomeDetails({
       />
       <Detail label="outcomes" value={formatActivityOutcomes(summary.outcomesByType)} />
       <Detail label="returns" value={formatActivityReturns(summary.returnsByResourceKind)} />
-      <Detail label="max placeholder value" value={formatNumber(summary.maxEstimatedReturnValue)} />
+      <Detail label="max resolved return value" value={formatNumber(summary.maxEstimatedReturnValue)} />
       <Detail label="guard" value={formatOutcomeGuard(summary)} />
     </>
   );
@@ -3011,18 +2990,25 @@ export function formatSeasonalEcology(trip: IntraSeasonTripRecord): string {
 }
 
 export function formatTripGuard(trip: IntraSeasonTripRecord): string {
+  const physicalFood = trip.resourceReturn.semantics.contributesToNutrition;
+  const returnContractHeld = physicalFood
+    ? trip.resourceReturn.consumedByEconomy === true &&
+      trip.resourceReturn.noSupportChange === false &&
+      trip.physicalFoodHarvest !== undefined
+    : trip.resourceReturn.consumedByEconomy === false &&
+      trip.resourceReturn.noSupportChange === true &&
+      trip.physicalFoodHarvest === undefined;
   return trip.noResidentialRelocation &&
     trip.noYieldChange &&
     trip.noStressChange &&
     trip.noPopulationChange &&
     trip.noCarryingCapacityChange &&
-    trip.noSupportChange &&
-    trip.resourceReturn.consumedByEconomy === false &&
+    trip.noSupportChange === !physicalFood &&
+    returnContractHeld &&
     trip.resourceReturn.noYieldCoupling &&
-    trip.resourceReturn.noCarryingCapacityCoupling &&
+    trip.resourceReturn.noCarryingCapacityCoupling === !physicalFood &&
     trip.resourceReturn.noPopulationChange &&
     trip.resourceReturn.noStressChange &&
-    trip.resourceReturn.noSupportChange &&
     trip.activityMemoryEffect.noHiddenTruth &&
     trip.activityMemoryEffect.targetKnownMemoryOnly &&
     trip.activityMemoryEffect.noNewResourceDiscovery &&
@@ -3072,13 +3058,12 @@ export function formatActivityReturns(
 }
 
 export function formatOutcomeGuard(summary: NonNullable<Band["activityOutcomeSummary"]>): string {
-  return summary.consumedByEconomy === false &&
-    summary.noYieldCoupling &&
-    summary.noCarryingCapacityCoupling &&
+  return summary.noYieldCoupling &&
     summary.noPopulationChange &&
-    summary.noStressChange &&
-    summary.noSupportChange
-    ? "record-only; no yield/support/capacity/stress/pop coupling"
+    summary.noStressChange
+    ? summary.consumedByEconomy
+      ? "physical food receipts only; no yield/stress/pop coupling"
+      : "informational/material returns; no nutrition coupling"
     : "guard failed";
 }
 
@@ -3364,7 +3349,7 @@ export function CarryingCapacityDetails({
         const candidates = summarizePlantUseEligibilityCandidates(band.resourceKnowledgeState, {
           tick: latestMemoryTick,
           season: band.lastResourceScout?.season ?? "spring",
-          foodStress: band.pressureState?.foodStress ?? band.hungerPressure ?? 0,
+          foodStress: band.pressureState?.foodStress ?? band.seasonalSupport?.foodMovementPressure ?? 0,
           perCapitaReturn:
             band.carryingCapacity?.perCapitaReturn.perCapitaReturn ??
             band.perCapitaReturn?.perCapitaReturn ??
@@ -3724,10 +3709,10 @@ export function CarryingCapacityDetails({
         )})`}
       />
       <Detail
-        label="reachable support (raw → shared)"
+        label="projected catchment context (not consumed as food)"
         value={`${formatNumber(support.rawReachableSupport)} → ${formatNumber(
           support.sharedReachableSupport,
-        )} vs demand ${formatNumber(support.adultEquivalentDemand)} | ${
+        )}; canonical demand ${formatNumber(support.adultEquivalentDemand)} | ${
           support.surplusDeficit >= 0
             ? `surplus +${formatNumber(support.surplusDeficit)}`
             : `deficit ${formatNumber(support.surplusDeficit)}`
@@ -3742,9 +3727,9 @@ export function CarryingCapacityDetails({
       {(support.animalSupportRaw !== undefined || support.aquaticSupportRaw !== undefined) && (
         <Detail
           label="fauna / aquatic stocks (FAUNA/AQUATIC-1, finite)"
-          value={`animal ${formatNumber(support.animalSupportRaw ?? 0)} · aquatic ${formatNumber(
+          value={`physical animal harvest ${formatNumber(support.animalSupportRaw ?? 0)} · aquatic harvest ${formatNumber(
             support.aquaticSupportRaw ?? 0,
-          )} support · stock shortfall -${formatNumber(support.faunaSupportLoss ?? 0)} · ${
+          )} · projected catchment stock shortfall -${formatNumber(support.faunaSupportLoss ?? 0)} · ${
             support.faunaCoveredTiles ?? 0
           } catchment tile(s) over a known stock zone${
             (support.faunaSupportLoss ?? 0) > 0.05 ? " · overuse/lean reducing returns" : ""
@@ -3754,7 +3739,7 @@ export function CarryingCapacityDetails({
       {support.plantSupportRaw !== undefined && (
         <Detail
           label="plant patches (ECO-BIOME-1, finite)"
-          value={`plant-food ${formatNumber(support.plantSupportRaw ?? 0)} support · overharvest shortfall -${formatNumber(
+          value={`physical plant harvest ${formatNumber(support.plantSupportRaw ?? 0)} · projected catchment overharvest shortfall -${formatNumber(
             support.plantSupportLoss ?? 0,
           )} · processing drag -${formatNumber(support.processingLaborDrag ?? 0)} · ${
             support.plantCoveredTiles ?? 0
@@ -3764,31 +3749,46 @@ export function CarryingCapacityDetails({
         />
       )}
       <Detail
-        label="AG11 activity supplement"
-        value={
-          support.activitySubsistenceSupplement === undefined
-            ? "OFF/default — abstract support floor only; no activity support consumed"
-            : `ON experimental supplement, not full economy replacement · floor ${formatNumber(
-                support.activitySubsistenceSupplement.abstractSupportFloor,
-              )} → final ${formatNumber(
-                support.activitySubsistenceSupplement.finalSupportWithSupplement,
-              )} · cap ${formatNumber(
-                support.activitySubsistenceSupplement.supplementCap,
-              )}${support.activitySubsistenceSupplement.supplementCapApplied ? " hit" : ""} · consumed g/h/f/p ${formatNumber(
-                support.activitySubsistenceSupplement.supplementFromGathering,
-              )}/${formatNumber(
-                support.activitySubsistenceSupplement.supplementFromHunting,
-              )}/${formatNumber(
-                support.activitySubsistenceSupplement.supplementFromFishing,
-              )}/${formatNumber(
-                support.activitySubsistenceSupplement.supplementFromPlants,
-              )} · eligible shadow ${formatNumber(
-                support.activitySubsistenceSupplement.activityShadowSameDayFoodEligible,
-              )}, delayed tracked ${formatNumber(
-                support.activitySubsistenceSupplement.activityShadowDelayedFoodTracked,
-              )}`
-        }
+        label="legacy AG11 supplement"
+        value="retired from economy — shadow/generic activity estimates cannot feed the canonical ledger"
       />
+      {support.humanFoodLedger === undefined ? null : (
+        <>
+          <Detail
+            label="canonical human food ledger"
+            value={`raw usable ${formatNumber(support.humanFoodLedger.rawUsableHarvest)} × ${formatNumber(
+              support.humanFoodLedger.harvestToSupportScale,
+            )} ${support.humanFoodLedger.supportUnit} · plant ${formatNumber(support.humanFoodLedger.physicalPlantHarvest)} · fauna ${formatNumber(
+              support.humanFoodLedger.physicalFaunaHarvest,
+            )} · aquatic ${formatNumber(support.humanFoodLedger.aquaticHarvest)} · storage ${formatNumber(
+              support.humanFoodLedger.storageContribution,
+            )} · residual ${formatNumber(support.humanFoodLedger.transitionalResidual)} · losses transport/process/spoil/access ${formatNumber(
+              support.humanFoodLedger.transportLoss,
+            )}/${formatNumber(support.humanFoodLedger.processingLoss)}/${formatNumber(
+              support.humanFoodLedger.spoilageLoss,
+            )}/${formatNumber(support.humanFoodLedger.accessLoss)} · usable ${formatNumber(
+              support.humanFoodLedger.totalUsableSupport,
+            )} / demand ${formatNumber(support.humanFoodLedger.populationDemand)} · ratio ${formatNumber(
+              support.humanFoodLedger.rawSupportRatio,
+            )} · stress ${formatNumber(support.humanFoodLedger.foodStress)} · generic catchment consumed=false`}
+          />
+          <Detail label="support unit contract" value={support.humanFoodLedger.supportUnitContract} />
+          <Detail
+            label="physical food receipts (Technical world truth)"
+            value={support.humanFoodLedger.sourceReceipts.length === 0
+              ? "none — no physical source fed this band in the ledger season"
+              : support.humanFoodLedger.sourceReceipts.map((receipt) =>
+                  `${receipt.sourceKind}:${receipt.sourceId ?? "absent"}/${receipt.sourceClass} known=${receipt.knownness} attempted=${String(
+                    receipt.attempted,
+                  )} found=${String(receipt.physicalSourceFound)} avail=${formatNumber(
+                    receipt.physicalAvailability,
+                  )} harvested=${formatNumber(receipt.harvestedAmount)} depleted=${formatNumber(
+                    receipt.depletionApplied,
+                  )} usable=${formatNumber(receipt.usableSupport)}${receipt.failureReason === undefined ? "" : ` fail=${receipt.failureReason}`}`,
+                ).join(" | ")}
+          />
+        </>
+      )}
       <Detail
         label="shared catchment pressure"
         value={`${formatNumber(support.sharedPressurePenalty)} over ${support.overlappingBandIds.length} overlapping band(s); access -${formatNumber(
@@ -4566,15 +4566,19 @@ export function getCombinedUsePressure(pressure: LocalUsePressureRecord | undefi
 }
 
 export function getBandCrossingCapability(band: Band) {
-  const hasFishing = band.technologies.includes("fishing") || band.technologies.includes("improved_fishing");
-  const hasBasketry = band.technologies.includes("basketry");
-  const hasStorageCraft = band.technologies.includes("drying_smoking") || band.technologies.includes("basic_storage");
-  const aquaticSubsistence = band.subsistenceModes.includes("aquatic");
+  const practicedCrossing = Object.values(band.crossingMemories).some((memory) =>
+    memory.useCount >= 2 && memory.successConfidence >= 0.5);
+  const aquaticPractice = (band.recentIntraSeasonTrips ?? []).filter((trip) =>
+    trip.taskGroupType === "fishing_group" || trip.taskGroupType === "water_group").length >= 3;
+  const engineering = (band.practicalAdaptation?.responses ?? []).some((response) =>
+    response.family === "engineering_structure" && (response.status === "forming" || response.status === "active"));
+  const subjects = new Set((band.practicalAdaptation?.fragments ?? []).map((fragment) => fragment.subject));
 
   return {
     canUseFords: true,
-    canUseShallowCrossings: hasFishing || hasBasketry || aquaticSubsistence,
-    canAttemptBasicRaftCrossing: aquaticSubsistence && hasFishing && (hasBasketry || hasStorageCraft),
+    canUseShallowCrossings: practicedCrossing || aquaticPractice || engineering,
+    canAttemptBasicRaftCrossing: engineering && subjects.has("buoyancy_under_load") &&
+      subjects.has("binding_under_load") && subjects.has("staged_shuttle_crossing"),
   };
 }
 

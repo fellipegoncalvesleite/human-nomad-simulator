@@ -21,8 +21,7 @@ import {
 import { advanceExploitationSkill } from "../agents/exploitationSkill";
 import {
   deriveMigrationWalk,
-  deriveMigrationWalkBudget,
-  MIGRATION_INTENT_KINDS,
+  deriveSeasonalTravelPlanForBand,
   MIGRATION_WALK_ENABLED,
   type MigrationWalkView,
 } from "../agents/migrationWalk";
@@ -58,6 +57,45 @@ import {
   advanceReportedKnowledgeAfterDecision,
   deriveReportedKnowledgeTargetBias,
 } from "../agents/reportedKnowledge";
+import {
+  advanceAdaptiveHumanState,
+  deriveAdaptiveDecisionSupport,
+  selectAdaptiveInfluenceForAction,
+  type AdaptiveDecisionSupport,
+} from "../agents/adaptiveHuman";
+import {
+  advanceCampMovementState,
+  deriveCampMovementDecisionSupport,
+  selectCampMovementInfluenceForAction,
+  type CampMovementDecisionSupport,
+} from "../agents/campMovement";
+import { deriveBandTendencies } from "../agents/bandTendency";
+import type { BandTendencyProfile } from "../agents/bandTendency";
+import { deriveChronicHardship } from "../agents/chronicHardship";
+import type { ChronicHardshipSignal } from "../agents/chronicHardship";
+import { getCanonicalFoodStress } from "../agents/seasonalSurvival";
+import { deriveCrossingPracticeRelief } from "../agents/crossingPractice";
+import {
+  evaluateCareEfficacy,
+  evaluateCarryingEfficacy,
+  evaluateEngineeringEfficacy,
+  evaluateHuntingEfficacy,
+  evaluateMeasureEfficacy,
+  evaluateShelterEfficacy,
+  evaluateWaterStorageEfficacy,
+  evaluateWaterRouteEfficacy,
+} from "../agents/adaptiveEfficacy";
+import {
+  advancePracticalAdaptation,
+  deriveCarryingCondition,
+  deriveEffectiveStorageCapacity,
+  deriveWaterStorageCondition,
+  deriveWaterRouteCondition,
+} from "../agents/practicalResponses";
+import {
+  advanceAnimalManagement,
+  advanceAnimalPatternKnowledge,
+} from "../agents/animalLearning";
 import { deriveBaseHabitatPotential } from "../agents/habitatYield";
 import { deriveResourceClassAvailability } from "../agents/resourceClasses";
 import {
@@ -94,7 +132,10 @@ import {
   updateSeasonalRound,
   type SeasonalRoundScoringContext,
 } from "../agents/seasonalRound";
-import { deriveResidentialMoveEventRing } from "../agents/residentialMoveEvent";
+import {
+  advanceResidentialMovementIntentOutcomes,
+  deriveResidentialMoveEventRing,
+} from "../agents/residentialMoveEvent";
 import type { TickContextCache } from "../agents/contextCache";
 import {
   deriveBandPressureState,
@@ -364,6 +405,11 @@ interface RiverMovementAssessment {
   readonly knownFordValue: number;
   readonly blockedCrossingPenalty: number;
   readonly memoryUseCount: number;
+  // CAUSAL-REPAIR-1 — practiced-crossing relief: the fraction of the raw
+  // crossing risk removed by the band's OWN repeated successful use of THIS
+  // crossing (KnownCrossingMemory useCount/successConfidence, discounted by
+  // remembered risk, decaying with staleness). Local, capped, forgettable.
+  readonly crossingPracticeRelief: number;
 }
 
 export type MovementDecisionSubphase =
@@ -382,6 +428,8 @@ export type MovementDecisionSubphase =
   | "candidateReasonHydration"
   | "reportBiasIntegration"
   | "sideCountryEvidenceLookup"
+  | "adaptiveDecisionSupport"
+  | "campMovementDecisionSupport"
   | "stuckSitePenalty"
   | "unknownFrontierCandidateSelection"
   | "inferredFrontierProbeSearch"
@@ -392,7 +440,10 @@ export type MovementDecisionSubphase =
   | "memoryUpdate"
   | "biomeAdaptationUpdate"
   | "pressureStateDerivation"
-  | "pressureUpdate";
+  | "pressureUpdate"
+  | "adaptiveStateUpdate"
+  | "animalPatternManagementUpdate"
+  | "campMovementStateUpdate";
 
 export interface MovementDecisionProfiler {
   readonly measure: <TResult>(
@@ -469,6 +520,12 @@ interface CandidateEvaluationCache {
   // Resource-belief probe pressure (2K.1F), computed once per decision and shared by
   // the dry-margin probe-availability gate, the scout/probe candidate scores, and debug.
   readonly beliefOpportunity: ResourceBeliefOpportunity;
+  readonly adaptiveSupport: AdaptiveDecisionSupport;
+  readonly campMovementSupport: CampMovementDecisionSupport;
+  // CAUSAL-REPAIR-1: computed once per decision — stable per-band tendencies and
+  // the repeated-low-support escalation signal (both pure, band-known only).
+  readonly tendencies: BandTendencyProfile;
+  readonly hardship: ChronicHardshipSignal;
 }
 
 function createCandidateEvaluationCache(
@@ -504,12 +561,28 @@ function createCandidateEvaluationCache(
     "corridorLookupBuild",
     () => buildCorridorLookup(band),
   );
+  const adaptiveSupport = measureDecision(
+    profiler,
+    "adaptiveDecisionSupport",
+    () => deriveAdaptiveDecisionSupport(world, band),
+  );
+  const campMovementSupport = measureDecision(
+    profiler,
+    "campMovementDecisionSupport",
+    () => deriveCampMovementDecisionSupport(world, band),
+  );
+  const tendencies = deriveBandTendencies(band);
+  const hardship = deriveChronicHardship(band, tendencies);
 
   return {
     bandId: band.id,
     tick: world.time.tick,
     pressureSnapshot,
     beliefOpportunity,
+    adaptiveSupport,
+    campMovementSupport,
+    tendencies,
+    hardship,
     tileScoresByTileId: new Map<TileId, CandidateTileMemo>(),
     edgeScoresByEdgeKey: new Map<string, CandidateEdgeMemo>(),
     knownTileCount: knownTileStats.count,
@@ -816,6 +889,7 @@ export function evaluateBandDecision(
       );
     },
   );
+  const rankedCandidates = applyResidentialRelocationClearance(world, band, candidates);
   const chosen = measureDecision(
     profiler,
     "finalDecisionSelection",
@@ -823,14 +897,14 @@ export function evaluateBandDecision(
       world,
       band,
       decisionId,
-      candidates[0] ?? buildNoOpCandidate(world, band, decisionId),
+      rankedCandidates[0] ?? buildNoOpCandidate(world, band, decisionId),
       decisionCache,
     ),
   );
   const alternativesConsidered = measureDecision(
     profiler,
     "candidateReasonHydration",
-    () => candidates.map((candidate, index) => ({
+    () => rankedCandidates.map((candidate, index) => ({
       action: candidate.action,
       score: candidate.score,
       scoreBreakdown: candidate.scoreBreakdown,
@@ -870,6 +944,28 @@ export function evaluateBandDecision(
     mobilityIntent: intentEvaluation.activeIntent,
     intentStatus: intentEvaluation.status,
   };
+}
+
+function applyResidentialRelocationClearance(
+  world: WorldState,
+  band: Band,
+  candidates: readonly CandidateDecision[],
+): readonly CandidateDecision[] {
+  const top = candidates[0];
+  if (top === undefined || (top.action.type !== "move_to_tile" && top.action.type !== "explore_unknown_neighbor")) {
+    return candidates;
+  }
+  const stay = candidates.find((candidate) => candidate.action.type === "stay");
+  if (stay === undefined) return candidates;
+  const dependency = (band.demography.dependents + band.demography.elders) / Math.max(1, band.demography.population);
+  const clearance = 0.08 +
+    getRecentRelocationSettlementCost(world, band) * 0.42 +
+    (band.pressureState?.fatiguePressure ?? 0) * 0.2 +
+    dependency * 0.05;
+  if (top.score >= stay.score + clearance) return candidates;
+  // The move remains an inspected alternative; a residence-unchanged scout or
+  // stay wins until the known improvement clears whole-band establishment cost.
+  return [stay, ...candidates.filter((candidate) => candidate !== stay)];
 }
 
 function hydrateChosenCandidateReasons(
@@ -951,6 +1047,26 @@ export function applyBandDecision(
       : undefined;
   const nextPosition = migrationWalk?.endpointTileId ?? canonicalNextPosition;
   const moved = nextPosition !== band.position;
+  // ADAPTIVE EFFICACY FEEDBACK-1: compact decision-time + realized crossing
+  // context for response-specific efficacy. All fields come from the SAME
+  // river assessment the decision paid (no recomputation); the used crossing
+  // is the memoized lookup the memory system itself applies to this move.
+  const usedCrossing = moved
+    ? getRiverCrossingForMovement(world, band.position, nextPosition)
+    : undefined;
+  const crossingOutcome = {
+    attemptedCrossingKey: riverAssessment.crossing === undefined
+      ? undefined
+      : makeRiverCrossingKey(riverAssessment.crossing.fromTileId, riverAssessment.crossing.toTileId),
+    practiceRelief: riverAssessment.crossingPracticeRelief,
+    rawCrossingRisk: riverAssessment.seasonalState?.effectiveRisk ?? 0,
+    effectiveCrossingRisk: riverAssessment.riverCrossingRisk,
+    crossingBlocked,
+    usedCrossingKey: usedCrossing === undefined
+      ? undefined
+      : makeRiverCrossingKey(usedCrossing.fromTileId, usedCrossing.toTileId),
+    stagedLegIncomplete: migrationWalk !== undefined && migrationWalk.stopReason === "budget_exhausted",
+  };
   const shouldObserveNewArea =
     !crossingBlocked &&
     !destinationBlocked &&
@@ -1220,11 +1336,306 @@ export function applyBandDecision(
     pressureState: pressureUpdate.pressureState,
     causalTraces: pressureUpdate.causalTraces,
   };
-  const worldWithPressureBand = {
+  const adaptiveOriginTile = getTile(world, band.position);
+  const residentialMoveDistance = moved && adaptiveOriginTile !== undefined && observationTile !== undefined
+    ? getGridDistance(adaptiveOriginTile, observationTile)
+    : 0;
+  // INVENTION-1: the residential-move event ring is derived HERE (hoisted from
+  // the return literal — identical pure derivation) so the carrying efficacy
+  // can read the realized hardship of THIS season's move.
+  const recentResidentialMoveEvents = deriveResidentialMoveEventRing({
+    world,
+    band,
+    nextPosition,
+    moved,
+    decision,
+    prevRing: band.recentResidentialMoveEvents,
+    executedPathTiles: migrationWalk === undefined ? undefined : [band.position, ...migrationWalk.path],
+    stagedLegIncomplete: migrationWalk !== undefined && migrationWalk.stopReason === "budget_exhausted",
+  });
+  const residentialDependencyShare =
+    (band.demography.dependents + band.demography.elders) / Math.max(1, band.demography.population);
+  const temporaryResidentialDelayGrounded = !isMovementAction && band.currentIntent !== undefined && (
+    (band.pressureState?.fatiguePressure ?? 0) >= 0.32 ||
+    (band.bodyCampLogistics?.sickness.severity ?? 0) >= 0.3 ||
+    residentialDependencyShare >= 0.55 ||
+    band.demography.workingAdults < 4 ||
+    ((world.time.season === "summer" || world.time.season === "winter") &&
+      (band.pressureState?.riskPressure ?? 0) >= 0.45)
+  );
+  const residentialMovementIntentOutcomes = advanceResidentialMovementIntentOutcomes({
+    world,
+    band,
+    decision,
+    selectedTileId: targetTileId,
+    actualTileId: nextPosition,
+    attempted: isMovementAction,
+    moved,
+    crossingBlocked,
+    destinationBlocked,
+    stagedLegIncomplete: migrationWalk !== undefined && migrationWalk.stopReason === "budget_exhausted",
+    temporaryDelayGrounded: temporaryResidentialDelayGrounded,
+    prior: band.residentialMovementIntentOutcomes,
+  });
+  const latestMoveEvent = moved ? recentResidentialMoveEvents?.[0] : undefined;
+  // INVENTION-1: practical-response efficacy contexts. The applied plan is the
+  // SAME derivation the migration walk consumed; the counterfactual plan
+  // disables the practical reliefs so the budget delta isolates the response's
+  // own effect. Both derivations are cheap scalar work + one bounded
+  // observed-tile average, and run only when a practiced state exists.
+  const practicalState = band.practicalAdaptation;
+  const hasPracticalResponses = (practicalState?.responses.length ?? 0) > 0;
+  const planIntent = decision.mobilityIntent;
+  const destinationKnownWatered = isKnownWateredDestination(band, targetTileId);
+  const appliedTravelPlan = hasPracticalResponses && moved && isMovementAction
+    ? deriveSeasonalTravelPlanForBand(
+        band, planIntent?.kind, clamp01(planIntent?.persistence ?? 0), Number(world.time.tick),
+        { destinationKnownWatered })
+    : undefined;
+  const carryingCounterfactualPlan = appliedTravelPlan === undefined
+    ? undefined
+    : deriveSeasonalTravelPlanForBand(
+        band, planIntent?.kind, clamp01(planIntent?.persistence ?? 0), Number(world.time.tick),
+        { destinationKnownWatered, disableCarryingRelief: true });
+  const waterRouteCounterfactualPlan = appliedTravelPlan === undefined
+    ? undefined
+    : deriveSeasonalTravelPlanForBand(
+        band, planIntent?.kind, clamp01(planIntent?.persistence ?? 0), Number(world.time.tick),
+        { destinationKnownWatered, disableDryRouteWaterRelief: true });
+  const waterStorageCounterfactualPlan = appliedTravelPlan === undefined
+    ? undefined
+    : deriveSeasonalTravelPlanForBand(
+        band, planIntent?.kind, clamp01(planIntent?.persistence ?? 0), Number(world.time.tick),
+        { destinationKnownWatered, disableCarriedWaterRelief: true });
+  const dependentShare = band.demography.dependents / Math.max(1, band.demography.population);
+  const elderShare = band.demography.elders / Math.max(1, band.demography.population);
+  const appliedCarrying = appliedTravelPlan?.appliedCarryingRelief;
+  const appliedWater = appliedTravelPlan?.appliedWaterRelief;
+  const carryingEfficacy = evaluateCarryingEfficacy({
+    moved,
+    context: appliedTravelPlan === undefined || carryingCounterfactualPlan === undefined
+      ? undefined
+      : {
+          reliefApplied: appliedCarrying?.active === true ? appliedCarrying.relief : 0,
+          responseId: appliedCarrying?.responseId,
+          variantKey: appliedCarrying?.variantKey,
+          conditionPresent: deriveCarryingCondition(band) >= 0.2,
+          budgetWithRelief: appliedTravelPlan.budget,
+          budgetWithoutRelief: carryingCounterfactualPlan.budget,
+          moveDistance: residentialMoveDistance,
+          stagedLegIncomplete: migrationWalk !== undefined && migrationWalk.stopReason === "budget_exhausted",
+          hardshipLevel: latestMoveEvent?.hardshipLevel,
+          // Same formula deriveMigrationHardship applies: relief×0.6 of the
+          // dependent/elder terms (estimate for the proof record).
+          hardshipReliefApplied: round2(
+            (appliedCarrying?.active === true ? appliedCarrying.relief : 0) * 0.6 *
+            (dependentShare * 0.18 + elderShare * 0.16)),
+        },
+  });
+  const waterRouteEfficacy = evaluateWaterRouteEfficacy({
+    moved,
+    context: appliedTravelPlan === undefined || waterRouteCounterfactualPlan === undefined
+      ? undefined
+      : {
+          reliefApplied: appliedWater?.active === true ? appliedWater.relief : 0,
+          responseId: appliedWater?.responseId,
+          conditionPresent: deriveWaterRouteCondition(band) >= 0.2,
+          destinationKnownWatered,
+          budgetWithRelief: appliedTravelPlan.budget,
+          budgetWithoutRelief: waterRouteCounterfactualPlan.budget,
+          waterStressBefore: band.pressureState?.waterStress ?? 0,
+          waterStressAfter: bandWithPressure.pressureState?.waterStress ?? 0,
+        },
+  });
+  const engineeringEfficacy = evaluateEngineeringEfficacy({
+    responseId: latestMoveEvent?.temporaryWatercraft?.engineeringResponseId,
+    responseActive: latestMoveEvent?.temporaryWatercraft?.engineeringResponseActive === true,
+    contextKey: latestMoveEvent?.temporaryWatercraft?.crossingContextKey,
+    safetyBefore: latestMoveEvent?.temporaryWatercraft?.crossingSafetyBeforeLearning ?? 0,
+    safetyAfter: latestMoveEvent?.temporaryWatercraft?.expectedCrossingSafety ?? 0,
+    safetyRelief: latestMoveEvent?.temporaryWatercraft?.engineeringSafetyRelief ?? 0,
+    result: latestMoveEvent?.temporaryWatercraft?.result,
+    hardshipLevel: latestMoveEvent?.hardshipLevel,
+  });
+  const appliedCarriedWater = appliedTravelPlan?.appliedCarriedWaterRelief;
+  const waterStorageEfficacy = evaluateWaterStorageEfficacy({
+    moved,
+    context: appliedTravelPlan === undefined || waterStorageCounterfactualPlan === undefined || appliedCarriedWater === undefined
+      ? undefined
+      : {
+          reliefApplied: appliedCarriedWater.relief,
+          responseId: appliedCarriedWater.responseId,
+          conditionPresent: deriveWaterStorageCondition(band) >= 0.2,
+          budgetWithRelief: appliedTravelPlan.budget,
+          budgetWithoutRelief: waterStorageCounterfactualPlan.budget,
+          waterStressBefore: band.pressureState?.waterStress ?? 0,
+          waterStressAfter: bandWithPressure.pressureState?.waterStress ?? 0,
+          sealCracked: appliedCarriedWater.sealCracked,
+          creditedLimiter: appliedCarriedWater.active,
+        },
+  });
+  const exposure = band.bodyCampLogistics?.campExposure;
+  const shelterEfficacy = evaluateShelterEfficacy({
+    context: exposure === undefined || exposure.shelterResponseId === undefined
+      ? undefined
+      : {
+          responseId: exposure.shelterResponseId,
+          rawExposure: exposure.rawExposure,
+          effectiveExposure: exposure.effectiveExposure,
+          reliefApplied: exposure.shelterReliefApplied,
+          contextMatched: exposure.shelterContextMatched,
+          dominantKind: exposure.dominantKind,
+          sicknessSeverity: band.bodyCampLogistics?.sickness.severity ?? 0,
+          priorSicknessSeverity: band.bodyCampLogistics?.sickness.severity ?? 0,
+        },
+  });
+  const recentAnimalTraces = (band.recentIntraSeasonTrips ?? [])
+    .filter((trip) => Number(trip.tick) >= Number(world.time.tick) - 1)
+    .map((trip) => trip.animalActivityTrace)
+    .filter((trace): trace is NonNullable<typeof trace> => trace !== undefined);
+  const animalInjuryThisSeason = (band.acuteRisk?.recentEpisodes ?? []).some((episode) =>
+    episode.kind === "animal_encounter_injury" && Number(episode.tick) === Number(world.time.tick));
+  const huntingEfficacy = evaluateHuntingEfficacy({ traces: recentAnimalTraces, animalInjuryThisSeason });
+  const currentCareEpisodes = (band.acuteRisk?.recentEpisodes ?? []).filter((episode) =>
+    Number(episode.tick) === Number(world.time.tick) && episode.careAttempted === true);
+  const firstCareResponseId = currentCareEpisodes.find((episode) => episode.careResponseId !== undefined)?.careResponseId;
+  const careEfficacy = evaluateCareEfficacy({
+    context: firstCareResponseId === undefined
+      ? undefined
+      : {
+          responseId: firstCareResponseId,
+          reliefApplied: currentCareEpisodes.reduce((sum, episode) => sum + (episode.careReliefApplied ?? 0), 0),
+          treatedEpisodes: currentCareEpisodes.filter((episode) => episode.careMatched === true && (episode.careHarmApplied ?? 0) <= 0).length,
+          mismatchedEpisodes: currentCareEpisodes.filter((episode) => episode.careMatched === false).length,
+          recoverySeasonsSaved: currentCareEpisodes.reduce((sum, episode) => sum + Math.max(0, episode.careRecoverySeasonsSaved ?? 0), 0),
+          worsenedEpisodes: currentCareEpisodes.filter((episode) => (episode.careHarmApplied ?? 0) > 0).length,
+        },
+  });
+  const measureEfficacy = evaluateMeasureEfficacy({
+    context: appliedCarriedWater?.measurementResponseId === undefined || !moved
+      ? undefined
+      : {
+          responseId: appliedCarriedWater.measurementResponseId,
+          provisioningAccuracy: appliedCarriedWater.provisioningAccuracy,
+          carriedWaterUsed: appliedCarriedWater.active && appliedCarriedWater.relief > 0,
+          arrivedNoDrier: (bandWithPressure.pressureState?.waterStress ?? 0) <= (band.pressureState?.waterStress ?? 0),
+        },
+  });
+  const residenceRecord = band.knowledge.observedTiles[band.position];
+  const residenceContext = adaptiveOriginTile === undefined
+    ? undefined
+    : {
+        tileId: String(band.position),
+        droughtRisk: adaptiveOriginTile.riskProfile.droughtRisk,
+        isWoodedContext: adaptiveOriginTile.terrainKind === "forest",
+        dampGroundCue: adaptiveOriginTile.isFloodplain || adaptiveOriginTile.isRiverbank ||
+          adaptiveOriginTile.terrainKind === "wetlands" || (residenceRecord?.observedWaterAccess ?? 0) >= 0.58,
+        season: String(world.time.season),
+      };
+  const groundwaterContext = adaptiveOriginTile === undefined
+    ? undefined
+    : {
+        tileId: band.position,
+        surfaceWaterAccess: adaptiveOriginTile.resourceProfile.waterAccess,
+        droughtRisk: adaptiveOriginTile.riskProfile.droughtRisk,
+        isFloodplainOrValley: adaptiveOriginTile.isFloodplain || adaptiveOriginTile.terrainKind === "river_valley",
+        season: String(world.time.season),
+      };
+  const practicalAdaptation = advancePracticalAdaptation({
+    band,
+    currentTick: world.time.tick,
+    moved,
+    residentialMoveDistance,
+    crossedThisSeason: usedCrossing !== undefined,
+    latestMoveEvent,
+    carryingEfficacy,
+    waterRouteEfficacy,
+    engineeringEfficacy,
+    waterStorageEfficacy,
+    shelterEfficacy,
+    huntingEfficacy,
+    careEfficacy,
+    measureEfficacy,
+    residenceContext,
+    groundwaterContext,
+  });
+  const effectiveStorageCapacity = deriveEffectiveStorageCapacity(
+    { ...band, practicalAdaptation },
+    Number(world.time.tick),
+  );
+  // ROUTINES-2: animal patterns persist only from lived observation records;
+  // proto-management then consumes that knowledge plus current labor/water/camp
+  // constraints. Hidden stock state is used only inside the physical outcome.
+  const animalUpdate = measureDecision(profiler, "animalPatternManagementUpdate", () => {
+    const animalPatternKnowledge = advanceAnimalPatternKnowledge(world, bandWithPressure);
+    const animalManagement = advanceAnimalManagement(
+      world,
+      { ...bandWithPressure, animalPatternKnowledge },
+      animalPatternKnowledge,
+    );
+    return { animalPatternKnowledge, animalManagement };
+  });
+  const { animalPatternKnowledge, animalManagement } = animalUpdate;
+  const adaptiveHuman = measureDecision(
+    profiler,
+    "adaptiveStateUpdate",
+    () => band.practicalAdaptation === undefined ? advanceAdaptiveHumanState({
+      world,
+      previousBand: band,
+      updatedBand: bandWithPressure,
+      decision,
+      nextPosition,
+      moved,
+      crossingBlocked,
+      destinationBlocked,
+      observedTileIds: observationTargets.map((target) => target.tile.id),
+      crossingOutcome,
+      // Camp wear (band-known use pressure) at old vs new residence — the same
+      // coefficient campMovement's relief scoring pays. Pre-decision records:
+      // the band's own accumulated wear, not this tick's fresh accrual.
+      campShiftOutcome: {
+        priorCampUsePressure: getLocalUsePressureValue(band.usePressure[band.position]),
+        newCampUsePressure: getLocalUsePressureValue(band.usePressure[nextPosition]),
+        moveDistance: residentialMoveDistance,
+        travelEngaged: migrationWalk !== undefined,
+      },
+    }) : band.adaptiveHuman,
+  );
+  const bandWithAdaptive: Band = {
+    ...bandWithPressure,
+    adaptiveHuman,
+  };
+  const worldWithAdaptiveBand = {
     ...world,
     bands: {
       ...world.bands,
-      [bandWithPressure.id]: bandWithPressure,
+      [bandWithAdaptive.id]: bandWithAdaptive,
+    },
+  };
+  const campMovement = measureDecision(
+    profiler,
+    "campMovementStateUpdate",
+    () => advanceCampMovementState({
+      world,
+      previousBand: band,
+      updatedBand: bandWithAdaptive,
+      decision,
+      nextPosition,
+      moved,
+      crossingBlocked,
+      destinationBlocked,
+      observedTileIds: observationTargets.map((target) => target.tile.id),
+    }),
+  );
+  const bandWithCampMovement: Band = {
+    ...bandWithAdaptive,
+    campMovement,
+  };
+  const worldWithCampMovementBand = {
+    ...worldWithAdaptiveBand,
+    bands: {
+      ...worldWithAdaptiveBand.bands,
+      [bandWithCampMovement.id]: bandWithCampMovement,
     },
   };
 
@@ -1278,8 +1689,8 @@ export function applyBandDecision(
       )
     : band.corridorHeading;
 
-  return compressBandMemoryState(worldWithPressureBand, {
-    ...bandWithPressure,
+  return compressBandMemoryState(worldWithCampMovementBand, {
+    ...bandWithCampMovement,
     corridorRelocation,
     frontierProbeCadence,
     sideProbeMemory,
@@ -1298,17 +1709,15 @@ export function applyBandDecision(
     // Reconcile the pre-decision anchor recommendation with the final action so
     // reports never show "stay_anchor" beside a band that actually moved (2J.1).
     anchorActionTrace: buildAnchorActionTrace(world, band, decision, moved, scoringDecision),
-    // RESIDENTIAL-MOVE-1 — record-only relocation event. Gated on `moved`: a band
-    // that held its residence carries the prior ring UNCHANGED, so non-relocating
-    // worlds stay byte-identical. Never read by behaviour; daughters reset on fission.
-    recentResidentialMoveEvents: deriveResidentialMoveEventRing({
-      world,
-      band,
-      nextPosition,
-      moved,
-      decision,
-      prevRing: band.recentResidentialMoveEvents,
-    }),
+    // RESIDENTIAL-MOVE-1 — record-only relocation event (derived once, above,
+    // so the carrying efficacy could read this season's realized hardship).
+    recentResidentialMoveEvents,
+    residentialMovementIntentOutcomes,
+    // INVENTION-1: bounded learned fragments + composed practical responses.
+    practicalAdaptation,
+    storageCapacity: effectiveStorageCapacity,
+    animalPatternKnowledge,
+    animalManagement,
   });
 }
 
@@ -1438,6 +1847,7 @@ function buildDecisionCandidates(
     // M0.16B: off-corridor side-country probe (knowledge consumption). Same opt-in discipline
     // (excluded from coreDeliberationBreadth; wins only when it outranks every core candidate).
     buildSideCountryProbeCandidate(world, band, decisionId, decisionCache),
+    buildPressureReliefProbeCandidate(world, band, decisionId, decisionCache),
   ]) {
     if (optIn !== undefined) {
       shapedCandidates.push({
@@ -1447,11 +1857,30 @@ function buildDecisionCandidates(
     }
   }
 
-  if (shapedCandidates.length === 0) {
-    return [applyIntentShaping(world, band, intentEvaluation, buildNoOpCandidate(world, band, decisionId), decisionCache)];
+  const adaptiveCandidates = shapedCandidates.map((candidate) =>
+    applyAdaptiveDecisionShaping(band, decisionId, candidate, decisionCache),
+  );
+  const campMovementCandidates = adaptiveCandidates.map((candidate) =>
+    applyCampMovementDecisionShaping(band, decisionId, candidate, decisionCache),
+  );
+
+  if (campMovementCandidates.length === 0) {
+    return [
+      applyCampMovementDecisionShaping(
+        band,
+        decisionId,
+        applyAdaptiveDecisionShaping(
+          band,
+          decisionId,
+          applyIntentShaping(world, band, intentEvaluation, buildNoOpCandidate(world, band, decisionId), decisionCache),
+          decisionCache,
+        ),
+        decisionCache,
+      ),
+    ];
   }
 
-  return shapedCandidates;
+  return campMovementCandidates;
 }
 
 function buildStayCandidate(
@@ -1477,7 +1906,16 @@ function buildStayCandidate(
   const seasonalRoundStayPull = decisionCache.seasonalRoundContext === undefined
     ? 0
     : getSeasonalRoundStayPull(decisionCache.seasonalRoundContext, tile.id);
-  const score = scoreDecision(scoreBreakdown) + 0.24 + getAnchorHoldBonus(decisionCache.anchorContext) + seasonalRoundStayPull;
+  // CAUSAL-REPAIR-1: the flat stay bonus is no longer unconditional. Per-band
+  // attachment tendency shifts it ±15%, and repeated low-support evidence
+  // erodes it (capped) — staying stays possible (water/refuge/anchor gates and
+  // route costs still hold moves back) but is no longer automatic on a
+  // chronically failing patch. The anchor hold erodes at 0.6× the rate so a
+  // genuine water-secure refuge keeps most of its hold.
+  const hardshipErosion = decisionCache.hardship.stayBiasErosion;
+  const stayBias = 0.24 * (1 + decisionCache.tendencies.attachment * 0.15) * (1 - hardshipErosion);
+  const anchorHold = getAnchorHoldBonus(decisionCache.anchorContext) * (1 - hardshipErosion * 0.6);
+  const score = scoreDecision(scoreBreakdown) + stayBias + anchorHold + seasonalRoundStayPull;
   const comfortMargin = clamp01(score / 5);
   const dryContext = decisionCache.dryMarginContext;
   const dryComparison = dryContext?.stayMoveScout;
@@ -1725,9 +2163,16 @@ function buildExploreCandidate(
   const rangeSaturation = band.rangeSaturation?.saturationPressure ?? 0;
   const frontierDispersal = band.frontierDispersal?.pressure ?? 0;
   // Resource-belief probe pressure (2K.1F): nudges scout/probe curiosity only.
-  const explorationBaseline = getExplorationBaseline(band, beliefOpportunity.probePressure);
+  const explorationBaseline = getExplorationBaseline(band, beliefOpportunity.probePressure, decisionCache);
   const crowdingExploreBoost = clamp01(nearbyPressure.weightedCrowding * 0.18);
-  const saturationExploreBoost = clamp01(rangeSaturation * 0.22);
+  // CAUSAL-REPAIR-1: SUSTAINED over-capacity (M0.11 signal — ≥2 consecutive
+  // derivations, so a passing band never triggers it) escalates edge scouting
+  // beyond the standing saturation pressure. Crowded good basins now push
+  // outward probing instead of only shaving per-capita return.
+  const saturationExploreBoost = clamp01(
+    rangeSaturation * 0.22 +
+      (band.carryingCapacity?.perCapitaReturn.sustainedOverCapacity ?? 0) * 0.3,
+  );
   const daughterDispersalExploreBoost = clamp01(daughterDispersal.daughterDispersalPressure * 0.28);
   const explorationRiskPenalty = clamp01(
     frontierCandidate.inferredRisk * 0.16 +
@@ -1748,7 +2193,7 @@ function buildExploreCandidate(
       frontierCandidate.frontierProbeValue * 0.54 +
       Math.max(0, 12 - knownTileCount) * 0.055 +
       (1 - averageConfidence) * 0.22 +
-      band.hungerPressure * 0.18 +
+      getCanonicalFoodStress(band) * 0.18 +
       pressureState.netMovePressure * 0.18 +
       band.demography.splitPressure * 0.18 +
       daughterDispersal.daughterDispersalPressure * 0.36 +
@@ -1768,7 +2213,7 @@ function buildExploreCandidate(
     waterRefugeSecurity: decisionCache.dryMarginContext?.stayMoveScout?.currentRefugeSecurity ?? 0,
     dryRefugePull: decisionCache.dryMarginContext?.seasonalMode?.dryRefugePull ?? 0,
     aquaticValue: clamp01((currentRecord?.observedAquaticPotential ?? 0.2) * 0.2),
-    movementCost: 0.42,
+    movementCost: clamp01(0.42 + pressureState.fatiguePressure * 0.28 + getRecentRelocationSettlementCost(world, band)),
     riskCost: clamp01(
       frontierCandidate.inferredRisk * 0.44 +
       frontierCandidate.riverCrossingRisk * 0.44 +
@@ -1784,7 +2229,7 @@ function buildExploreCandidate(
     storageValue: band.storageCapacity * 0.12,
     explorationValue,
     socialCost: clamp01((1 - band.cohesion) * 0.16),
-    expectedFutureValue: clamp01(explorationValue + band.hungerPressure * 0.18),
+    expectedFutureValue: clamp01(explorationValue + getCanonicalFoodStress(band) * 0.18),
     intentAlignment: 0,
     movementInertia: 0,
     reversalPenalty: 0,
@@ -1895,7 +2340,7 @@ function buildResourceScoutContext(world: WorldState, band: Band): ResourceScout
   // cooldown has elapsed. When true, selectResourceScoutTarget relaxes the VOI floor so an
   // under-known nearby patch becomes a valid scout target (a stable band learns before a
   // crisis); when false the selector is BYTE-IDENTICAL to pre-INFO-1. Deterministic.
-  const proactiveFoodStress = band.pressureState?.foodStress ?? band.hungerPressure ?? 0;
+  const proactiveFoodStress = getCanonicalFoodStress(band);
   const proactiveMobilityPressure = band.pressureState?.mobilityPressure ?? 0;
   const proactiveLabor = band.carryingCapacity?.populationDemand?.laborCapacity ?? band.size ?? 0;
   const proactiveCooldownOk =
@@ -2059,6 +2504,115 @@ function buildResourceScoutCandidate(
     primaryReason,
     secondaryReasons: [],
     riverAssessment: edgeMemo.riverAssessment,
+  };
+}
+
+function buildPressureReliefProbeCandidate(
+  world: WorldState,
+  band: Band,
+  decisionId: DecisionId,
+  decisionCache: CandidateEvaluationCache,
+): CandidateDecision | undefined {
+  const currentTile = getTile(world, band.position);
+  const relief = decisionCache.campMovementSupport.pressureRelief.scoutProbeBridge;
+
+  if (currentTile === undefined || relief === undefined || relief.actionStrategy !== "scout_probe") {
+    return undefined;
+  }
+
+  const targetTile = getTile(world, relief.tileId);
+  const edgeMemo = getCandidateEdgeMemo(world, band, currentTile.id, relief.tileId, "expand_known_world", decisionCache);
+
+  if (targetTile === undefined || !edgeMemo.toTilePassable || edgeMemo.riverAssessment.blockedCrossingPenalty > 0.8) {
+    return undefined;
+  }
+
+  const currentRecord = band.knowledge.observedTiles[currentTile.id];
+  const currentUsePressure = getLocalUsePressureValue(band.usePressure[currentTile.id]);
+  const scoreBreakdown: ScoreBreakdown = {
+    ...emptyScoreBreakdown(),
+    foodValue: clamp01((currentRecord?.observedRichness ?? 0.35) * 0.16),
+    waterValue: clamp01((currentRecord?.observedWaterAccess ?? 0.35) * 0.14),
+    memoryConfidence: relief.knownness,
+    movementCost: relief.crossingTravelCost,
+    riskCost: clamp01(edgeMemo.riverAssessment.riverCrossingRisk * 0.26 + relief.uncertainty * 0.12),
+    localUsePressure: clamp01(currentUsePressure * 0.18),
+    routeValue: relief.sameRiverCountry ? 0.14 : 0.06,
+    expectedFutureValue: relief.pressureReliefScore,
+    frontierProbeValue: clamp01(relief.pressureReliefScore * 0.72 + (1 - relief.uncertainty) * 0.14),
+    recoveryBenefit: relief.campSicknessWearRelief,
+    depletionPenalty: clamp01(currentUsePressure * 0.12),
+    riverCrossingCost: edgeMemo.riverAssessment.riverCrossingCost,
+    riverCrossingRisk: edgeMemo.riverAssessment.riverCrossingRisk,
+    riverCorridorValue: edgeMemo.riverAssessment.riverCorridorValue,
+    knownFordValue: edgeMemo.riverAssessment.knownFordValue,
+    blockedCrossingPenalty: edgeMemo.riverAssessment.blockedCrossingPenalty,
+    logisticalProbeValue: relief.pressureReliefScore,
+  };
+  const action: Action = {
+    type: "logistical_probe",
+    originTileId: currentTile.id,
+    targetTileId: relief.tileId,
+    prospectTileIds: [relief.tileId],
+  };
+  const primaryReason = makeReason(decisionId, "primary", numericTileIdPart(relief.tileId), {
+    type: "logistical_probe_selected",
+    strength: relief.pressureReliefScore,
+    confidence: relief.knownness,
+    relatedTileIds: [currentTile.id, relief.tileId],
+    bandId: band.id,
+    currentTileId: currentTile.id,
+    targetTileId: relief.tileId,
+    prospectTileIds: [relief.tileId],
+    stayValue: 0,
+    scoutValue: relief.pressureReliefScore,
+    moveValue: 0,
+    marginalReturn: relief.supportAdequacy,
+    departureThreshold: relief.waterRefugeAdequacy,
+    uncertainty: relief.uncertainty,
+    socialRisk: 0,
+    crossingRisk: relief.crossingTravelCost,
+    travelCost: relief.crossingTravelCost,
+    basis: [
+      relief.reasonLabel,
+      relief.betterThanCurrent ? "better than current" : "good-enough relief, not richer-country migration",
+      relief.sameRiverCountry ? "river country retained" : "familiar edge checked first",
+    ],
+  });
+
+  return {
+    action,
+    scoreBreakdown,
+    score: round2(
+      scoreDecision(scoreBreakdown) +
+        relief.pressureReliefScore * 1.24 +
+        getAnchorHoldBonus(decisionCache.anchorContext) +
+        (decisionCache.campMovementSupport.pressureRelief.localOrbitTrap.detected ? 0.06 : 0),
+    ),
+    primaryReason,
+    secondaryReasons: [
+      makeReason(decisionId, "secondary", 36, {
+        type: "scout_before_relocation",
+        strength: relief.pressureReliefScore,
+        confidence: relief.knownness,
+        relatedTileIds: [currentTile.id, relief.tileId],
+        bandId: band.id,
+        currentTileId: currentTile.id,
+        targetTileId: relief.tileId,
+        prospectTileIds: [relief.tileId],
+        stayValue: 0,
+        scoutValue: relief.pressureReliefScore,
+        moveValue: 0,
+        departureThreshold: relief.waterRefugeAdequacy,
+        uncertainty: relief.uncertainty,
+        socialRisk: 0,
+        crossingRisk: relief.crossingTravelCost,
+        travelCost: relief.crossingTravelCost,
+        basis: ["pressure relief probe", relief.reasonLabel],
+      }),
+    ],
+    riverAssessment: edgeMemo.riverAssessment,
+    isOptInCandidate: true,
   };
 }
 
@@ -2831,7 +3385,7 @@ export function applySideEncounteredCautiousTest(
   };
 
   const season = world.time.season;
-  const foodStress = band.pressureState?.foodStress ?? band.hungerPressure ?? 0;
+  const foodStress = getCanonicalFoodStress(band);
   const perCapitaReturn =
     band.carryingCapacity?.perCapitaReturn.perCapitaReturn ?? band.perCapitaReturn?.perCapitaReturn ?? 0.5;
   const eligibility = derivePlantUseEligibility(memoryWithObs, {
@@ -3092,7 +3646,7 @@ function applyResourceScoutObservation(
     : derivePlantUseEligibility(afterScout, {
         tick: world.time.tick,
         season,
-        foodStress: band.pressureState?.foodStress ?? band.hungerPressure ?? 0,
+        foodStress: getCanonicalFoodStress(band),
         perCapitaReturn:
           band.carryingCapacity?.perCapitaReturn.perCapitaReturn ??
           band.perCapitaReturn?.perCapitaReturn ??
@@ -3109,7 +3663,7 @@ function applyResourceScoutObservation(
           season,
           memory: afterScout,
           eligibility: plantUseEligibility,
-          foodStress: band.pressureState?.foodStress ?? band.hungerPressure ?? 0,
+          foodStress: getCanonicalFoodStress(band),
           perCapitaReturn:
             band.carryingCapacity?.perCapitaReturn.perCapitaReturn ??
             band.perCapitaReturn?.perCapitaReturn ??
@@ -3870,6 +4424,89 @@ function getTileIdsWithinKnownMoveRadius(
   return result;
 }
 
+function applyAdaptiveDecisionShaping(
+  band: Band,
+  decisionId: DecisionId,
+  candidate: CandidateDecision,
+  decisionCache: CandidateEvaluationCache,
+): CandidateDecision {
+  // INVENTION-3: once the canonical problem→idea→experiment state exists,
+  // legacy adaptiveHuman cards are a frozen compatibility projection and no
+  // longer form an independently behavior-driving history.
+  if (band.practicalAdaptation !== undefined) {
+    return candidate;
+  }
+  const influence = selectAdaptiveInfluenceForAction(candidate.action, decisionCache.adaptiveSupport);
+
+  if (influence === undefined || influence.scoreDelta <= 0) {
+    return candidate;
+  }
+
+  const relatedTileId = getActionRelatedTileId(candidate.action, band.position);
+
+  return {
+    ...candidate,
+    score: round2(candidate.score + influence.scoreDelta),
+    secondaryReasons: [
+      ...candidate.secondaryReasons,
+      makeReason(decisionId, "secondary", candidate.secondaryReasons.length + 80, {
+        type: "adaptive_response_selected",
+        strength: influence.scoreDelta,
+        confidence: Math.min(0.82, 0.42 + influence.scoreDelta),
+        relatedTileIds: relatedTileId === band.position ? [band.position] : [band.position, relatedTileId],
+        bandId: band.id,
+        ideaId: influence.ideaId,
+        responseId: influence.responseId,
+        family: influence.family,
+        responseType: influence.responseType,
+        expectedBenefit: influence.expectedBenefit,
+        risk: influence.risk,
+        behaviorEffectScope: influence.behaviorEffectScope,
+        scoreDelta: influence.scoreDelta,
+        basis: influence.basis,
+      }),
+    ],
+  };
+}
+
+function applyCampMovementDecisionShaping(
+  band: Band,
+  decisionId: DecisionId,
+  candidate: CandidateDecision,
+  decisionCache: CandidateEvaluationCache,
+): CandidateDecision {
+  const influence = selectCampMovementInfluenceForAction(candidate.action, decisionCache.campMovementSupport);
+
+  if (influence === undefined || influence.scoreDelta <= 0) {
+    return candidate;
+  }
+
+  const relatedTileId = influence.targetTileId ?? getActionRelatedTileId(candidate.action, band.position);
+
+  return {
+    ...candidate,
+    score: round2(candidate.score + influence.scoreDelta),
+    secondaryReasons: [
+      ...candidate.secondaryReasons,
+      makeReason(decisionId, "secondary", candidate.secondaryReasons.length + 100, {
+        type: "camp_movement_response_selected",
+        strength: influence.scoreDelta,
+        confidence: Math.min(0.82, 0.42 + influence.scoreDelta),
+        relatedTileIds: relatedTileId === band.position ? [band.position] : [band.position, relatedTileId],
+        bandId: band.id,
+        scale: influence.scale,
+        status: influence.status,
+        expectedBenefit: influence.expectedBenefit,
+        risk: influence.risk,
+        behaviorEffectScope: influence.behaviorEffectScope,
+        scoreDelta: influence.scoreDelta,
+        basis: influence.basis,
+        targetTileId: influence.targetTileId,
+      }),
+    ],
+  };
+}
+
 function applyIntentShaping(
   world: WorldState,
   band: Band,
@@ -3890,10 +4527,16 @@ function applyIntentShaping(
     actionVector === undefined || previousVector === undefined
       ? 0
       : clamp01(-dotVectors(actionVector, previousVector));
+  const currentRecord = band.knowledge.observedTiles[band.position];
+  const successfulCurrentCamp =
+    getCanonicalFoodStress(band) <= 0.3 &&
+    (currentRecord?.observedWaterAccess ?? 0.35) >= 0.48 &&
+    decisionCache.pressureSnapshot.bandPressureState.riskPressure < 0.8;
   const stayContradictsMobilityIntent =
     candidate.action.type === "stay" &&
     intent !== undefined &&
-    intent.kind !== "local_foraging";
+    intent.kind !== "local_foraging" &&
+    !successfulCurrentCamp;
   const stayIntentPenalty = stayContradictsMobilityIntent
     ? clamp01(intent.persistence * (band.consecutiveSeasonsOnTile >= 1 ? 0.74 : 0.38))
     : 0;
@@ -3944,10 +4587,22 @@ function applyIntentShaping(
           },
         );
 
+  // CAUSAL-REPAIR-1: the stay candidate carries an additive bias premium built ON
+  // TOP of scoreDecision by buildStayCandidate — the flat stay bias, anchor hold,
+  // and seasonal-round pull — and that premium is where the chronic-hardship
+  // stay-bias EROSION lives (a failing band's stay bias is eroded, a comfortable
+  // band's is not). Recomputing the score purely from scoreDecision here would
+  // discard it, collapsing a chronically-failing and a comfortable band to an
+  // identical stay score. Preserve the premium so hardship erosion survives intent
+  // shaping. Only the stay action carries this premium, so moves/scouts/probes are
+  // unaffected (their scoring is unchanged).
+  const stayBiasPremium = candidate.action.type === "stay"
+    ? candidate.score - round2(scoreDecision(candidate.scoreBreakdown))
+    : 0;
   return {
     ...candidate,
     scoreBreakdown,
-    score: round2(scoreDecision(scoreBreakdown) - badSiteStuckResidencePenalty),
+    score: round2(scoreDecision(scoreBreakdown) + stayBiasPremium - badSiteStuckResidencePenalty),
     secondaryReasons:
       intentSecondaryReason === undefined
         ? candidate.secondaryReasons
@@ -4104,7 +4759,11 @@ function buildKnownTileScoreBreakdown(
   );
   const movementCost = distance === 0
     ? 0
-    : clamp01(((record.observedMovementCost ?? 1.6) * Math.max(1, distance) - 1) / 3);
+    : clamp01(
+        ((record.observedMovementCost ?? 1.6) * Math.max(1, distance) - 1) / 3 +
+          decisionCache.pressureSnapshot.bandPressureState.fatiguePressure * 0.28 +
+          getRecentRelocationSettlementCost(world, band),
+      );
   const baseRiskCost = clamp01(record.observedRisk ?? 0.35);
   const foodValue = clamp01(
     record.observedRichness * 0.62 +
@@ -4273,7 +4932,7 @@ function buildKnownTileScoreBreakdown(
   const depletionPenalty = isStay
     ? clamp01(
         targetUsePressure * 0.78 +
-          pressureState.netMovePressure * 0.28 +
+          pressureState.foodStress * 0.18 +
           (band.ecologicalStressCauses?.resourceDepletion ?? 0) * 0.32 +
           ecologicalMovePressure * 0.2,
       )
@@ -4281,7 +4940,22 @@ function buildKnownTileScoreBreakdown(
   const placeAttachmentPull = isStay
     ? pressureState.placeAttachmentPull
     : clamp01(placeAttachment * 0.22 + returnPlacePull * 0.14);
-  const netMovePressure = isStay ? 0 : pressureState.netMovePressure;
+  // Pressure is a reason to seek relief, not a blanket bonus for any move.
+  // Reward it only when this known destination offers a grounded improvement
+  // (water, food opportunity, rested range, or explicit known opportunity).
+  const currentRecord = band.knowledge.observedTiles[band.position];
+  const currentWaterValue = clamp01(currentRecord?.observedWaterAccess ?? 0.35);
+  const currentFoodValue = clamp01(
+    (currentRecord?.observedRichness ?? 0.35) * 0.62 +
+      (currentRecord?.observedAquaticPotential ?? 0) * 0.12,
+  );
+  const groundedRelief = clamp01(
+    Math.max(0, waterValue - currentWaterValue) * 0.46 +
+      Math.max(0, foodValue - currentFoodValue) * 0.38 +
+      recoveryBenefit * 0.34 +
+      knownOpportunityPull * 0.3,
+  );
+  const netMovePressure = isStay ? 0 : pressureState.netMovePressure * clamp01(0.08 + groundedRelief * 0.92);
   const expectedFutureValue = clamp01(
     foodValue * 0.34 +
       waterValue * 0.24 +
@@ -4412,6 +5086,23 @@ function buildKnownTileScoreBreakdown(
   };
 }
 
+function getRecentRelocationSettlementCost(world: WorldState, band: Band): number {
+  const latest = band.recentResidentialMoveEvents?.[0];
+  if (latest === undefined) return 0;
+  const seasonsSince = Math.max(0, Number(world.time.tick) - Number(latest.tick));
+  if (seasonsSince > 2) return 0;
+  const hardship = latest.hardshipLevel === "severe" ? 0.12
+    : latest.hardshipLevel === "high" ? 0.09
+      : latest.hardshipLevel === "moderate" ? 0.06
+        : 0.03;
+  // A whole-band relocation consumes camp re-establishment and dependent-care
+  // capacity beyond the walking days themselves. The cost decays after one
+  // settled season and never blocks a sufficiently better refuge.
+  const dependentShare = band.demography.dependents / Math.max(1, band.demography.population);
+  const establishmentCost = seasonsSince <= 1 ? 0.22 : 0.07;
+  return clamp01(establishmentCost + hardship + dependentShare * 0.08);
+}
+
 function scoreDecision(scoreBreakdown: ScoreBreakdown): number {
   return round2(
     scoreBreakdown.foodValue * 1.45 +
@@ -4494,11 +5185,11 @@ function buildCommonSecondaryReasons(
 ): readonly Reason[] {
   const reasons: Reason[] = [];
 
-  if (scoreBreakdown.foodValue < 0.34 || band.hungerPressure > 0.55) {
+  if (scoreBreakdown.foodValue < 0.34 || getCanonicalFoodStress(band) > 0.55) {
     reasons.push(
       makeReason(decisionId, "secondary", reasons.length + startIndex, {
         type: "food_scarcity",
-        strength: clamp01(1 - scoreBreakdown.foodValue + band.hungerPressure * 0.28),
+        strength: clamp01(1 - scoreBreakdown.foodValue + getCanonicalFoodStress(band) * 0.28),
         confidence: scoreBreakdown.memoryConfidence,
         relatedTileIds: [tile.id],
         deficit: clamp01(1 - scoreBreakdown.foodValue),
@@ -5406,7 +6097,7 @@ const MIGRATION_OBSERVATION_CAP = 64;
 function buildMigrationWalkView(
   world: WorldState,
   band: Band,
-  intentKind: MobilityIntentKind,
+  intentKind: MobilityIntentKind | undefined,
 ): MigrationWalkView {
   return {
     coordOf: (tileId) => getTile(world, tileId)?.coord,
@@ -5459,6 +6150,13 @@ function buildMigrationWalkView(
   };
 }
 
+// INVENTION-1: a destination counts as a remembered watered place only from
+// the band's OWN place memory (never truth) — recent-enough water reading.
+function isKnownWateredDestination(band: Band, targetTileId: TileId): boolean {
+  const record = band.placeMemory[targetTileId];
+  return record !== undefined && (record.lastKnownWaterStress ?? 1) <= 0.4;
+}
+
 /**
  * Realize a committed migration decision as a contiguous breadcrumb path, or `undefined` to
  * keep the canonical single hop. Engages ONLY for a migration-class intent with enough
@@ -5474,32 +6172,45 @@ function deriveAppliedMigrationWalk(
   if (!MIGRATION_WALK_ENABLED) {
     return undefined;
   }
+  // CAUSAL-REPAIR-2: the walk engages on the seasonal-travel PLAN, not on raw
+  // intent persistence (the SPIKE-MOBILITY-1 churn cause). Chronic hardship
+  // escape can justify a journey even without a formal migration intent; a
+  // migration-class intent needs a multi-season rest since the last move.
   const intent = decision.mobilityIntent;
-  if (intent === undefined || !MIGRATION_INTENT_KINDS.has(intent.kind)) {
-    return undefined;
-  }
-  const budget = deriveMigrationWalkBudget(clamp01(intent.persistence ?? 0));
-  if (budget < 2) {
-    return undefined; // low-commitment migration ≈ today's single hop
+  const plan = deriveSeasonalTravelPlanForBand(
+    band,
+    intent?.kind,
+    clamp01(intent?.persistence ?? 0),
+    Number(world.time.tick),
+    // INVENTION-1: the dry-route water relief applies only when the scored
+    // destination is one of the band's OWN remembered watered places.
+    { destinationKnownWatered: isKnownWateredDestination(band, targetTileId) },
+  );
+  if (!plan.engaged) {
+    return undefined; // single hop; the plan's limiters explain why in Technical
   }
   // Heading is the band's OWN already-chosen direction (intent vector / realized heading /
   // the canonical move's bearing) — never a hidden target or truth gradient.
   const heading =
-    intent.directionVector ??
+    intent?.directionVector ??
     band.corridorHeading?.headingVector ??
     getRealizedMoveDelta(world, band.position, targetTileId);
   if (heading === undefined || (heading.x === 0 && heading.y === 0)) {
     return undefined;
   }
+  // Exploratory dispersal AND hardship escape may take one bounded step into
+  // unknown land (a journey out of a failing range accepts visible route risk);
+  // corridor migration stays on known ground.
   const exploratory =
-    intent.kind === "frontier_dispersal" ||
-    intent.kind === "seek_new_range" ||
-    intent.kind === "expand_known_world" ||
-    intent.kind === "daughter_range_expansion";
-  const result = deriveMigrationWalk(buildMigrationWalkView(world, band, intent.kind), {
+    plan.motive === "chronic_hardship_escape" ||
+    intent?.kind === "frontier_dispersal" ||
+    intent?.kind === "seek_new_range" ||
+    intent?.kind === "expand_known_world" ||
+    intent?.kind === "daughter_range_expansion";
+  const result = deriveMigrationWalk(buildMigrationWalkView(world, band, intent?.kind), {
     startTileId: band.position,
     headingVector: heading,
-    maxSteps: budget,
+    maxSteps: plan.budget,
     runSeed: world.runSeed,
     bandId: band.id,
     tick: world.time.tick,
@@ -5669,6 +6380,12 @@ function getRiverMovementAssessment(
   const riverCorridorValue = getRiverCorridorValue(fromTile, toTile, intentKind);
   const rawCost = seasonalState?.effectiveCrossingCost ?? 0;
   const rawRisk = seasonalState?.effectiveRisk ?? 0;
+  // CAUSAL-REPAIR-1 — one real local learning loop (crossingPractice.ts):
+  // repeated successful use of THIS crossing earns a bounded, perishable
+  // relief on the crossing risk the decision pays here. The band's stable
+  // crossing-caution tendency shifts the risk it perceives ±12% before relief.
+  const crossingPracticeRelief = deriveCrossingPracticeRelief(memory, Number(world.time.tick)).relief;
+  const crossingCautionScale = 1 + deriveBandTendencies(band).crossingCaution * 0.12;
 
   return {
     crossing,
@@ -5676,24 +6393,35 @@ function getRiverMovementAssessment(
     capability,
     capabilityLabel: formatRiverCapability(capability),
     riverCrossingCost: round2(clamp01(rawCost / 2.8)),
-    riverCrossingRisk: round2(rawRisk),
+    riverCrossingRisk: round2(clamp01(rawRisk * crossingCautionScale * (1 - crossingPracticeRelief))),
     riverCorridorValue,
     knownFordValue: round2(knownFordValue),
     blockedCrossingPenalty: seasonalState?.isBlockedWithoutCapability === true ? 1 : 0,
     memoryUseCount,
+    crossingPracticeRelief,
   };
 }
 
 function getBandRiverCrossingCapability(band: Band): RiverCrossingCapability {
-  const hasFishing = band.technologies.includes("fishing") || band.technologies.includes("improved_fishing");
-  const hasBasketry = band.technologies.includes("basketry");
-  const hasStorageCraft = band.technologies.includes("drying_smoking") || band.technologies.includes("basic_storage");
-  const aquaticSubsistence = band.subsistenceModes.includes("aquatic");
+  const crossingPractice = Object.values(band.crossingMemories).some((memory) =>
+    memory.useCount >= 2 && memory.successConfidence >= 0.5);
+  const aquaticPractice = (band.recentIntraSeasonTrips ?? []).filter((trip) =>
+    trip.taskGroupType === "fishing_group" || trip.taskGroupType === "water_group").length >= 3;
+  const engineeringResponse = (band.practicalAdaptation?.responses ?? []).some((response) =>
+    response.family === "engineering_structure" &&
+    (response.status === "forming" || response.status === "active"));
+  const fragments = band.practicalAdaptation?.fragments ?? [];
+  const componentSubjects = new Set(fragments
+    .filter((fragment) => fragment.knowledgeState !== "incorrect" && fragment.knowledgeState !== "dormant")
+    .map((fragment) => fragment.subject));
+  const componentBasis = componentSubjects.has("buoyancy_under_load") &&
+    componentSubjects.has("binding_under_load") &&
+    componentSubjects.has("staged_shuttle_crossing");
 
   return {
     canUseFords: true,
-    canUseShallowCrossings: hasFishing || hasBasketry || aquaticSubsistence,
-    canAttemptBasicRaftCrossing: aquaticSubsistence && hasFishing && (hasBasketry || hasStorageCraft),
+    canUseShallowCrossings: crossingPractice || aquaticPractice || engineeringResponse,
+    canAttemptBasicRaftCrossing: engineeringResponse && componentBasis,
   };
 }
 
@@ -5747,7 +6475,7 @@ function getDecisionContextSnapshot(
     knownTileCount,
     knownSettlementCount: band.knowledge.knownSettlements.length,
     populationEstimate: band.demography.population,
-    hungerPressure: band.hungerPressure,
+    hungerPressure: getCanonicalFoodStress(band),
     territorialPressure: band.territorialPressure,
   };
 }
@@ -5934,7 +6662,11 @@ function deriveBandBeliefOpportunity(
   });
 }
 
-function getExplorationBaseline(band: Band, beliefProbePressure = 0): number {
+function getExplorationBaseline(
+  band: Band,
+  beliefProbePressure = 0,
+  decisionCache?: CandidateEvaluationCache,
+): number {
   const vulnerableShare =
     (band.demography.dependents + band.demography.elders) /
     Math.max(1, band.demography.population);
@@ -5953,15 +6685,21 @@ function getExplorationBaseline(band: Band, beliefProbePressure = 0): number {
   // it raises the urge to scout/probe, NOT residential relocation, and is small
   // enough never to dominate water/attachment/route/anchor logic.
   const beliefProbe = clamp01(beliefProbePressure);
+  // CAUSAL-REPAIR-1: repeated low-support evidence escalates the scouting urge
+  // (capped by SCOUT_URGENCY_CAP), and the band's stable exploration tendency
+  // shifts its personal baseline ±15%.
+  const hardshipScoutUrgency = decisionCache?.hardship.scoutUrgency ?? 0;
+  const explorationTendencyScale = 1 + (decisionCache?.tendencies.exploration ?? 0) * 0.15;
 
   return round2(
     clamp01(
-      0.1 +
+      (0.1 +
         (band.parentBandId === undefined ? 0 : 0.04) +
         (band.frontierDispersal?.pressure ?? 0) * 0.08 +
         chronicDeclineProbe +
-        beliefProbe -
-        stressPenalty,
+        beliefProbe +
+        hardshipScoutUrgency -
+        stressPenalty) * explorationTendencyScale,
     ),
   );
 }
@@ -5994,12 +6732,11 @@ function getReportedKnowledgeTargetBias(
   decisionCache: CandidateEvaluationCache,
   input: Parameters<typeof deriveReportedKnowledgeTargetBias>[2],
 ): ReturnType<typeof deriveReportedKnowledgeTargetBias> {
+  const usableEvidence = input.targetKnown || input.routeEvidence || input.localEvidence === true;
   const key = [
     String(tileId),
     input.currentTick,
-    input.targetKnown ? "known" : "unknown",
-    input.routeEvidence ? "route" : "no-route",
-    input.localEvidence ? "local" : "nonlocal",
+    usableEvidence ? "usable" : "unusable",
   ].join("|");
   const cached = decisionCache.reportedBiasByKey.get(key);
 
@@ -6097,7 +6834,7 @@ function getGridDistance(first: Tile, second: Tile): number {
 
 function getMobilityPressure(band: Band, scoreBreakdown: ScoreBreakdown): number {
   return clamp01(
-    band.hungerPressure * 0.34 +
+    getCanonicalFoodStress(band) * 0.34 +
       band.territorialPressure * 0.14 +
       band.demography.foodPerPersonStress * 0.18 +
       band.demography.splitPressure * 0.12 +

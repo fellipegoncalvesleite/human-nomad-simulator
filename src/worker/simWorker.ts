@@ -50,6 +50,9 @@ let lastSnapshotAt = 0;
 let fullSnapshotMinIntervalMs = DEFAULT_FULL_SNAPSHOT_MIN_INTERVAL_MS;
 let selectedBandId: string | null = null;
 let lastSelectedBandPanelAt = 0;
+// CAUSAL-REPAIR-2: at sub-season playback the overlay walks residential
+// markers along their recorded seasonal-travel routes day by day.
+let currentStepMode: StepMode = "seasonal";
 
 function normalizeFullSnapshotIntervalMs(intervalMs: number | undefined): number {
   if (intervalMs === undefined || !Number.isFinite(intervalMs)) {
@@ -67,7 +70,10 @@ function postSnapshot(force: boolean): void {
     return;
   }
 
-  postMessage({ type: "overlay", overlay: takeLiveOverlay(world) });
+  postMessage({
+    type: "overlay",
+    overlay: takeLiveOverlay(world, { subSeasonPlayback: currentStepMode !== "seasonal" }),
+  });
   postSelectedBandPanelProjection(force);
 
   const now = Date.now();
@@ -117,6 +123,7 @@ onmessage = (event: MessageEvent<SimWorkerRequest>) => {
     }
     case "run": {
       stopLoop();
+      currentStepMode = message.stepMode;
       const stepsPerInterval = Math.max(1, Math.floor(message.stepsPerInterval ?? 1));
       fullSnapshotMinIntervalMs = normalizeFullSnapshotIntervalMs(message.fullSnapshotIntervalMs);
       timer = setInterval(() => {
@@ -136,6 +143,7 @@ onmessage = (event: MessageEvent<SimWorkerRequest>) => {
     }
     case "step": {
       if (world !== null) {
+        currentStepMode = message.stepMode;
         world = stepSim(world, 1, message.stepMode);
         postSnapshot(true);
       }

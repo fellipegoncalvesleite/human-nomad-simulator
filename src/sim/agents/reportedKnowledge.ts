@@ -1716,7 +1716,7 @@ function topicForTrip(
     return successful ? "good_water_region" : "unknown_story_or_guess";
   }
 
-  if (trip.resourceClassId === "aquatic_food" || trip.resourceReturn.returnedResourceKind === "fish_placeholder") {
+  if (trip.resourceClassId === "aquatic_food" || trip.resourceReturn.returnedResourceKind === "harvested_aquatic_food") {
     return tile !== undefined && (tile.isEstuary || tile.isMarshChannel || tile.terrainKind === "wetlands")
       ? "good_delta_or_wetland"
       : "good_fishing_region";

@@ -1082,6 +1082,7 @@ function deriveEventReferents(context: ReferentContext): readonly ReferentDraft[
 function campReferent(context: ReferentContext, place: ProtoCampPlaceMemory): ReferentDraft {
   const placeText = placeLabel(context, place.tileId);
   const response = responseForCamp(place, context.band);
+  const candidatePlaceScore = place.visitCount === 0 ? 18 : 0;
   return {
     id: `camp:${String(context.band.id)}:${String(place.tileId)}`,
     kind: "camp_place",
@@ -1114,7 +1115,7 @@ function campReferent(context: ReferentContext, place: ProtoCampPlaceMemory): Re
     ].filter(isString),
     relatedPlaceIds: [place.tileId],
     sourceTabs: ["overview", "place", "survival", "chronicle"],
-    score: 30 + place.campLikeScore * 28 + place.visitCount * 2 + place.ecologicalPressure * 12 + place.crossingUseScore * 12,
+    score: 30 + candidatePlaceScore + place.campLikeScore * 28 + place.visitCount * 2 + place.ecologicalPressure * 12 + place.crossingUseScore * 12,
     rawSourceLabels: ["Band.protoCampMemory"],
     rawIds: [String(place.tileId), place.campLikeState, place.lifecycleTrend, place.usePressureStatus],
     sourceReasonIds: place.reasonIds,

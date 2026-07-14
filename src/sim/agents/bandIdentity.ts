@@ -223,10 +223,10 @@ function buildSubsistenceCard(band: Band, events: readonly CanonicalEvent[]): Ca
   if (gatheredCount > 0) {
     evidence.push(activityEvidence("plant gathering and local foraging", gatheredCount, band));
   }
-  if (fishingCount > 0 || returnKinds.some((entry) => entry.returnedResourceKind === "fish_placeholder")) {
+  if (fishingCount > 0 || returnKinds.some((entry) => entry.returnedResourceKind === "harvested_aquatic_food")) {
     evidence.push(activityEvidence("fishing or aquatic returns", Math.max(1, fishingCount), band));
   }
-  if (huntingCount > 0 || returnKinds.some((entry) => entry.returnedResourceKind === "hunted_food_placeholder")) {
+  if (huntingCount > 0 || returnKinds.some((entry) => entry.returnedResourceKind === "hunted_fauna_food")) {
     evidence.push(activityEvidence("hunting in recent work", Math.max(1, huntingCount), band));
   }
   evidence.push(...fallbackEvents.slice(0, 2).map((event) => eventEvidence(event, "food pressure remembered")));

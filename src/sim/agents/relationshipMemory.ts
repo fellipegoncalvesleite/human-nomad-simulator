@@ -290,35 +290,38 @@ function derivePracticeSkills(world: WorldState, band: Band): readonly Practical
 }
 
 function deriveAnimalFamiliarity(world: WorldState, band: Band): readonly AnimalHumanFamiliarityRecord[] {
-  const logistics = band.bodyCampLogistics;
-  return (band.visibleNature?.faunaCards ?? [])
-    .filter((card) => card.confidence >= 0.2)
-    .map((card) => {
+  return (band.animalPatternKnowledge?.records ?? [])
+    .filter((record) => record.confidence >= 0.2)
+    .map((record) => {
+      const management = band.animalManagement?.records.find((entry) => entry.stockId === record.stockId);
       const campFollowing = clamp01(
-        (card.tags.includes("camp_follower_candidate") ? 0.22 : 0) +
-          (card.tags.includes("scavenger") ? 0.18 : 0) +
-          (logistics?.campCleanliness.scavengerPressure ?? 0) * 0.5 +
-          (logistics?.campCleanliness.processingWasteLoad ?? 0) * 0.24,
+        (record.patterns.includes("camp_approach") ? 0.34 : 0) +
+          (management?.outcome === "brief_proximity" || management?.outcome === "habituation_increased" ? 0.18 : 0),
       );
-      const kind = classifyAnimalFamiliarity(card, campFollowing);
-      const humanLearning = clamp01(card.confidence * 0.34 + card.routeReliability * 0.24 + (card.recentEvidence.length * 0.05));
+      const risk = clamp01(record.contradictionCount * 0.12 + (record.patterns.includes("flight_after_pursuit") ? 0.24 : 0) + (management?.stressObserved ?? 0));
+      const kind: AnimalFamiliarityKind = campFollowing >= 0.34 ? "camp_nuisance" :
+        risk >= 0.55 ? "dangerous_but_known" :
+        record.patterns.includes("flight_after_pursuit") ? "wary_of_hunters" :
+        record.patterns.includes("seasonal_return") ? "familiar_route" :
+        management?.successes !== undefined && management.successes > 0 ? "tolerated_proximity" :
+        record.state === "contradicted" ? "unreliable" : "hard_to_catch";
+      const humanLearning = clamp01(record.confidence * 0.5 + Math.min(0.3, record.observationCount * 0.05));
       const reasonIds = [
-        makeRelationshipReasonId(band.id, world.time.tick, "animal", card.anchorTileId),
-        ...(band.visibleNature?.reasonIds.slice(0, 3) ?? []),
+        makeRelationshipReasonId(band.id, world.time.tick, "animal", record.placeTileId),
       ];
 
       return {
-        stockId: card.stockId,
-        label: card.label,
+        stockId: record.stockId,
+        label: record.faunaKind.replace(/_/g, " "),
         kind,
-        confidence: round2(card.confidence),
+        confidence: round2(record.confidence),
         humanLearning: round2(humanLearning),
-        animalWariness: round2(card.wariness),
+        animalWariness: round2(clamp01(risk + (management?.outcome === "escaped" ? 0.18 : 0))),
         campFollowing: round2(campFollowing),
-        usefulness: card.usefulness,
-        risk: round2(card.risk),
-        sourceTileIds: card.seenTileIds.slice(0, 4),
-        basis: `${card.knowledgeState}; ${card.perception.join(",") || "visible signs"}; ${card.recentEvidence.join("; ") || card.habitatReason}`,
+        usefulness: management?.successes !== undefined && management.successes > 0 ? "locally promising" : "uncertain",
+        risk: round2(risk),
+        sourceTileIds: [record.placeTileId, ...record.routeTileIds].slice(0, 4),
+        basis: `${record.state}/${record.basis}; ${record.patterns.join(",")}; observations ${record.observationCount}; contradictions ${record.contradictionCount}`,
         reasonIds,
         noAnimalControl: true as const,
       };

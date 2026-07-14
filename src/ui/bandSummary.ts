@@ -166,6 +166,12 @@ const STATUS_DOING: Readonly<Record<string, string>> = {
 };
 
 export function deriveDoingNow(band: Band): string {
+  if (band.viability?.status === "extinct") {
+    return "Extinct — archival record";
+  }
+  if (band.viability?.status === "absorbed" || band.status === "dispersed") {
+    return "No longer an active band";
+  }
   const intentKind = band.currentIntent?.kind;
 
   if (intentKind !== undefined && INTENT_DOING[intentKind] !== undefined) {
@@ -205,6 +211,15 @@ function clamp01(value: number): number {
 }
 
 export function deriveCondition(band: Band): Condition {
+  if (band.viability?.status === "extinct") {
+    return {
+      foodLabel: "Final value archived",
+      waterLabel: "Final value archived",
+      crowdingLabel: "Final value archived",
+      viabilityLabel: "Died out",
+      bars: { food: 0, water: 0, safety: 0 },
+    };
+  }
   const foodStress = clamp01(band.pressureState?.foodStress ?? 0);
   const waterStress = clamp01(band.pressureState?.waterStress ?? 0);
   const crowding = clamp01(band.demography?.householdCrowdingPressure ?? 0);
@@ -271,7 +286,9 @@ export function groupSkills(band: Band): {
     };
   });
 
-  const crafts = band.technologies.map((tech): SkillChip => {
+  const staticCrafts = band.technologies
+    .filter((tech) => tech !== "basic_storage" && tech !== "ceramic_storage")
+    .map((tech): SkillChip => {
     const entry = TECH_SKILL[tech];
 
     return {
@@ -280,7 +297,16 @@ export function groupSkills(band: Band): {
       icon: entry?.icon ?? "craft",
       tip: entry?.tip ?? "",
     };
-  });
+    });
+  const learnedStorage = (band.practicalAdaptation?.responses ?? [])
+    .filter((response) => response.family === "water_storage" && response.status !== "abandoned" && response.status !== "dormant")
+    .map((response): SkillChip => ({
+      id: response.id,
+      label: response.publicLabel,
+      icon: "storage",
+      tip: `${response.status}; leakage and carrying burden remain context dependent`,
+    }));
+  const crafts = [...learnedStorage, ...staticCrafts];
 
   return { subsistence, crafts };
 }

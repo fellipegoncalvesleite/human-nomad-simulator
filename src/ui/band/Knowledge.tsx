@@ -14,6 +14,7 @@ import type { Band } from "../../sim/agents/types";
 import type { WorldState } from "../../sim/world/types";
 
 import { Icon, type IconName } from "../icons";
+import { KnowledgeCarriers } from "./KnowledgeCarriers";
 import { Chip, SectionHeading } from "./parts";
 
 const DOMAIN_ICON: Readonly<Record<KnowledgeEcologyDomain, IconName>> = {
@@ -78,6 +79,8 @@ export function Knowledge({
           <span>{profile.fadingItemCount} fading</span>
         </div>
       </article>
+
+      <KnowledgeCarriers band={band} world={world} />
 
       {profile.items.length === 0 ? (
         <p className="empty-panel">No bounded knowledge profile is visible yet.</p>

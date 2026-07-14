@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { deriveBandChronicle } from "../../sim/agents/bandChronicle";
+import { derivePublicHumanStoryProfile, type PublicStoryItem } from "../../sim/agents/publicHumanStory";
 import type {
   BandChroniclePage,
   BandChronicleParagraph,
@@ -433,10 +434,12 @@ function scrollToArticleAnchor(anchorId: string) {
 
 function ChronicleArticle({
   chronicle,
+  storyTitles,
   nav,
   onExpand,
 }: {
   readonly chronicle: BandChronicleState;
+  readonly storyTitles: readonly PublicStoryItem[];
   readonly nav: ChronicleNav;
   readonly onExpand?: () => void;
 }) {
@@ -465,6 +468,20 @@ function ChronicleArticle({
           <ChronicleProse key={paragraph.id} paragraph={paragraph} nav={nav} />
         ))}
       </div>
+
+      {storyTitles.length === 0 ? null : (
+        <section className="chronicle-theme-section public-story-highlight" id="article-human-stories">
+          <h4>
+            <Icon name="talk" />
+            <span>Recent human stories</span>
+          </h4>
+          {storyTitles.slice(0, 3).map((story) => (
+            <p key={story.id} className="chronicle-prose public-story-line">
+              <strong className="public-story-title">{story.title}</strong> - {story.story}
+            </p>
+          ))}
+        </section>
+      )}
 
       {/* Century-scale story: the long view from durable signals, told before
           the bounded recent record so a hundred years feels like a hundred. */}
@@ -719,6 +736,7 @@ export function History({
   const currentTick = Number(world?.time.tick ?? 0);
   const timeline = useMemo(() => buildTimeline(band, currentTick), [band, currentTick]);
   const chronicle = useMemo(() => (world === null ? undefined : deriveBandChronicle(world, band)), [band, world]);
+  const storyProfile = useMemo(() => (world === null ? undefined : derivePublicHumanStoryProfile(world, band)), [band, world]);
   const pageMap = useMemo(
     () => new Map((chronicle?.pages ?? []).map((page) => [page.id, page])),
     [chronicle],
@@ -805,7 +823,7 @@ export function History({
 
       {chronicle !== undefined && currentPage === undefined ? (
         <section className="bp-section">
-          <ChronicleArticle chronicle={chronicle} nav={nav} onExpand={() => setReadingView(true)} />
+          <ChronicleArticle chronicle={chronicle} storyTitles={storyProfile?.chronicleTitles ?? []} nav={nav} onExpand={() => setReadingView(true)} />
         </section>
       ) : null}
 
@@ -831,7 +849,7 @@ export function History({
                   onBack={() => setPageStack((previous) => previous.slice(0, -1))}
                 />
               ) : (
-                <ChronicleArticle chronicle={chronicle} nav={nav} />
+                <ChronicleArticle chronicle={chronicle} storyTitles={storyProfile?.chronicleTitles ?? []} nav={nav} />
               )}
             </div>
           </div>

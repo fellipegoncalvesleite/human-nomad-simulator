@@ -1,6 +1,7 @@
 import type { ReasonId, TickNumber, TileId } from "../core/types";
 import type { WorldState } from "../world/types";
 import { enforceResourceKnowledgeCap } from "./resourceKnowledge";
+import { deriveCareTreatmentRelief } from "./practicalResponses";
 import type {
   AcuteRiskContext,
   AcuteRiskDurationClass,
@@ -196,26 +197,30 @@ function deriveAcuteRiskCandidates(world: WorldState, band: Band): readonly Acut
     });
   }
 
-  if (season === "summer" || currentSupport?.mode === "dry" || (currentTile?.riskProfile.droughtRisk ?? 0) > 0.35) {
+  const contaminatedWaterWorks = band.practicalAdaptation?.waterWorks?.tileId === band.position &&
+    band.practicalAdaptation.waterWorks.status === "contaminated_seep";
+  if (contaminatedWaterWorks || season === "summer" || currentSupport?.mode === "dry" || (currentTile?.riskProfile.droughtRisk ?? 0) > 0.35) {
     const dryScore = clamp01(
       waterStress * 0.42 +
         (currentTile?.riskProfile.droughtRisk ?? 0) * 0.28 +
         fatiguePressure * 0.12 +
         ((currentSupport?.mode === "dry" || season === "summer") ? 0.12 : 0) +
-        (latestTrip?.activityOutcome === "failed_due_to_water_risk" ? 0.2 : 0),
+        (latestTrip?.activityOutcome === "failed_due_to_water_risk" ? 0.2 : 0) +
+        (contaminatedWaterWorks ? 0.34 : 0),
     );
     pushCandidate(candidates, {
-      kind: dryScore >= 0.68 ? "heat_or_drought_exhaustion" : "bad_water_sickness",
+      kind: contaminatedWaterWorks ? "bad_water_sickness" : dryScore >= 0.68 ? "heat_or_drought_exhaustion" : "bad_water_sickness",
       sourceCategory: latestTrip?.activityOutcome === "failed_due_to_water_risk" ? "activity_trace" : "water_context",
       sourceTileId: latestTrip?.targetTileId ?? band.position,
       sourceTraceId: tripTraceId(latestTrip),
-      sourceLabel: latestTrip?.activityOutcome === "failed_due_to_water_risk" ? "failed water-risk activity" : "current water/dry context",
+      sourceLabel: contaminatedWaterWorks ? "foul dug seep at the current camp" : latestTrip?.activityOutcome === "failed_due_to_water_risk" ? "failed water-risk activity" : "current water/dry context",
       score: dryScore,
       reliability: latestTrip?.activityOutcome === "failed_due_to_water_risk" ? 0.72 : 0.5,
       confidence: latestTrip?.activityOutcome === "failed_due_to_water_risk" ? 0.76 : 0.52,
       groundedReasons: [
         currentSupport?.mode === "dry" ? "dry seasonal support mode" : "water stress context",
         latestTrip?.activityOutcome === "failed_due_to_water_risk" ? "recent water-risk failure" : "current known place water/drought proxy",
+        ...(contaminatedWaterWorks ? ["the dug seep smelled or sickened people"] : []),
       ],
       contributingFactors: [`waterStress=${round2(waterStress)}`, `droughtRisk=${round2(currentTile?.riskProfile.droughtRisk ?? 0)}`],
       reasonIds: uniqueReasonIds([...(support?.reasonIds ?? []), ...(latestTrip?.reasonIds ?? [])]),
@@ -417,9 +422,53 @@ function selectEpisodes(world: WorldState, band: Band, candidates: readonly Acut
   return selected;
 }
 
+// INVENTION-3: which cause group a care/treatment practice must match to
+// help this episode (mismatched treatment earns and changes nothing).
+function careGroupForKind(kind: AcuteRiskKind): "injury" | "sickness" {
+  switch (kind) {
+    case "minor_foraging_injury":
+    case "severe_foraging_injury":
+    case "animal_encounter_injury":
+    case "aquatic_accident":
+    case "travel_accident":
+      return "injury";
+    default:
+      return "sickness";
+  }
+}
+
 function makeEpisode(world: WorldState, band: Band, candidate: AcuteRiskCandidate, id: string): AcuteRiskEpisode {
   const severity = severityForCandidate(world, band, candidate);
-  const effect = effectForSeverity(candidate.kind, severity, candidate.score);
+  const baseEffect = effectForSeverity(candidate.kind, severity, candidate.score);
+  // INVENTION-3: a practiced, cause-matched care response bounds part of the
+  // episode's weight — recovery shortens by at most one season (never below
+  // one) and the mortality bump is damped ≤50%×relief. Everything else is
+  // still paid; an unmatched treatment changes nothing.
+  const care = deriveCareTreatmentRelief(band, Number(world.time.tick), careGroupForKind(candidate.kind));
+  const helpful = care.attempted && care.matched && !care.harmful && care.relief > 0;
+  const effect: AcuteRiskEffect = helpful
+    ? {
+        ...baseEffect,
+        mortalityRiskBump: round3(baseEffect.mortalityRiskBump * (1 - care.relief * 0.5)),
+        activityEfficiencyPenalty: round3(clamp01(baseEffect.activityEfficiencyPenalty + care.treatmentBurden * 0.08)),
+        recoverySeasons: care.relief >= 0.15
+          ? Math.max(1, baseEffect.recoverySeasons - 1)
+          : baseEffect.recoverySeasons,
+      }
+    : care.harmful
+      ? {
+          ...baseEffect,
+          mortalityRiskBump: round3(clamp01(baseEffect.mortalityRiskBump + 0.018)),
+          extraSeasonalStress: round3(clamp01(baseEffect.extraSeasonalStress + 0.025)),
+          activityEfficiencyPenalty: round3(clamp01(baseEffect.activityEfficiencyPenalty + 0.035 + care.treatmentBurden * 0.1)),
+          recoverySeasons: Math.min(4, baseEffect.recoverySeasons + 1),
+        }
+      : care.attempted
+        ? {
+            ...baseEffect,
+            activityEfficiencyPenalty: round3(clamp01(baseEffect.activityEfficiencyPenalty + care.treatmentBurden * 0.06)),
+          }
+        : baseEffect;
   const context: AcuteRiskContext = {
     sourceCategory: candidate.sourceCategory,
     sourceTileId: candidate.sourceTileId,
@@ -448,6 +497,22 @@ function makeEpisode(world: WorldState, band: Band, candidate: AcuteRiskCandidat
     confidence: candidate.confidence,
     effect,
     remainingRecoverySeasons: effect.recoverySeasons,
+    ...(care.attempted
+      ? {
+          careReliefApplied: helpful ? care.relief : 0,
+          careResponseId: care.responseId,
+          careAttempted: true,
+          careMatched: care.matched,
+          careHarmApplied: care.harmful ? 0.018 : 0,
+          careRecoverySeasonsSaved: baseEffect.recoverySeasons - effect.recoverySeasons,
+          careTreatmentBurden: care.treatmentBurden,
+          careNote: care.harmful
+            ? "the plant preparation worsened the sickness or hurt"
+            : helpful
+              ? `care shortened recovery ${effect.recoverySeasons < baseEffect.recoverySeasons ? "by a season" : "little"} and damped the worst risk`
+              : "care was attempted, but it did not match this trouble",
+        }
+      : {}),
     affectedStress: effect.extraSeasonalStress > 0,
     affectedActivityEfficiency: effect.activityEfficiencyPenalty > 0,
     affectedMortalityPressure: effect.mortalityRiskBump > 0,

@@ -13,6 +13,10 @@ import {
   getNearbyBandPressure,
 } from "./crowding";
 import type { TickContextCache } from "./contextCache";
+import { deriveBandTendencies } from "./bandTendency";
+import { deriveChronicHardship } from "./chronicHardship";
+import { deriveWaterWorksRelief } from "./practicalResponses";
+import { deriveCanonicalNutritionState } from "./seasonalSurvival";
 import { deriveForestTileEffect, getForestPatchState } from "./forestPatches";
 import type { ReasonId, TileId } from "../core/types";
 import type { KnownTileRecord } from "../knowledge/types";
@@ -120,8 +124,6 @@ export function deriveBandPressureState(
   const seasonalPattern = currentRecord?.observedSeasonalPattern;
   const leanSeasonStress =
     seasonalPattern?.leanSeasons.includes(world.time.season) === true ? 0.08 : 0;
-  const foodEstimate =
-    currentRecord === undefined ? 0.42 : getKnownFoodEstimate(currentRecord);
   const waterAccess = currentRecord?.observedWaterAccess ?? 0.38;
   const riskEstimate = currentRecord?.observedRisk ?? 0.35;
   const combinedPressure = getLocalUsePressureValue(currentPressure);
@@ -136,23 +138,8 @@ export function deriveBandPressureState(
   const forestVisibilityRisk = forestEffect?.visibilityReduction ?? 0;
   const forestTravelCost = forestEffect?.travelCostBump ?? 0;
   const forestShelter = forestEffect?.shelterRefuge ?? 0;
-  // Per-capita return shortfall (2J) adds a light food-stress term, so rich cores
-  // that fall below comfortable per-capita support become finite. Uses the prior
-  // tick's derived value (slow-moving); a comfortable per-capita (>=0.5) adds none.
-  const perCapitaShortfall = band.perCapitaReturn === undefined
-    ? 0
-    : clamp01(0.5 - band.perCapitaReturn.perCapitaReturn);
   const seasonalSupport = band.seasonalSupport;
   const currentSeason = seasonalSupport?.currentSeasonSupport;
-  const seasonalFoodStress = clamp01(
-    Math.max(
-      currentSeason?.deficitRatio ?? 0,
-      currentSeason === undefined ? 0 : Math.max(0, 0.95 - currentSeason.rawSupportRatio) * 0.72,
-      seasonalSupport?.hungerClassification === "seasonal_lean_stress" ? 0.18 : 0,
-      seasonalSupport?.hungerClassification === "chronic_plus_seasonal_stress" ? 0.28 : 0,
-      seasonalSupport?.hungerClassification === "crisis_deficit" ? 0.42 : 0,
-    ),
-  );
   const seasonalWaterStress = clamp01(
     Math.max(
       currentSeason?.waterStress ?? 0,
@@ -203,26 +190,30 @@ export function deriveBandPressureState(
   const relationshipFailureCautionBias = relationshipBehavior?.failureCautionBias ?? 0;
   const relationshipPlaceCharacterPull = relationshipBehavior?.placeCharacterPull ?? 0;
   const relationshipRouteConfidenceBias = relationshipBehavior?.routeConfidenceBias ?? 0;
-  const foodStress = clamp01(
-    (1 - foodEstimate) * 0.5 +
-      (currentPressure?.foragingPressure ?? 0) * 0.34 +
-      band.hungerPressure * 0.2 +
-      leanSeasonStress +
-      crowdingPenalty * 0.14 +
-      perCapitaShortfall * 0.12 +
-      seasonalFoodStress * 0.22 +
-      acuteStress * 0.32 -
-      forestShelter * 0.03 -
-      logisticsOpportunisticFoodBias * 0.08 -
-      relationshipPracticeEfficiencyBias * 0.04,
-  );
+  // CAUSAL-REPAIR-1: repeated low-support evidence escalates the push to act
+  // (the inverse of the old population/86 de-escalation). Bounded, band-known.
+  const chronicHardship = deriveChronicHardship(band, deriveBandTendencies(band));
+  // Current food stress has exactly one authority: physical support plus its
+  // bounded history. Remembered richness/foraging pressure remain opportunity
+  // signals elsewhere; they cannot declare a band fed or starving.
+  const nutrition = deriveCanonicalNutritionState(seasonalSupport);
+  const foodStress = nutrition.foodMovementPressure;
+  // INVENTION-3: the band's own built waterworks (dug seep/lined well) at
+  // THIS tile relieve a bounded share of the residence water stress while
+  // they still yield this season (practicalResponses.deriveWaterWorksRelief;
+  // cap 0.15, 0 for dry holes/collapses/other tiles).
+  const waterWorksRelief = deriveWaterWorksRelief(band, band.position, String(world.time.season));
+  const waterWorksLabor = band.practicalAdaptation?.waterWorks?.tileId === band.position
+    ? band.practicalAdaptation.waterWorks.lastLaborCost
+    : 0;
   const waterStress = clamp01(
     (1 - waterAccess) * 0.52 +
       (currentPressure?.waterPressure ?? 0) * 0.38 +
       leanSeasonStress * 0.45 +
       seasonalWaterStress * 0.18 +
       acuteStress * 0.18 -
-      forestShelter * 0.02,
+      forestShelter * 0.02 -
+      (waterWorksRelief.active ? waterWorksRelief.relief : 0),
   );
   const fatiguePressure = clamp01(
     getRecentMovementFatigue(band) +
@@ -232,7 +223,8 @@ export function deriveBandPressureState(
       logisticsSicknessActivityPenalty * 0.26 +
       logisticsCareTravelBurdenBias * 0.18 +
       logisticsMaterialWearPenalty * 0.12 +
-      logisticsCarryConstraintBias * 0.1 -
+      logisticsCarryConstraintBias * 0.1 +
+      waterWorksLabor * 0.42 -
       logisticsFireExposureReliefBias * 0.08 -
       relationshipPracticeEfficiencyBias * 0.08 -
       relationshipRouteConfidenceBias * 0.06,
@@ -279,7 +271,6 @@ export function deriveBandPressureState(
     foodStress * 0.34 +
       waterStress * 0.3 +
       riskPressure * 0.18 +
-      fatiguePressure * 0.08 +
       combinedPressure * 0.26 +
       crowdingPenalty * 0.2 +
       daughterDispersal.daughterDispersalPressure * 0.16 +
@@ -313,11 +304,12 @@ export function deriveBandPressureState(
       relationshipFailureCautionBias * 0.14 -
       relationshipPracticeEfficiencyBias * 0.05 -
       relationshipRouteConfidenceBias * 0.08 -
-      relationshipAggregationToleranceBias * 0.04,
+      relationshipAggregationToleranceBias * 0.04 +
+      chronicHardship.movePressureBoost * 0.24,
   );
   const netMovePressure = clamp01(
     mobilityPressure +
-      fatiguePressure * 0.08 +
+      chronicHardship.movePressureBoost +
       daughterDispersal.daughterDispersalPressure * 0.18 +
       band.mobilityCostTolerance * 0.06 -
       placeAttachmentPull * 0.48 -
@@ -359,12 +351,15 @@ export function deriveBandPressureState(
     tick: world.time.tick,
     time: world.time,
     foodStress: round2(foodStress),
+    foodMovementPressure: nutrition.foodMovementPressure,
+    foodStressSource: "canonical_physical_support_history",
     waterStress: round2(waterStress),
     mobilityPressure: round2(mobilityPressure),
     fatiguePressure: round2(fatiguePressure),
     riskPressure: round2(riskPressure),
     placeAttachmentPull: round2(placeAttachmentPull),
     netMovePressure: round2(netMovePressure),
+    chronicHardshipEscalation: chronicHardship.movePressureBoost,
     nearbyBandPressure: nearbyPressure.weightedCrowding,
     parentCoreOverlap: daughterDispersal.parentCoreOverlap,
     daughterDispersalPressure: daughterDispersal.daughterDispersalPressure,
@@ -871,15 +866,6 @@ function getActionTargetTileId(action: Action): TileId | undefined {
   }
 
   return undefined;
-}
-
-function getKnownFoodEstimate(record: KnownTileRecord): number {
-  return clamp01(
-    record.observedRichness * 0.56 +
-      record.observedAquaticPotential * 0.18 +
-      (record.observedStorageSuitability ?? 0.2) * 0.08 +
-      (record.observedSeasonalPattern?.reliability ?? 0.5) * 0.18,
-  );
 }
 
 function getRecoveryRate(record: KnownTileRecord): number {

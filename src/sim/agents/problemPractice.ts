@@ -1522,7 +1522,13 @@ function capFrameDrafts(drafts: readonly ProblemFrameDraft[]): readonly ProblemF
 function capEvidence(evidence: readonly ProblemPracticeEvidenceRef[], cap: number): readonly ProblemPracticeEvidenceRef[] {
   const seen = new Set<string>();
   const result: ProblemPracticeEvidenceRef[] = [];
-  for (const entry of [...evidence].sort(compareEvidence)) {
+  const sorted = [...evidence].sort(compareEvidence);
+  const inherited = sorted.find((entry) => entry.livedBasis === "inherited_not_lived");
+  const ordered = inherited === undefined
+    ? sorted
+    : [inherited, ...sorted.filter((entry) => entry !== inherited)];
+
+  for (const entry of ordered) {
     const key = `${entry.kind}:${entry.sourceSystem}:${entry.sourceId}:${entry.label}`;
     if (seen.has(key)) {
       continue;

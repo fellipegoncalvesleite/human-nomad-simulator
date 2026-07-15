@@ -52,11 +52,12 @@ This document is intended to replace repeated repository-wide rediscovery with a
 
 ```text
 Last verified against:
-  FOOD–DEMOGRAPHY checkpoint tree on branch
-  checkpoint/food-demography-persistence-2, candidate parent
-  ed16dfe57f23090dd2b35efbd08585d89e1722b3 (persistence-1), whose parent is
-  30a87b3aab96dc9b6276a5e148458ad9772770e0. The final checkpoint report records
-  the resulting commit hash because a Git commit cannot contain its own hash.
+  branch checkpoint/core-pipeline-consolidation-1, branched from accepted tip
+  f93290882c8788127f34baf693b6fd92714923f0 (persistence-2). main (30a87b3, tree
+  93be87e) does NOT contain the demographic work (tree 597c1e0); accepted linear
+  history is 30a87b3 → ed16dfe → f932908. The final consolidation commit hash is
+  recorded in the checkpoint report because a Git commit cannot contain its own
+  hash.
 
 Backup branch:
   checkpoint/all-map-ecology-f33bebc — CONFIRMED, remote tip
@@ -67,18 +68,22 @@ Other cited commits — all CONFIRMED present in `git log --all`:
   736214f39728767b77b4e7989dc33c7b16642239.
 
 Last updated:
-  2026-07-14 (FOOD-DEMOGRAPHY-SEPARATION-2)
+  2026-07-15 (CORE PIPELINE CONSOLIDATION-1: correctness consolidation + audit)
 
 Implemented checkpoint:
   FOOD–DEMOGRAPHY SEPARATION / DEMOGRAPHIC PERSISTENCE-1 — PASS, and
   FOOD–DEMOGRAPHY SEPARATION / DEMOGRAPHIC PERSISTENCE-2 — PASS (residual
   death-memory food path closed). Demographic persistence is complete. §10–11
-  are the tracked canonical record.
+  are the tracked canonical record. CORE PIPELINE CONSOLIDATION-1 — PROGRESS:
+  the correctness/safety half is complete and proven (season order-invariance,
+  import/read-model isolation, explicit season phase contract); the decision/
+  adaptation structural decomposition is deferred to DECOMPOSITION-2. See §24.
 
 Current active checkpoint:
   CORE PIPELINE CONSOLIDATION / SEASON RESOLUTION / DECISION ORCHESTRATION
-  DECOMPOSITION-1. It was not begun by the demographic checkpoint.
-  Expeditionary logistics follows consolidation, not immediately.
+  DECOMPOSITION-2 (DECOMPOSITION-1 completed the correctness half; decision/
+  adaptation decomposition remains). Do not advance to expeditions until
+  decomposition is accepted.
 
 Verification provenance (do not blur these):
   - Verified by the persistence-1 implementation run: 2×2, waterfall,
@@ -2357,6 +2362,7 @@ Keep this bounded to the latest 10–15 accepted architecture changes. Condense 
 
 | Checkpoint/commit | Architecture change | Remaining caveat |
 | --- | --- | --- |
+| `checkpoint: core pipeline consolidation progress` (2026-07-15; exact hash in final report) | Proved season is physically/causally order-invariant (`seasonOrderInvarianceAudit.mjs`) and read-model isolation holds (`importBoundaryAudit.mjs`: src/sim ↛ ui/render/store/worker); added audit-only byte-identical `SeasonOrderStrategy` hook, an explicit season phase contract on `runSeasonalCompatibilityTick`, and `architectureMetricsAudit.mjs`; measured B/C/E/F debt | Correctness half only; `bandDecision.ts` (7238 lines) decomposition, adaptation public-interface formalization, context-cache layering (4 rebuilds/tick), and ~39% cold band state deferred to DECOMPOSITION-2; the decision-history archive (`recentDecisionIds`/`decisions`/`decisionArchive`) is order-sensitive by recording order but non-causal |
 | `checkpoint: close residual food-demography pathways` (2026-07-14; exact hash in final report) | Death-memory severity reads actual losses only (removed direct food/water stress terms; `deriveDeathMemorySeverityTerms` helper + `legacy_direct_food` diagnostic); R0–R5 isolation audit; 0.002 baseline on/off seam; long-run decline-cap metrics (`uncappedDemographicRate`/`declineCapBinds` + per-lineage `declineCapShare`/`maxContinuousDeclineCapYears`/`positiveRateShare`/`replacementYears`); Stage-0 ledger extended with death-memory paths; Technical death-memory attribution; documentation contradictions corrected; roadmap places consolidation before expeditions | Recent-death fertility suppression, food-shaped cohort allocation (Case C), and the 0.002 baseline are retained and documented; single net rate and reconciled age cohorts remain; default worlds still contract where same-day practical food reach is poor; consolidation is next, then expeditions |
 | `checkpoint: establish persistent human demography` (ed16dfe, 2026-07-14) | Stage 0 ledger, non-persisted controlled 2×2, waterfall, evidence-gated nutrition de-stack, Technical visibility, deterministic controlled/long-run/accounting audits, and tracked documentation contract | Superseded by the residual-path closure above; single net rate and reconciled age cohorts remain |
 | Documentation pass, 2026-07-14 (historical local-only pass) | Confirmed parent HEAD/backup branch, corrected production tick order, filled repository/entry-point and command maps, synced the then-active spec | Superseded by the tracked demographic checkpoint documentation above |
@@ -2373,11 +2379,91 @@ Keep this bounded to the latest 10–15 accepted architecture changes. Condense 
 
 ### Next change-log entry
 
-Record **core pipeline consolidation / season resolution / decision orchestration
-decomposition** architecture when that checkpoint is explicitly begun and
-accepted — it is the active next checkpoint. Record expeditionary-logistics
-architecture only when that later, separate checkpoint is begun and accepted. Do
-not fold either into demographic calibration.
+Record the **decision/adaptation decomposition** (DECOMPOSITION-2) architecture
+when that checkpoint is explicitly begun and accepted. Record expeditionary-
+logistics architecture only when that later, separate checkpoint is begun and
+accepted. Do not fold either into demographic calibration.
+
+---
+
+## 24. Core pipeline consolidation — verified architecture (CONSOLIDATION-1, 2026-07-15)
+
+**Status: PROGRESS.** The correctness/safety half is complete and proven; the
+structural decomposition is deferred to DECOMPOSITION-2 with measured evidence.
+No production behavior changed — the deterministic benchmark fingerprint is
+byte-identical to `f932908`.
+
+### 24.1 Season execution semantics — VERIFIED CURRENT
+
+The seasonal decision loop (`runSeasonalCompatibilityTick`, `src/sim/tick/advance.ts`)
+processes bands in a canonical id sort, and later bands see earlier bands'
+applied outcomes via the running `bandsById` while all bands read the same
+season-start-frozen context cache. This sequential visibility is intentional and
+**proven non-causal to order**: `scripts/seasonOrderInvarianceAudit.mjs` shows the
+physical/causal state (band position, population, vital rates, memory, ecology,
+demography) is **byte-identical under ascending/descending/permuted band
+processing order** on map1, map2, and a competing 4-band cluster. No band gains
+priority from its id sort position, so no explicit shared-conflict resolution
+rule is required — bands do not physically compete for outcomes in an
+order-dependent way. The explicit phase contract is documented as a comment on
+`runSeasonalCompatibilityTick`. The audit-only `SeasonOrderStrategy` runner
+argument (default = production ascending) enables the comparison and is
+non-persisted and byte-identical when unset.
+
+The **only** order-sensitive state is the bounded decision-history archive —
+`decisionArchive.recentDecisionIds`, the retained `decisions` records keyed by
+it, and the `decisionArchive` summary. Its append order and bounded-window
+(limit 64) eviction reflect band processing (recording) order; it is a
+projection/history record and is **not read to make causal decisions**.
+Production uses the canonical order deterministically, so it is left unchanged
+(making it order-invariant would risk parity for no behavioral benefit).
+
+### 24.2 Read-model / import boundary — VERIFIED CURRENT
+
+`scripts/importBoundaryAudit.mjs` proves the required direction holds: `src/sim/**`
+imports **nothing** from `src/ui`, `src/render`, `src/store`, or `src/worker`, so
+read models and rendering physically cannot inject simulation behavior. UI reads
+deeply into sim internals (41 distinct `sim/agents` modules) — maintenance
+coupling in the allowed direction, reduced incrementally, not a behavior-isolation
+violation. The AG9 decision observer and dynamic snapshots are read-only and
+never wired into normal runs. Internal `src/sim` import back-edges: 56
+(informational; track that DECOMPOSITION-2 does not increase this).
+
+### 24.3 Measured maintainability debt — DEFERRED to DECOMPOSITION-2
+
+Measured by `scripts/architectureMetricsAudit.mjs`:
+
+- **B — decision orchestrator.** `src/sim/rules/bandDecision.ts` is 7238 lines,
+  50 import statements, ~147 internal functions, 7 public exports
+  (`evaluateBandDecision`, `applyBandDecision`, a few audit/side helpers). It
+  embeds domain scoring (frontier, memory, ecology reading, plant eligibility,
+  exploitation skill, crossing practice). DECOMPOSITION-2 should split it into a
+  thin orchestrator over domain candidate-contributions with a central
+  comparison, preserving exact fingerprint parity (cosmetic file-motion is not a
+  solution).
+- **C — adaptation subsystem.** ~12 modules / ~17.3k lines. The state authority
+  (`band.practicalAdaptation`) and the effect-application boundary
+  (`practicalResponses.ts`: `PRACTICAL_RESPONSE_REGISTRY`, `*_RELIEF_CAP`
+  coefficients, `deriveCarryingCondition`/`deriveWaterRouteCondition`/…) already
+  exist; `inventionChain` is a live causal helper (used by `practicalResponses`/
+  `practicalFragments`), not inert. DECOMPOSITION-2 should formalize a single
+  public interface around these without adding a cosmetic re-export facade.
+- **E — context rebuilds.** 4 full `buildTickContextCache` rebuilds per season
+  tick. A measured cache-layering pass (static map / seasonal world / spatial
+  index / band-local) belongs to DECOMPOSITION-2.
+- **F — hot/cold state.** A serialized band after 100y is ~1.75 MB, ~39%
+  history/record/projection state (`eventHistory` ~416 KB, `knowledge` ~141 KB,
+  `recentIntraSeasonTrips` ~137 KB, `protoCampMemory` ~119 KB). Bounded (state
+  caps hold), but a hot/cold split is a candidate; deferred as risky and not the
+  smallest correct change here.
+
+### 24.4 What was NOT changed
+
+The physical-food pipeline, demographic formulas, ecology, anti-omniscience,
+terminal extinction, snapshots, and founders are untouched — this checkpoint made
+no production behavior change. The two correctness hypotheses (A order-priority,
+D read-model authority) were **rejected** by evidence; the maintainability
+hypotheses (B, C, E, F) were confirmed/measured and deferred.
 
 ---
 

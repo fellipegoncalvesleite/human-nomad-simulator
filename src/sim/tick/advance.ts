@@ -51,6 +51,30 @@ export interface SeasonalDecisionObservation {
 
 export type SeasonalDecisionObserver = (observation: SeasonalDecisionObservation) => void;
 
+// CORE-PIPELINE-CONSOLIDATION-1 — audit-only, non-persisted band-processing order
+// for the season-order invariance audit. Production omits it (default "ascending",
+// the canonical id sort). It is never stored in WorldState; when undefined the run
+// is byte-identical to before. Band IDs are never renamed — only the processing
+// order of the same IDs changes, so id-derived tendencies stay stable.
+export type SeasonOrderStrategy = "ascending" | "descending" | "permuted";
+
+function orderBandsForSeason(sorted: readonly Band[], strategy?: SeasonOrderStrategy): readonly Band[] {
+  if (strategy === undefined || strategy === "ascending") {
+    return sorted;
+  }
+  if (strategy === "descending") {
+    return [...sorted].reverse();
+  }
+  // Deterministic permutation distinct from ascending/descending: order by the
+  // reversed id string. Stable and reproducible, independent of wall clock.
+  return [...sorted].sort((left, right) =>
+    reverseString(String(left.id)).localeCompare(reverseString(String(right.id))));
+}
+
+function reverseString(value: string): string {
+  return value.split("").reverse().join("");
+}
+
 export function advanceWorldOneSeason(
   world: WorldState,
   diagnostics?: FoodDemographyDiagnostics,
@@ -63,6 +87,7 @@ export function advanceWorldByDays(
   elapsedDays: number,
   decisionObserver?: SeasonalDecisionObserver,
   diagnostics?: FoodDemographyDiagnostics,
+  seasonOrderStrategy?: SeasonOrderStrategy,
 ): WorldState {
   const days = Math.max(0, Math.floor(elapsedDays));
 
@@ -80,7 +105,7 @@ export function advanceWorldByDays(
     current = runSeasonalCompatibilityTick({
       ...current,
       time: getWorldTimeForDay(boundaryDay as DayNumber),
-    }, decisionObserver, diagnostics);
+    }, decisionObserver, diagnostics, seasonOrderStrategy);
     currentDay = getCalendarDay(current.time);
   }
 
@@ -95,10 +120,39 @@ export function advanceWorldByDays(
   return current;
 }
 
+// CORE-PIPELINE-CONSOLIDATION-1 — explicit season phase contract (verified by
+// scripts/seasonOrderInvarianceAudit.mjs).
+//
+// Phases, in order:
+//   1. Perceive/derive   — buildTickContextCache + updateBandContextStates +
+//                          applyAcuteRiskContext, then a fresh cache. This is the
+//                          season-start authoritative snapshot + derived context.
+//   2. Decide per band   — bands are processed in a canonical id sort. Each band
+//                          reads the frozen season-start context cache
+//                          (acuteRiskPreDecisionCache) and the running bandsById
+//                          (which carries earlier bands' applied outcomes). This
+//                          sequential visibility is intentional, but is proven
+//                          NON-causal to order: physical/causal outcomes (band
+//                          position, population, vital rates, memory, ecology) are
+//                          byte-identical under ascending/descending/permuted
+//                          processing order. No band gains priority from its id
+//                          sort position. The ONLY order-sensitive state is the
+//                          bounded decision-history archive (recentDecisionIds /
+//                          retained decisions / decisionArchive) — a projection
+//                          record, not read to make causal decisions; production
+//                          uses the canonical order deterministically.
+//   3. Resolve downstream — post-decision context (range saturation, encounters),
+//                          then demography+fission, viability/extinction, and
+//                          deep-history observation, each from the post-decision
+//                          world (all bands' outcomes applied).
+//   4. Advance ecology    — tile depletion -> fauna -> plant -> forest, once per
+//                          season, from the memoized post-decision catchment index.
+//   5. Derive read models  — final context pass for UI/history.
 function runSeasonalCompatibilityTick(
   timeAdvancedWorld: WorldState,
   decisionObserver?: SeasonalDecisionObserver,
   diagnostics?: FoodDemographyDiagnostics,
+  seasonOrderStrategy?: SeasonOrderStrategy,
 ): WorldState {
   const preDecisionCache = buildTickContextCache(timeAdvancedWorld);
   const worldBeforeDecisions = updateBandContextStates(timeAdvancedWorld, preDecisionCache, diagnostics);
@@ -107,7 +161,10 @@ function runSeasonalCompatibilityTick(
   const bandsById: Record<string, Band> = { ...worldBeforeDecisionsWithAcuteRisk.bands };
   let decisionsById: Readonly<Record<DecisionId, Decision>> = worldBeforeDecisionsWithAcuteRisk.decisions;
   let decisionArchive: DecisionArchiveSummary = worldBeforeDecisionsWithAcuteRisk.decisionArchive;
-  const bandOrder = Object.values(worldBeforeDecisionsWithAcuteRisk.bands).sort(compareBands);
+  const bandOrder = orderBandsForSeason(
+    Object.values(worldBeforeDecisionsWithAcuteRisk.bands).sort(compareBands),
+    seasonOrderStrategy,
+  );
 
   for (const band of bandOrder) {
     const currentBand = bandsById[band.id] ?? band;

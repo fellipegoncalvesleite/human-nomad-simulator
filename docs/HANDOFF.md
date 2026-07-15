@@ -181,6 +181,77 @@ has a seed input — the sim layer just never consumes it. All audits/baselines 
 
 ## Current Status
 
+### CORE PIPELINE CONSOLIDATION / SEASON RESOLUTION / DECISION ORCHESTRATION DECOMPOSITION-1 — PROGRESS / FAIL → DECOMPOSITION-2 (2026-07-15)
+
+Work on `checkpoint/core-pipeline-consolidation-1`, branched from the accepted
+tip `f93290882c8788127f34baf693b6fd92714923f0` (persistence-2). `main`
+(`30a87b3`, tree `93be87e`) does **not** contain the demographic work (tree
+`597c1e0`); the accepted linear history is `30a87b3 → ed16dfe → f932908`. No
+history rewritten, nothing pushed, `main` untouched.
+
+**Verdict: the correctness/safety half of the consolidation is COMPLETE and
+proven; the structural decomposition half is DEFERRED with measured evidence.**
+Per the strict 30-criterion gate (criteria 7, 8, 10, 12 require the decision/
+adaptation decomposition and inert-layer removal), this is not a full PASS — it
+is honest progress toward DECOMPOSITION-2. The roadmap is **not** advanced to
+expeditions.
+
+**What the audit proved (the six starting hypotheses, verified against code):**
+
+- **A — mixed season semantics / order priority: REJECTED (serious form).** The
+  seasonal decision loop processes bands in a canonical id sort and later bands
+  see earlier bands' applied outcomes (intentional sequential visibility), but
+  `scripts/seasonOrderInvarianceAudit.mjs` proves the physical/causal state
+  (band position, population, vital rates, memory, ecology, demography) is
+  **byte-identical under ascending/descending/permuted processing order** on
+  map1, map2, and a competing 4-band cluster. No band gains priority from its id
+  sort position. The **only** order-sensitive state is the bounded
+  decision-history archive (`recentDecisionIds` + retained `decisions` records +
+  `decisionArchive`) — a projection/history record not read for causal
+  decisions; its append order and bounded-window eviction reflect recording
+  order, and production uses the canonical order deterministically. An explicit
+  season phase contract was added as a comment on `runSeasonalCompatibilityTick`.
+- **D — read models as pseudo-authorities: REJECTED.** `scripts/importBoundaryAudit.mjs`
+  proves `src/sim/**` imports nothing from `src/ui`, `src/render`, `src/store`,
+  or `src/worker`: read models physically cannot inject simulation behavior. UI
+  reads deeply into sim internals (41 sim/agents modules) — maintenance coupling
+  in the allowed direction, addressed incrementally.
+- **B — `bandDecision.ts` central brain: CONFIRMED.** 7238 lines, 50 import
+  statements, ~147 internal functions, 7 public exports. Real maintainability
+  debt; decomposition deferred (parity-risky; cosmetic code-motion is explicitly
+  not a solution).
+- **C — adaptation subsystem: PARTIALLY CONFIRMED.** 12 modules / ~17.3k lines,
+  but a clear state authority (`band.practicalAdaptation`) and effect-application
+  boundary (`practicalResponses.ts`, the relief-cap coefficients + `deriveX`
+  functions) already exist; `inventionChain` is a live causal helper, not inert.
+  Formalizing a single public interface is deferred (would risk the cosmetic-
+  facade anti-pattern the checkpoint forbids).
+- **E — repeated context construction: MEASURED.** 4 full context-cache rebuilds
+  per season tick. Cache-layering deferred to DECOMPOSITION-2.
+- **F — hot/cold state: MEASURED.** A serialized band after 100y is ~1.75 MB,
+  ~39% history/record/projection state (`eventHistory` ~416 KB, `knowledge`
+  ~141 KB, `recentIntraSeasonTrips` ~137 KB). Hot/cold split deferred (state
+  migration is risky and not the smallest correct change here).
+
+**Changes made (all safe / parity-preserving):**
+
+- Audit-only, non-persisted `SeasonOrderStrategy` runner argument
+  (ascending/descending/permuted) threaded through `stepSim` → `advanceWorldByDays`
+  → `runSeasonalCompatibilityTick`. Undefined = production; the deterministic
+  benchmark fingerprint is **byte-identical** before/after the hook (verified).
+- New audits: `seasonOrderInvarianceAudit.mjs` (PASS — physical order-invariance),
+  `importBoundaryAudit.mjs` (PASS — layer isolation), `architectureMetricsAudit.mjs`
+  (informational metrics for B/C/E/F).
+- Explicit season phase contract comment; no production behavior change.
+
+**Exact remaining blocker (DECOMPOSITION-2):** decompose `bandDecision.ts` into a
+thin orchestrator over domain candidate-contributions; formalize the adaptation
+public interface around `band.practicalAdaptation`/`practicalResponses.ts`; layer
+the 4× per-tick context rebuilds; evaluate the ~39% cold band state for a bounded
+hot/cold split. All require careful exact-parity work beyond a single safe pass.
+
+---
+
 ### FOOD–DEMOGRAPHY SEPARATION / DEMOGRAPHIC PERSISTENCE-2 — PASS (2026-07-14)
 
 Work was performed on `checkpoint/food-demography-persistence-2` in the clean
@@ -6250,8 +6321,20 @@ UI in `src/ui/BandPanel.tsx`, audit + `--targeted-cause-event-check` in
 
 ## Recommended Next Step
 
-**Current recommendation after FOOD–DEMOGRAPHY SEPARATION / DEMOGRAPHIC
-PERSISTENCE-2 (residual death-memory closure) — PASS:** CORE PIPELINE
+**Current recommendation after CORE PIPELINE CONSOLIDATION-1 (PROGRESS):** CORE
+PIPELINE CONSOLIDATION / SEASON RESOLUTION / DECISION ORCHESTRATION
+**DECOMPOSITION-2**. The correctness/safety consolidation is done and proven
+(season order-invariance, import/read-model isolation, explicit phase contract);
+the structural decomposition remains. Do **not** advance to expeditions yet.
+Start DECOMPOSITION-2 from the measured evidence: decompose `bandDecision.ts`
+(7238 lines) into a thin orchestrator over domain candidate-contributions;
+formalize the adaptation public interface (authority `band.practicalAdaptation`,
+effects `practicalResponses.ts`); layer the 4× per-tick context rebuilds;
+evaluate the ~39% cold band state. Preserve exact fingerprint parity for
+refactor-only areas. The prior-checkpoint recommendation below (originally naming
+CONSOLIDATION-1 as next) is now superseded by DECOMPOSITION-2.
+
+**Superseded prior recommendation (after persistence-2):** CORE PIPELINE
 CONSOLIDATION / SEASON RESOLUTION / DECISION ORCHESTRATION DECOMPOSITION-1.
 Demographic persistence is now complete; consolidation comes **before**
 expeditions. Do **not** begin expeditionary logistics (TASK CAMPS / VIEWSHED /
@@ -6615,6 +6698,20 @@ exception; daughter colours related-but-distinct and never visually confusing.
 
 ## Checkpoint Log
 
+- **CORE PIPELINE CONSOLIDATION / SEASON RESOLUTION / DECISION ORCHESTRATION
+  DECOMPOSITION-1** — *2026-07-15, PROGRESS / FAIL → DECOMPOSITION-2.* Rigorous
+  architecture audit of the six hypotheses. Proved the two correctness concerns
+  are already sound: the season is physically/causally **order-invariant** (only
+  a non-causal decision-history archive reflects processing order —
+  `seasonOrderInvarianceAudit.mjs` PASS) and `src/sim` imports nothing from
+  ui/render/store/worker so read models cannot inject behavior
+  (`importBoundaryAudit.mjs` PASS). Added an audit-only, byte-identical
+  season-order hook and an explicit season phase contract. Measured the
+  maintainability debt (`bandDecision.ts` 7238 lines; adaptation 12 modules/17k
+  lines with a clear authority+effect boundary; 4 context rebuilds/tick; ~39%
+  cold band state) and deferred the decision/adaptation decomposition to
+  DECOMPOSITION-2. Zero production behavior change; deterministic benchmark
+  fingerprint unchanged. Roadmap not advanced.
 - **FOOD–DEMOGRAPHY SEPARATION / DEMOGRAPHIC PERSISTENCE-2** — *implemented
   2026-07-14, PASS.* Closed the residual `current food stress → death-memory
   severity → next-year fertility` path found by independent verification.

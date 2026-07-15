@@ -14,13 +14,13 @@
 ## 0. Freshness and evidence warning
 
 ```text
-Last verified against: the FOOD–DEMOGRAPHY checkpoint tree on branch checkpoint/food-demography-persistence-2; candidate parent ed16dfe57f23090dd2b35efbd08585d89e1722b3 (persistence-1), whose parent is 30a87b3aab96dc9b6276a5e148458ad9772770e0 — final commit hash is recorded in the checkpoint report because a commit cannot contain its own hash
-Checkpoint commit message: checkpoint: close residual food-demography pathways
+Last verified against: branch checkpoint/core-pipeline-consolidation-1, branched from accepted tip f93290882c8788127f34baf693b6fd92714923f0 (persistence-2). main (30a87b3, tree 93be87e) does NOT contain the demographic work (tree 597c1e0); accepted linear history is 30a87b3 → ed16dfe → f932908. Final consolidation commit hash is recorded in the checkpoint report.
+Checkpoint commit message: checkpoint: core pipeline consolidation progress
 Backup branch: checkpoint/all-map-ecology-f33bebc — CONFIRMED, remote tip f33bebc23ecc21b971c98b48b31ca8bbfa9d2209 matches exactly
-Last updated: 2026-07-14 (FOOD-DEMOGRAPHY-SEPARATION-2: residual death-memory path closure)
-Current active checkpoint: CORE PIPELINE CONSOLIDATION / SEASON RESOLUTION / DECISION ORCHESTRATION DECOMPOSITION-1 (the demographic-persistence line is now complete); do not begin it from this checkpoint. Expeditionary logistics follows consolidation, not immediately.
-Current status: demographic persistence complete. Persistence-2 closed the residual "current food stress → death-memory severity → future fertility" path by removing the direct food/water stress term from death-memory severity (retained only under a legacy diagnostic). Legitimate bereavement from actual deaths, food-shaped cohort loss, and the 0.002 replacement baseline are retained and documented. Physical-food pipeline unchanged; limited practical same-day reach remains the standing upstream limitation, deferred to expeditionary logistics. See CLAUDE.md §§10–11.
-Known stale or unverified sections: repository paths, production order, demographic formulas, death-memory severity derivation, new audit commands, decline-cap long-run metrics, graph, and the named regression matrix were executed and verified in this checkpoint; deep historical claims elsewhere in CLAUDE.md §7–9/§12–15 remain a navigational map rather than a fresh line-by-line inventory
+Last updated: 2026-07-15 (CORE PIPELINE CONSOLIDATION-1: correctness consolidation + audit, structural decomposition deferred)
+Current active checkpoint: CORE PIPELINE CONSOLIDATION / SEASON RESOLUTION / DECISION ORCHESTRATION DECOMPOSITION-2 (DECOMPOSITION-1 completed the correctness/safety half as PROGRESS; the decision/adaptation structural decomposition remains). Do NOT advance to expeditions until decomposition is accepted.
+Current status: demographic persistence complete (persistence-1 + persistence-2 PASS). Consolidation-1 PROVED the two correctness hypotheses already sound — the season is physically/causally order-invariant (only a non-causal decision-history archive reflects processing order; seasonOrderInvarianceAudit.mjs PASS) and src/sim imports nothing from ui/render/store/worker so read models cannot inject behavior (importBoundaryAudit.mjs PASS). Added an audit-only byte-identical season-order hook + an explicit season phase contract; measured and DEFERRED the bandDecision.ts (7238 lines) decomposition, the adaptation public-interface formalization, context-cache layering (4 rebuilds/tick), and the ~39% cold band state to DECOMPOSITION-2. Zero production behavior change; deterministic benchmark fingerprint unchanged. See docs/HANDOFF.md and CLAUDE.md architecture inventory.
+Known stale or unverified sections: repository paths, production order, season phase contract, order-invariance, import boundaries, demographic formulas, and the named regression matrix were executed and verified; the DECOMPOSITION-2 targets (decision/adaptation internals) are measured but not yet restructured; deep historical claims elsewhere in CLAUDE.md §7–9/§12–15 remain a navigational map rather than a fresh line-by-line inventory
 ```
 
 This file was originally drafted without GitHub or filesystem access; a repository-enabled verification pass ran on 2026-07-14 (see Appendix A of CLAUDE.md) and replaced the markers in §4, §5, and §8 below with evidence read directly from the checked-out code. Sections not explicitly marked VERIFIED in this pass should still be treated with the same caution the original draft asked for.
@@ -306,6 +306,9 @@ No `test` script exists — verification is entirely the audit scripts below plu
 | Controlled healthy/moderate/marginal/nonviable persistence | `demographicPersistenceAudit.mjs` |
 | Map/single-origin/no-human long runs, repeated fingerprints, decline-cap exposure | `demographicLongRunAudit.mjs` |
 | Residual death-memory path isolation (R0–R5), 0.002 baseline on/off, diagnostics-off parity | `demographicDeathMemoryPathAudit.mjs` |
+| Season band-order invariance (physical/causal state identical under ascending/descending/permuted order) | `seasonOrderInvarianceAudit.mjs` |
+| Import boundaries (src/sim must not import ui/render/store/worker; read-model isolation) | `importBoundaryAudit.mjs` |
+| Architecture metrics (decision fan-out, adaptation coupling, context rebuilds/tick, hot/cold band state) — informational | `architectureMetricsAudit.mjs` |
 
 ### `simBenchmark.mjs --targeted-*` flags — exact flag names VERIFIED CURRENT (grepped from `scripts/simBenchmark.mjs`; ~120 total, most relevant to the draft's named audits below)
 
@@ -395,9 +398,9 @@ Rules:
 
 ## 11. Current roadmap
 
-Demographic persistence is implemented (persistence-1 and persistence-2 both PASS). The canonical future order is now:
+Demographic persistence is implemented (persistence-1 and persistence-2 both PASS). Consolidation-1 completed the correctness/safety half (PROGRESS); the structural decomposition remains. The canonical future order is now:
 
-1. **CORE PIPELINE CONSOLIDATION / SEASON RESOLUTION / DECISION ORCHESTRATION DECOMPOSITION-1.** ← active next checkpoint
+1. **CORE PIPELINE CONSOLIDATION / SEASON RESOLUTION / DECISION ORCHESTRATION DECOMPOSITION-2.** ← active next checkpoint (decision/adaptation decomposition; correctness half already done and proven in DECOMPOSITION-1)
 2. **EXPEDITIONARY LOGISTICAL MOBILITY / TASK CAMPS / VIEWSHED PERCEPTION / FIRE SIGNALS-1.**
 3. **CROWDING / RANGE RELEASE / GENERATIONAL DEPARTURE / VIABLE FISSION-1.**
 4. **SEASONAL ROUTE MIGRATION / VARIABLE NOMADIC ROUNDS-1.**

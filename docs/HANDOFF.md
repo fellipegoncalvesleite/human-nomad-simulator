@@ -181,6 +181,81 @@ has a seed input — the sim layer just never consumes it. All audits/baselines 
 
 ## Current Status
 
+### FOOD–DEMOGRAPHY SEPARATION / DEMOGRAPHIC PERSISTENCE-2 — PASS (2026-07-14)
+
+Work was performed on `checkpoint/food-demography-persistence-2` in the clean
+isolated worktree `/home/fellipe/human-nomad-simulator-food-demography`. The
+candidate parent is `ed16dfe57f23090dd2b35efbd08585d89e1722b3` (persistence-1),
+whose parent is `30a87b3aab96dc9b6276a5e148458ad9772770e0`. The persistence-1
+branch was left intact; no history was rewritten, nothing was pushed, and the
+original `main` checkout's unrelated dirty state was not touched. The final
+report records the mandatory commit hash; message:
+`checkpoint: close residual food-demography pathways`.
+
+**Why this checkpoint existed.** Independent verification FAILED persistence-1
+for one residual, undocumented food→fertility path: `advanceDeathMemory` copied
+current food (and water) stress directly into death-memory *severity*
+(`seasonalFoodStress*0.18 + seasonalWaterStress*0.14`, in a death year), which
+set `fertilitySuppressionFromRecentDeaths` and suppressed the *next* year's
+fertility. Peak food-only net-rate contribution `1×0.18×0.48×0.18×0.012 =
+0.000186624` — small, but a second redundant food→fertility path on top of the
+ordinary food fertility suppression and food mortality that persistence-1 had
+already de-stacked. Persistence-1's claim that "nutrition acts through only one
+ordinary pressure plus one severe chronic tail" was therefore inaccurate.
+
+**Residual path classification (Stage 0).** Direct food/water → death-memory
+severity: **Case A (redundant re-application) + Case B (cause label injected into
+bereavement severity)** → removed from production. Food-shaped cohort allocation
+→ cohort death memory: **Case C (legitimately causal cohort loss)** → retained;
+the deaths are real subsets of the already-decided accounting deaths, dependent/
+working-adult loss is a distinct social consequence, and food only relabels which
+real deaths are dependents. Recent-death fertility suppression itself and the
+`0.002` replacement baseline: retained and isolated.
+
+**Repair.** Death-memory severity now reads actual experienced losses only —
+`totalDeaths/pop + dependentDeaths*0.08 + adultDeaths*0.1`. A pure exported
+helper `deriveDeathMemorySeverityTerms` derives severity; the removed direct
+food/water term survives only under a non-persisted `legacy_direct_food`
+diagnostic mode. Food reaches death memory only through the real deaths it
+causes. No coefficient was tuned toward a target.
+
+**Isolation evidence (`scripts/demographicDeathMemoryPathAudit.mjs`, PASS).**
+Cells R0 (legacy)/R1 (production)/R2 (cohort neutralized)/R3 (memory fertility
+off)/R4 (adequate food + non-food deaths)/R5 (food, no deaths) plus 0.002
+baseline on/off. `directFoodSeverityDelta = 0.18`; production severity is
+independent of the food label; food stress with zero deaths → zero suppression;
+adequate food with real non-food deaths still produces bounded suppression;
+nonviable still reaches extinction with the baseline disabled; diagnostics-off is
+byte-identical; all deterministic.
+
+**New/changed diagnostics, audits, and state (all non-persisted where
+diagnostic):**
+
+- `foodDemographyDiagnostics.ts` gains `deathMemoryMode`,
+  `neutralizeCohortDeathMemory`, `disableDeathMemoryFertility`,
+  `disableSurvivalBaseline` (runner arguments, never WorldState);
+- `demography.ts` gains `deriveDeathMemorySeverityTerms` + reports
+  `uncappedDemographicRate`/`declineCapBinds`;
+- `scripts/demographicDeathMemoryPathAudit.mjs` (R0–R5 + baseline isolation);
+- `scripts/demographicPerLineageAudit.mjs` (default Map 1 per-lineage report);
+- `demographicLongRunAudit.mjs` now reports per-lineage decline-cap exposure
+  (`declineCapShare`, `maxContinuousDeclineCapYears`, `positiveRateShare`,
+  `replacementYears`, rate suppressed by cap) and fails if every surviving
+  lineage is permanently cap-pinned;
+- `foodDemographySeparationAudit.mjs` Stage-0 ledger extended with the
+  death-memory paths and an attribution-now/behavior-later matrix;
+- Technical distinguishes recent-death fertility suppression (from actual
+  deaths, not food stress), decline-cap clipping, and the death-memory severity
+  basis.
+
+**Preserved behavior.** Controlled healthy/moderate replace losses over 50 years;
+marginal declines without cap pinning; nonviable reaches terminal extinction; the
+physical-food pipeline and all food yields/conversions/losses are unchanged; the
+practical same-day-reach limitation is unchanged and deferred to consolidation/
+expeditions. Population accounting reconciles exactly.
+
+---
+
 ### FOOD–DEMOGRAPHY SEPARATION / DEMOGRAPHIC PERSISTENCE-1 — PASS (2026-07-14)
 
 Work was performed on `checkpoint/food-demography-persistence-1` in the clean
@@ -233,8 +308,12 @@ is visible and exact, but independent ordinary birth/mortality hazards and
 causal reproductive-age structure are follow-up architecture, not part of this
 repair.
 
-**Current active checkpoint (not begun here):** EXPEDITIONARY LOGISTICAL
-MOBILITY / TASK CAMPS / VIEWSHED PERCEPTION / FIRE SIGNALS-1.
+**Active checkpoint at the time of persistence-1 (SUPERSEDED by persistence-2):**
+this block originally named EXPEDITIONARY LOGISTICAL MOBILITY as next. That was
+corrected in persistence-2: the residual death-memory path had to close first, and
+the roadmap now places CORE PIPELINE CONSOLIDATION / SEASON RESOLUTION / DECISION
+ORCHESTRATION DECOMPOSITION-1 before expeditions. See the persistence-2 block at
+the top of Current Status.
 
 ### LIVING ECOLOGY FOOD PIPELINE-A — canonical causal foundation (2026-07-11)
 
@@ -6171,14 +6250,16 @@ UI in `src/ui/BandPanel.tsx`, audit + `--targeted-cause-event-check` in
 
 ## Recommended Next Step
 
-**Current recommendation after the accepted demographic-persistence
-checkpoint:** EXPEDITIONARY LOGISTICAL MOBILITY / TASK CAMPS / VIEWSHED
-PERCEPTION / FIRE SIGNALS-1. Preserve physical receipts and the repaired
-demographic response. Address multi-day access, provisioning, task-camp
-placement, viewshed-limited perception, field processing, retrieval, and return
-logistics without creating local food or revealing hidden ecology. The older
-recommendations below are historical checkpoint context and do not override
-this current roadmap.
+**Current recommendation after FOOD–DEMOGRAPHY SEPARATION / DEMOGRAPHIC
+PERSISTENCE-2 (residual death-memory closure) — PASS:** CORE PIPELINE
+CONSOLIDATION / SEASON RESOLUTION / DECISION ORCHESTRATION DECOMPOSITION-1.
+Demographic persistence is now complete; consolidation comes **before**
+expeditions. Do **not** begin expeditionary logistics (TASK CAMPS / VIEWSHED /
+FIRE SIGNALS) as the immediate next step — it now follows consolidation. Preserve
+physical receipts, the de-stacked nutrition response, and the death-memory
+separation (severity reads actual losses only). The older recommendations below,
+including the previous "expeditions next" line, are historical checkpoint context
+and do not override this current roadmap.
 
 **After PERFORMANCE ARCHITECTURE-2 RADICAL:** if accepted, proceed to a
 targeted sim-hot-path cache/index pass, not new content. Focus on the measured
@@ -6534,6 +6615,19 @@ exception; daughter colours related-but-distinct and never visually confusing.
 
 ## Checkpoint Log
 
+- **FOOD–DEMOGRAPHY SEPARATION / DEMOGRAPHIC PERSISTENCE-2** — *implemented
+  2026-07-14, PASS.* Closed the residual `current food stress → death-memory
+  severity → next-year fertility` path found by independent verification.
+  Death-memory severity now reads actual experienced losses only (proportional +
+  dependent/adult cohort loss); the direct food/water stress terms were removed
+  from production and survive only under a non-persisted `legacy_direct_food`
+  diagnostic. Retained: recent-death bereavement suppression, food-shaped cohort
+  loss (Case C), and the 0.002 replacement baseline (isolated, non-rescuing).
+  New R0–R5 isolation audit, per-lineage Map 1 audit, and long-run decline-cap
+  metrics. Determinism, observer parity, diagnostics-off byte identity, and the
+  regression matrix hold. Demographic persistence complete; consolidation is the
+  next checkpoint, before expeditions. Exact commit hash and command matrix in
+  the final report.
 - **FOOD–DEMOGRAPHY SEPARATION / DEMOGRAPHIC PERSISTENCE-1** — *implemented
   2026-07-14, PASS.* Added a non-persisted canonical-ledger adequate-food arm,
   legacy/de-stacked demographic diagnostics, full arithmetic contribution

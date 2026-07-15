@@ -28,6 +28,10 @@ try {
     deterministic: repeated === undefined || observed.fingerprint === repeated.fingerprint,
     stateCapsHeld: observed.stateCapsHeld,
     noHumanRemainsNoHuman: map !== "no_human_map1" || (observed.startPopulation === 0 && observed.endPopulation === 0),
+    // Viable lineages must not all be permanently pinned at the decline cap:
+    // that would indicate the model forces universal structural decline. An
+    // honestly nonviable lineage may still sit near the cap and go extinct.
+    survivorsNotAllStructurallyCapPinned: !observed.declineCap.allSurvivorsStructurallyCapPinned,
   };
   const pass = Object.values(checks).every(Boolean);
   console.log(JSON.stringify({
@@ -43,6 +47,8 @@ try {
       endPopulation: repeated.endPopulation,
       activeBands: repeated.activeBands,
       extinctBands: repeated.extinctBands,
+      declineCapMatchesObserved:
+        JSON.stringify(repeated.declineCap) === JSON.stringify(observed.declineCap),
       runtimeMs: repeated.runtimeMs,
     },
   }, null, 2));
@@ -64,6 +70,11 @@ function execute(runner, renewal, initial, yearsToRun, withObserver) {
     crisisAttribution: 0, waterAttribution: 0, foodAttribution: 0, movementAttribution: 0,
   };
   const samples = { count: 0, support: 0, demand: 0, ratio: 0, stress: 0, fertility: 0, mortality: 0 };
+  // FOOD-DEMOGRAPHY-SEPARATION-2 — per-band, per-year decline-cap exposure.
+  // Demography updates once per year (spring), so the net rate is recorded once
+  // per (band, year) to keep these as year counts, not season counts.
+  const rateByBand = new Map();
+  const seenRateYear = new Set();
   let movements = 0;
   const checkpoints = [{ year: 0, population: startPopulation, activeBands: livingBands(world), extinctBands: extinctBands(world), births: 0, uniqueDeaths: 0 }];
   const interval = yearsToRun >= 300 ? 50 : 25;
@@ -81,6 +92,7 @@ function execute(runner, renewal, initial, yearsToRun, withObserver) {
       if (prior !== undefined && prior !== band.position) movements += 1;
       priorPositions.set(band.id, band.position);
       if (!withObserver) collectSample(samples, band);
+      recordDeclineCap(rateByBand, seenRateYear, band, world.time.year);
     }
     if (seasonIndex % (interval * 4) === 0 || seasonIndex === yearsToRun * 4) {
       checkpoints.push({
@@ -104,6 +116,8 @@ function execute(runner, renewal, initial, yearsToRun, withObserver) {
   }
   const responses = active.flatMap((band) => band.practicalAdaptation?.responses ?? []);
   const experiments = active.flatMap((band) => band.practicalAdaptation?.experiments ?? []);
+  const activeIds = new Set(active.map((band) => band.id));
+  const declineCap = summarizeDeclineCap(rateByBand, activeIds);
   return {
     completedYears: world.time.year,
     startPopulation,
@@ -140,6 +154,7 @@ function execute(runner, renewal, initial, yearsToRun, withObserver) {
     adaptationsAttempted: experiments.filter((entry) => entry.attemptSeasons > 0).length,
     adaptationsEffective: responses.filter((entry) => entry.successCount > 0 || entry.lastEfficacy === "clear_success_specific" || entry.lastEfficacy === "partial_success_specific").length,
     renewal: renewalCounts,
+    declineCap,
     checkpoints,
     stateCapsHeld: Object.values(world.bands).every((band) =>
       band.practicalAdaptation?.caps.held !== false &&
@@ -167,6 +182,82 @@ function collectRecords(accounting, band, seen) {
     accounting.movementAttribution += record.migrationHardshipDeaths;
   }
 }
+
+function maxDeclineRateForPopulation(population) {
+  if (population >= 1000) return -0.055;
+  if (population >= 500) return -0.042;
+  if (population >= 300) return -0.032;
+  return -0.018;
+}
+
+function recordDeclineCap(rateByBand, seenRateYear, band, year) {
+  if (band.demography.population <= 0) return;
+  const key = `${band.id}:${year}`;
+  if (seenRateYear.has(key)) return;
+  seenRateYear.add(key);
+  const rate = band.demography.netDemographicRate;
+  if (rate === undefined) return;
+  const uncapped = band.demography.uncappedDemographicRate ?? rate;
+  // Prefer the authoritative flag; fall back to a population-aware comparison so
+  // the audit still works on states written before the flag existed.
+  const binds = band.demography.declineCapBinds ?? (rate <= maxDeclineRateForPopulation(band.demography.population) + 1e-9 && uncapped < rate - 1e-9);
+  const foodStress = band.seasonalSupport?.currentSeasonSupport?.foodStress ?? 0;
+  const entry = rateByBand.get(band.id) ?? {
+    years: 0, capYears: 0, positiveYears: 0, replacementYears: 0, severeDeficitYears: 0,
+    currentCapStreak: 0, maxCapStreak: 0, sumSuppressed: 0, sumUncapped: 0, sumNet: 0,
+  };
+  entry.years += 1;
+  entry.sumUncapped += uncapped;
+  entry.sumNet += rate;
+  if (binds) {
+    entry.capYears += 1;
+    entry.currentCapStreak += 1;
+    entry.maxCapStreak = Math.max(entry.maxCapStreak, entry.currentCapStreak);
+    entry.sumSuppressed += Math.max(0, rate - uncapped);
+  } else {
+    entry.currentCapStreak = 0;
+  }
+  if (rate > 0) entry.positiveYears += 1;
+  if (rate >= -0.002) entry.replacementYears += 1;
+  if (foodStress >= 0.5) entry.severeDeficitYears += 1;
+  rateByBand.set(band.id, entry);
+}
+
+function summarizeDeclineCap(rateByBand, activeIds) {
+  const perBand = {};
+  const survivors = [];
+  for (const [bandId, entry] of rateByBand.entries()) {
+    const years = Math.max(1, entry.years);
+    const summary = {
+      active: activeIds.has(bandId),
+      years: entry.years,
+      declineCapShare: round(entry.capYears / years),
+      maxContinuousDeclineCapYears: entry.maxCapStreak,
+      positiveRateShare: round(entry.positiveYears / years),
+      replacementYears: entry.replacementYears,
+      severeDeficitYears: entry.severeDeficitYears,
+      meanUncappedRate: round(entry.sumUncapped / years, 6),
+      meanClampedRate: round(entry.sumNet / years, 6),
+      meanRateSuppressedByCap: round(entry.sumSuppressed / years, 6),
+    };
+    perBand[bandId] = summary;
+    if (summary.active) survivors.push(summary);
+  }
+  const survivorStructurallyCapPinned = (summary) =>
+    summary.declineCapShare >= 0.9 && summary.positiveRateShare === 0 && summary.replacementYears === 0;
+  const allSurvivorsStructurallyCapPinned = survivors.length > 0 && survivors.every(survivorStructurallyCapPinned);
+  return {
+    perBand,
+    survivorCount: survivors.length,
+    survivorMeanDeclineCapShare: round(mean(survivors.map((s) => s.declineCapShare))),
+    survivorMaxDeclineCapShare: survivors.length === 0 ? 0 : Math.max(...survivors.map((s) => s.declineCapShare)),
+    survivorsWithPositiveInterval: survivors.filter((s) => s.positiveRateShare > 0).length,
+    survivorsWithReplacementInterval: survivors.filter((s) => s.replacementYears > 0).length,
+    allSurvivorsStructurallyCapPinned,
+  };
+}
+
+function mean(values) { return values.length === 0 ? 0 : values.reduce((sum, value) => sum + value, 0) / values.length; }
 
 function collectSample(samples, band) {
   if (band.demography.population <= 0) return;

@@ -14,13 +14,13 @@
 ## 0. Freshness and evidence warning
 
 ```text
-Last verified against: the FOOD–DEMOGRAPHY checkpoint tree on branch checkpoint/food-demography-persistence-1; parent 30a87b3aab96dc9b6276a5e148458ad9772770e0 — final commit hash is recorded in the checkpoint report because a commit cannot contain its own hash
-Checkpoint commit message: checkpoint: establish persistent human demography
+Last verified against: the FOOD–DEMOGRAPHY checkpoint tree on branch checkpoint/food-demography-persistence-2; candidate parent ed16dfe57f23090dd2b35efbd08585d89e1722b3 (persistence-1), whose parent is 30a87b3aab96dc9b6276a5e148458ad9772770e0 — final commit hash is recorded in the checkpoint report because a commit cannot contain its own hash
+Checkpoint commit message: checkpoint: close residual food-demography pathways
 Backup branch: checkpoint/all-map-ecology-f33bebc — CONFIRMED, remote tip f33bebc23ecc21b971c98b48b31ca8bbfa9d2209 matches exactly
-Last updated: 2026-07-14 (demographic-persistence checkpoint validation)
-Current active checkpoint: EXPEDITIONARY LOGISTICAL MOBILITY / TASK CAMPS / VIEWSHED PERCEPTION / FIRE SIGNALS-1; do not begin it from this checkpoint
-Current status: demographic persistence PASS; downstream food-pressure stacking repaired, physical-food pipeline unchanged, limited practical reach remains the next blocker; see CLAUDE.md §§10–11
-Known stale or unverified sections: repository paths, production order, demographic formulas, new audit commands, graph, and the named regression matrix were verified in this checkpoint; deep historical claims elsewhere in CLAUDE.md §7–9/§12–15 remain a navigational map rather than a fresh line-by-line inventory
+Last updated: 2026-07-14 (FOOD-DEMOGRAPHY-SEPARATION-2: residual death-memory path closure)
+Current active checkpoint: CORE PIPELINE CONSOLIDATION / SEASON RESOLUTION / DECISION ORCHESTRATION DECOMPOSITION-1 (the demographic-persistence line is now complete); do not begin it from this checkpoint. Expeditionary logistics follows consolidation, not immediately.
+Current status: demographic persistence complete. Persistence-2 closed the residual "current food stress → death-memory severity → future fertility" path by removing the direct food/water stress term from death-memory severity (retained only under a legacy diagnostic). Legitimate bereavement from actual deaths, food-shaped cohort loss, and the 0.002 replacement baseline are retained and documented. Physical-food pipeline unchanged; limited practical same-day reach remains the standing upstream limitation, deferred to expeditionary logistics. See CLAUDE.md §§10–11.
+Known stale or unverified sections: repository paths, production order, demographic formulas, death-memory severity derivation, new audit commands, decline-cap long-run metrics, graph, and the named regression matrix were executed and verified in this checkpoint; deep historical claims elsewhere in CLAUDE.md §7–9/§12–15 remain a navigational map rather than a fresh line-by-line inventory
 ```
 
 This file was originally drafted without GitHub or filesystem access; a repository-enabled verification pass ran on 2026-07-14 (see Appendix A of CLAUDE.md) and replaced the markers in §4, §5, and §8 below with evidence read directly from the checked-out code. Sections not explicitly marked VERIFIED in this pass should still be treated with the same caution the original draft asked for.
@@ -56,7 +56,7 @@ ecology
 
 The long-term objective is to produce distinctive, historically legible worlds whose routes, adaptations, identities, norms, exchanges, conflicts, settlements, technologies, institutions, and myths arise from simulated conditions rather than authored sequences.
 
-Demographic persistence is now an implemented architecture: current/recent/chronic food observations feed one ordinary nutrition pressure plus a nonlinear severe-chronic hazard, instead of several correlated full penalties. Controlled healthy and moderate bands replace ordinary losses; severe zero-food cases still become extinct. Default-world contraction remains because physical food is often inaccessible within same-day local activity range, so expeditionary logistics is the next active blocker rather than a reason to inflate local food.
+Demographic persistence is now an implemented architecture: current/recent/chronic food observations feed one ordinary nutrition pressure plus a nonlinear severe-chronic hazard, instead of several correlated full penalties. SEPARATION-2 additionally closed a residual food→fertility path through death memory — death-memory severity now reads actual experienced losses only, so food no longer suppresses fertility a second time by being copied into bereavement severity; it reaches death memory only through the real deaths it causes. Controlled healthy and moderate bands replace ordinary losses; severe zero-food cases still become extinct. Default-world contraction remains because physical food is often inaccessible within same-day local activity range, so consolidation (then expeditionary logistics) is the next blocker rather than a reason to inflate local food.
 
 Technology, exact package versions, current directory structure, and public setup instructions are **UNCERTAIN until `package.json`, TypeScript configuration, build configuration, and production entry points are inspected**.
 
@@ -76,15 +76,18 @@ Backup checkpoint supplied:
 
 Implemented checkpoint:
   FOOD–DEMOGRAPHY SEPARATION / DEMOGRAPHIC PERSISTENCE-1 — PASS
+  FOOD–DEMOGRAPHY SEPARATION / DEMOGRAPHIC PERSISTENCE-2 — PASS
+  (residual death-memory food path closed; demographic persistence complete)
 
 Current blocker:
   Default bands often cannot turn physical world support into usable receipts
   within local same-day activity range; no conversion, loss, eligibility, or
-  ledger defect was found. This belongs to expeditionary logistics.
+  ledger defect was found. This belongs to expeditionary logistics, which now
+  follows the consolidation checkpoint rather than coming next.
 
 Current active roadmap item:
-  EXPEDITIONARY LOGISTICAL MOBILITY / TASK CAMPS /
-  VIEWSHED PERCEPTION / FIRE SIGNALS-1
+  CORE PIPELINE CONSOLIDATION / SEASON RESOLUTION /
+  DECISION ORCHESTRATION DECOMPOSITION-1
 ```
 
 Before any implementation, resolve and report:
@@ -140,11 +143,11 @@ For demographic architecture or the next checkpoint, start with:
 | Knowledge and memory | Known tiles, resource knowledge, place/corridor/crossing memory | `src/sim/agents/` (`memory.ts`, `resourceKnowledge.ts`, `frontierKnowledge.ts`, `crossingPractice.ts`, etc.) | Must remain distinct from hidden world truth |
 | Food support | Converts explicit physical nutritional receipts into human support | `src/sim/agents/humanFoodSupport.ts` — exports `HARVEST_TO_SUPPORT_SCALE=100`, `deriveHumanFoodSupportLedger` | Confirmed canonical aggregator |
 | Nutrition | Current/recent/chronic nutrition state | `src/sim/agents/seasonalSurvival.ts` (`deriveCanonicalNutritionState`) | Confirmed by name in the real food-demography spec |
-| Demography and lifecycle | Cohorts, bounded sign-gated net-rate accumulators, gross churn projection, viability, terminal extinction | `src/sim/agents/demography.ts` (`deriveFoodDemographyRateTerms`, `updateBandsDemographyAndFission`, `updateBandDemography`), `agents/viability.ts` | Food has one ordinary pressure plus a nonlinear severe-chronic hazard; age cohorts remain reconciled rather than causally reproductive, see CLAUDE.md §§10–11 |
+| Demography and lifecycle | Cohorts, bounded sign-gated net-rate accumulators, gross churn projection, death memory, viability, terminal extinction | `src/sim/agents/demography.ts` (`deriveFoodDemographyRateTerms`, `deriveDeathMemorySeverityTerms`, `advanceDeathMemory`, `updateBandsDemographyAndFission`, `updateBandDemography`), `agents/viability.ts` | Food has one ordinary pressure plus a nonlinear severe-chronic hazard; **death-memory severity reads actual losses only (SEPARATION-2), not current food/water stress**; age cohorts remain reconciled rather than causally reproductive, see CLAUDE.md §§10–11 |
 | Chronicle/history | Historical events, archival records, deep-history observation | `src/sim/agents/bandChronicle.ts`, `bandHistory.ts`, `bandEvents.ts`, `applyBandDeepHistoryContext` (called from `tick/advance.ts`, spring-gated yearly) | Per the causal-agency diagnostic (CLAUDE.md §9), Chronicle-adjacent modules are largely UI/story-only, not decision-read |
 | Audits and benchmarks | Controlled fixtures, invariant checks, deterministic benchmark, graph checks | `scripts/` — see §8 below for the exact file/flag list; no separate test framework | Evidence only for the path/invariant actually exercised |
 | Graph/architecture metadata | Hand-maintained dependency/causal graph + integrity check | `src/architecture/graphData.ts` (NODES/LINKS), checked by `scripts/checkGraph.mjs` (asserts 0 dup ids, 0 dangling links via Vite SSR) | Supports architecture checks; not production authority |
-| Documentation | README (public), PRODUCT.md/DESIGN.md (tracked), CLAUDE.md/AGENTS.md (local-only, gitignored), `docs/superpowers/specs|plans/` (dated historical specs, gitignored) | repository root, `docs/` | Secondary to code and current audits; `docs/HANDOFF.md` and `docs/CAUSAL_AGENCY_DIAGNOSTIC.md` were absorbed into this documentation pass and deleted 2026-07-14 (see CLAUDE.md §9/§23) |
+| Documentation | README, `CLAUDE.md`, `AGENTS.md`, and `docs/HANDOFF.md` are **tracked** (committed with each checkpoint); PRODUCT.md/DESIGN.md and `docs/superpowers/` are gitignored local notes | repository root, `docs/` | Secondary to code and current audits. **Correction (FOOD-DEMOGRAPHY-SEPARATION-2, 2026-07-14):** `CLAUDE.md`/`AGENTS.md` were removed from `.gitignore` in the persistence-1 commit and are tracked; `docs/HANDOFF.md` is tracked and present (~7900 lines). Only `docs/CAUSAL_AGENCY_DIAGNOSTIC.md` and `docs/superpowers/` are absent/ignored. The `.gitignore` still lists a `**/HANDOFF.md` pattern, but the already-tracked `docs/HANDOFF.md` overrides it. |
 
 Areas the original draft's likely-path guess **missed entirely**: `src/architecture/` (graph viz), `src/render/` (canvas rendering), `src/worker/` (`simWorker.ts`, the browser Web Worker), `src/store.ts` (top-level zustand store), and `src/sim/tick/` as a distinct area from `src/sim/runner/`.
 
@@ -299,9 +302,10 @@ No `test` script exists — verification is entirely the audit scripts below plu
 | Return-kind audit | `postEcologyReturnKindAudit.mjs` |
 | Dynamic-snapshot parity audit | `dynamicSnapshotEcologyParityAudit.mjs` |
 | Catchment invariants | `catchmentInvariants.mjs` |
-| Food/demography arithmetic, 2×2, parity, waterfall | `foodDemographySeparationAudit.mjs` |
+| Food/demography arithmetic, 2×2, parity, waterfall, Stage-0 ledger (incl. death-memory paths) | `foodDemographySeparationAudit.mjs` |
 | Controlled healthy/moderate/marginal/nonviable persistence | `demographicPersistenceAudit.mjs` |
-| Map/single-origin/no-human long runs and repeated fingerprints | `demographicLongRunAudit.mjs` |
+| Map/single-origin/no-human long runs, repeated fingerprints, decline-cap exposure | `demographicLongRunAudit.mjs` |
+| Residual death-memory path isolation (R0–R5), 0.002 baseline on/off, diagnostics-off parity | `demographicDeathMemoryPathAudit.mjs` |
 
 ### `simBenchmark.mjs --targeted-*` flags — exact flag names VERIFIED CURRENT (grepped from `scripts/simBenchmark.mjs`; ~120 total, most relevant to the draft's named audits below)
 
@@ -391,20 +395,23 @@ Rules:
 
 ## 11. Current roadmap
 
-Demographic persistence is implemented. The canonical future order is now:
+Demographic persistence is implemented (persistence-1 and persistence-2 both PASS). The canonical future order is now:
 
-1. **EXPEDITIONARY LOGISTICAL MOBILITY / TASK CAMPS / VIEWSHED PERCEPTION / FIRE SIGNALS-1.**
-2. **CROWDING / RANGE RELEASE / GENERATIONAL DEPARTURE / VIABLE FISSION-1.**
-3. **SEASONAL ROUTE MIGRATION / VARIABLE NOMADIC ROUNDS-1.**
-4. **LANGUAGE / SEMANTIC COMMUNICATION / NAMING / DIALECT EVOLUTION-1.**
-5. **BAND CULTURE / IDENTITY / VIEWS / CUSTOMS / NORMS-1.**
-6. **INTER-BAND ENCOUNTERS / RELATIONSHIP MEMORY / EXCHANGE NETWORKS-1.**
-7. **RELIGION / MYTH / RITUAL / SACRED LANDSCAPE-1.**
-8. **SMALL-SCALE CONFLICT / FEUD / RETALIATION-1**, followed later by alliances, raids, and organized war.
-9. **EMERGENT TRAILS / ROUTES / ROADS / SEDENTISM.**
-10. **Major missing human biological and social systems.**
-11. **WHOLE-SIM CAUSAL CONNECTIVITY / DECORATIVE SYSTEMS AUDIT.**
-12. **PUBLIC POLISH + MVP CLOSURE.**
+1. **CORE PIPELINE CONSOLIDATION / SEASON RESOLUTION / DECISION ORCHESTRATION DECOMPOSITION-1.** ← active next checkpoint
+2. **EXPEDITIONARY LOGISTICAL MOBILITY / TASK CAMPS / VIEWSHED PERCEPTION / FIRE SIGNALS-1.**
+3. **CROWDING / RANGE RELEASE / GENERATIONAL DEPARTURE / VIABLE FISSION-1.**
+4. **SEASONAL ROUTE MIGRATION / VARIABLE NOMADIC ROUNDS-1.**
+5. **LANGUAGE / SEMANTIC COMMUNICATION / NAMING / DIALECT EVOLUTION-1.**
+6. **BAND CULTURE / IDENTITY / VIEWS / CUSTOMS / NORMS-1.**
+7. **INTER-BAND ENCOUNTERS / RELATIONSHIP MEMORY / EXCHANGE NETWORKS-1.**
+8. **RELIGION / MYTH / RITUAL / SACRED LANDSCAPE-1.**
+9. **SMALL-SCALE CONFLICT / FEUD / RETALIATION-1**, followed later by alliances, raids, and organized war.
+10. **EMERGENT TRAILS / ROUTES / ROADS / SEDENTISM.**
+11. **Major missing human biological and social systems.**
+12. **WHOLE-SIM CAUSAL CONNECTIVITY / DECORATIVE SYSTEMS AUDIT.**
+13. **PUBLIC POLISH + MVP CLOSURE.**
+
+Consolidation comes **before** expeditions: the demographic checkpoint surfaced tick/season-resolution and decision-orchestration coupling that should be decomposed before new expedition mechanics are layered on.
 
 Do not permanently leave completed objectives in the future list. Move verified results into current architecture, record the commit and audits, preserve caveats, then advance the active checkpoint.
 
@@ -519,6 +526,6 @@ Use [`CLAUDE.md`](./CLAUDE.md) as follows:
 
 ## 14. Required repository verification after adopting this draft — EXECUTED 2026-07-14
 
-Steps 1-3, 6-8 done (see CLAUDE.md Appendix A for the itemized status); step 4 partial (top-level ownership mapped, not every field/writer/reader across ~90 `agents/` files); step 5 done (§8 above). Step 9 ("update both files in one documentation commit") is **not applicable**: `.gitignore` confirms `CLAUDE.md`/`AGENTS.md` are local-only, not tracked by git, so there is no commit — changes are local-only, made directly to both files in this pass.
+Steps 1-3, 6-8 done (see CLAUDE.md Appendix A for the itemized status); step 4 partial (top-level ownership mapped, not every field/writer/reader across ~90 `agents/` files); step 5 done (§8 above). Step 9 ("update both files in one documentation commit") **does apply**: as of the persistence-1 commit, `CLAUDE.md` and `AGENTS.md` were removed from `.gitignore` and are tracked, so documentation is committed with each checkpoint. (The original draft's claim that they were "local-only, not tracked" was correct only before that commit and is now false — corrected here in FOOD-DEMOGRAPHY-SEPARATION-2.)
 
 This file is now **repository-verified for §1-8 above**; §9-13 (deeper protocol/philosophy sections) were not the target of this pass and remain as originally drafted.

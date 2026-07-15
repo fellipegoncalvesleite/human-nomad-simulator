@@ -66,6 +66,7 @@ import {
   type CanonicalNutritionState,
 } from "./seasonalSurvival";
 import type {
+  DiagnosticDeathMemoryMode,
   DiagnosticDemographyMode,
   FoodDemographyDiagnostics,
 } from "../diagnostics/foodDemographyDiagnostics";
@@ -348,7 +349,9 @@ function computeBandDemography(
     ),
   );
   const chronicSeasonalDeficit = nutrition.chronicFoodStress;
-  const recentDeathSuppression = band.deathMemory?.fertilitySuppressionFromRecentDeaths ?? 0;
+  const recentDeathSuppression = diagnostics?.disableDeathMemoryFertility === true
+    ? 0
+    : band.deathMemory?.fertilitySuppressionFromRecentDeaths ?? 0;
   const acuteRiskEffect = band.acuteRisk?.activeEffect;
   const acuteSeasonalStress = acuteRiskEffect?.extraSeasonalStress ?? 0;
   const acuteMortalityRisk = acuteRiskEffect?.mortalityRiskBump ?? 0;
@@ -449,19 +452,19 @@ function computeBandDemography(
   // fertility and once through mortality. One nonlinear severe-deprivation hazard
   // can additionally suppress fertility and impose crisis mortality; the legacy
   // chronic subtraction, baseline trim, and hunger-label bites remain absent.
-  const survivalBaseline = foodTerms.survivalBaseline;
+  const survivalBaseline = diagnostics?.disableSurvivalBaseline === true
+    ? 0
+    : foodTerms.survivalBaseline;
   const severeRepeatedSeasonalBite = foodTerms.severeRepeatedSeasonalBite;
   const severeChronicFoodRatePenalty = foodTerms.severeChronicFoodRatePenalty;
-  const growthRate = clamp(
+  const uncappedDemographicRate =
     survivalBaseline +
-      fertilityPressure * 0.012 -
-      mortalityPressure * 0.014 -
-      foodTerms.directChronicDeficitRatePenalty -
-      severeRepeatedSeasonalBite -
-      severeChronicFoodRatePenalty,
-    maxDeclineRate,
-    maxGrowthRate,
-  );
+    fertilityPressure * 0.012 -
+    mortalityPressure * 0.014 -
+    foodTerms.directChronicDeficitRatePenalty -
+    severeRepeatedSeasonalBite -
+    severeChronicFoodRatePenalty;
+  const growthRate = clamp(uncappedDemographicRate, maxDeclineRate, maxGrowthRate);
   const populationAccounting = advancePopulationAccounting(previous, population, growthRate);
   const roundedPopulation = populationAccounting.population;
   const cohorts = advanceAgeCohorts(
@@ -486,7 +489,7 @@ function computeBandDemography(
     migrationHardshipDeaths,
   );
   const noDeathAudit = deriveNoDeathAudit(band, churn, seasonalSupport?.hungerClassification ?? "stable");
-  const deathMemory = advanceDeathMemory(world, band, cohorts, seasonalFoodStress, seasonalWaterStress);
+  const deathMemory = advanceDeathMemory(world, band, cohorts, seasonalFoodStress, seasonalWaterStress, diagnostics);
   const nextHouseholdCount = getHouseholdCount(roundedPopulation);
   const canCreateMoreBands = Object.keys(world.bands).length < MAX_BANDS;
   const crisisBreakaway = band.foragingAdaptation?.crisisBreakaway;
@@ -570,6 +573,8 @@ function computeBandDemography(
     healthCareFertilitySuppression: round2(clamp01(healthCareFertilitySuppression)),
     ordinaryMortalityBasis: round2(clamp01(ordinaryMortalityBasis)),
     netDemographicRate: round4(growthRate),
+    uncappedDemographicRate: round4(uncappedDemographicRate),
+    declineCapBinds: growthRate <= maxDeclineRate && uncappedDemographicRate < growthRate - 1e-9,
     householdCrowdingPressure: round2(householdCrowdingPressure),
     splitPressure: round2(splitPressure),
     lastDemographicUpdate: world.time,
@@ -2669,12 +2674,74 @@ function makeNoDeathAudit(
   };
 }
 
+export interface DeathMemorySeverityInputs {
+  readonly totalDeaths: number;
+  readonly population: number;
+  readonly dependentDeaths: number;
+  readonly adultDeaths: number;
+  readonly seasonalFoodStress: number;
+  readonly seasonalWaterStress: number;
+}
+
+export interface DeathMemorySeverityTerms {
+  // Bereavement magnitude from the actual, socially relevant loss: the share of
+  // the band that died. This is the production severity floor.
+  readonly proportionalLossSeverity: number;
+  // Cohort-specific bereavement: losing dependents/working adults is a distinct
+  // social consequence beyond the raw share. Real cohort losses only (Case C).
+  readonly cohortLossSeverity: number;
+  // FOOD-DEMOGRAPHY-SEPARATION-2: current food/water stress copied directly into
+  // severity. This is a redundant re-application of a nutrition signal that
+  // already suppresses fertility and raises mortality — retained only under the
+  // legacy diagnostic mode, and 0 in production.
+  readonly directEnvironmentalSeverity: number;
+  readonly severity: number;
+  readonly fertilitySuppressionFromRecentDeaths: number;
+  readonly cautionModifier: number;
+}
+
+// FOOD-DEMOGRAPHY-SEPARATION-2 — death-memory severity reads actual experienced
+// losses, not the environmental stress that caused them. Food and water already
+// have their own fertility and mortality pathways; copying current food/water
+// stress into bereavement severity double-counts that signal. In production
+// ("actual") severity depends only on the proportional loss and the cohort
+// composition of the real deaths. `legacy_direct_food` restores the removed
+// stress term for the causal isolation matrix; `neutralizeCohort` additionally
+// drops the food-shaped cohort contribution for Cell R2.
+export function deriveDeathMemorySeverityTerms(
+  inputs: DeathMemorySeverityInputs,
+  mode: DiagnosticDeathMemoryMode = "actual",
+  neutralizeCohort = false,
+): DeathMemorySeverityTerms {
+  const proportionalLossSeverity = inputs.totalDeaths / Math.max(8, inputs.population);
+  const cohortLossSeverity = neutralizeCohort
+    ? 0
+    : inputs.dependentDeaths * 0.08 + inputs.adultDeaths * 0.1;
+  const directEnvironmentalSeverity =
+    mode === "legacy_direct_food"
+      ? inputs.seasonalFoodStress * 0.18 + inputs.seasonalWaterStress * 0.14
+      : 0;
+  const severity = clamp01(
+    proportionalLossSeverity + cohortLossSeverity + directEnvironmentalSeverity,
+  );
+  const cohortFertilityTerm = neutralizeCohort ? 0 : inputs.dependentDeaths * 0.03;
+  return {
+    proportionalLossSeverity,
+    cohortLossSeverity,
+    directEnvironmentalSeverity,
+    severity,
+    fertilitySuppressionFromRecentDeaths: clamp01(severity * 0.48 + cohortFertilityTerm),
+    cautionModifier: clamp01(severity * 0.62 + inputs.adultDeaths * 0.04),
+  };
+}
+
 function advanceDeathMemory(
   world: WorldState,
   band: Band,
   cohorts: AgeCohortResult,
   seasonalFoodStress: number,
   seasonalWaterStress: number,
+  diagnostics?: FoodDemographyDiagnostics,
 ): DeathMemoryState | undefined {
   const prior = band.deathMemory;
   const totalDeaths = cohorts.totalDeaths;
@@ -2704,13 +2771,19 @@ function advanceDeathMemory(
   }
 
   const cause = getDominantDeathCause(cohorts, seasonalFoodStress, seasonalWaterStress);
-  const severity = clamp01(
-    totalDeaths / Math.max(8, band.demography.population) +
-      cohorts.dependentDeaths * 0.08 +
-      cohorts.adultDeaths * 0.1 +
-      seasonalFoodStress * 0.18 +
-      seasonalWaterStress * 0.14,
+  const severityTerms = deriveDeathMemorySeverityTerms(
+    {
+      totalDeaths,
+      population: band.demography.population,
+      dependentDeaths: cohorts.dependentDeaths,
+      adultDeaths: cohorts.adultDeaths,
+      seasonalFoodStress,
+      seasonalWaterStress,
+    },
+    diagnostics?.deathMemoryMode ?? "actual",
+    diagnostics?.neutralizeCohortDeathMemory === true,
   );
+  const severity = severityTerms.severity;
 
   return {
     lastUpdatedTick: world.time.tick,
@@ -2720,8 +2793,8 @@ function advanceDeathMemory(
     recentElderDeaths: Math.min(99, cohorts.eldersDied + Math.round((prior?.recentElderDeaths ?? 0) * 0.4)),
     deathMemorySeverity: round2(severity),
     deathMemoryCause: cause,
-    cautionModifier: round2(clamp01(severity * 0.62 + cohorts.adultDeaths * 0.04)),
-    fertilitySuppressionFromRecentDeaths: round2(clamp01(severity * 0.48 + cohorts.dependentDeaths * 0.03)),
+    cautionModifier: round2(severityTerms.cautionModifier),
+    fertilitySuppressionFromRecentDeaths: round2(severityTerms.fertilitySuppressionFromRecentDeaths),
     avoidPlacePressure: round2(clamp01(severity * 0.3 + (cause === "water_stress" || cause === "migration_hardship" ? 0.12 : 0))),
     placeTileId: band.position,
     reasonIds: [`reason:death-memory:${band.id}:${world.time.tick}:${cause}` as ReasonId],

@@ -1148,6 +1148,11 @@ export interface BandDemography extends PopulationAccountingState {
   readonly healthCareFertilitySuppression?: NormalizedIntensity;
   readonly ordinaryMortalityBasis?: NormalizedIntensity;
   readonly netDemographicRate?: number;
+  // FOOD-DEMOGRAPHY-SEPARATION-2 — the annual net rate before the population-band
+  // decline/growth clamp, and whether the decline cap actually bound this update.
+  // Exposed so the long-run audit can report decline-cap exposure per lineage.
+  readonly uncappedDemographicRate?: number;
+  readonly declineCapBinds?: boolean;
   readonly householdCrowdingPressure: NormalizedIntensity;
   readonly splitPressure: NormalizedIntensity;
   readonly lastDemographicUpdate: WorldTime;

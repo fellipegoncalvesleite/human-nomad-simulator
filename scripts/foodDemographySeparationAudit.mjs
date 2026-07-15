@@ -128,6 +128,11 @@ function buildStage0Ledger(demography, survival) {
     row("crisis_water_starvation_deaths", "explanatory attribution only", "Post-accounting overlapping labels capped by totalDeaths; never subtracted from population."),
     row("food_fission_pressure", "distinct causal mechanism", "Food contributes to split/fission pressure, not directly to birth/death accounting."),
     row("legacy_birth_accumulator", "legacy/inert", "birthAccumulator is carried through cohort state but population births accrue in growthAccumulator."),
+    row("direct_food_death_memory_severity", "duplicated pressure + attribution (removed)", "FOOD-DEMOGRAPHY-SEPARATION-2: current food stress was copied directly into death-memory severity (seasonalFoodStress*0.18), giving food a second redundant fertility-suppression path after its ordinary fertility and mortality effects. Removed from production; retained only under the legacy_direct_food diagnostic."),
+    row("direct_water_death_memory_severity", "duplicated pressure + attribution (removed)", "FOOD-DEMOGRAPHY-SEPARATION-2: current water stress copied into severity (seasonalWaterStress*0.14) on the same principle; water already has its own fertility/mortality pathways. Removed from production; legacy diagnostic only."),
+    row("food_shaped_cohort_death_memory", "distinct causal mechanism (retained)", "Food-shaped cohort allocation decides which already-realized deaths are dependents/adults; those real cohort losses raise severity (dependent*0.08 + adult*0.1) and suppression (dependent*0.03). Retained: dependent/adult loss is a distinct social consequence; food only relabels real deaths, adds no unique deaths, and does not set severity directly."),
+    row("recent_death_fertility_suppression", "distinct causal mechanism (retained)", "fertilitySuppressionFromRecentDeaths (severity*0.48 + dependent*0.03) enters fertilityPressure at 0.18 the following year. A bounded bereavement/social-disruption effect tied to actual experienced deaths, not to food stress itself."),
+    row("survival_baseline_intrinsic", "conditional replacement potential (isolated)", "The 0.002 healthy baseline is intrinsic replacement potential added once to the net rate; dominated by mortality under severe deficit and does not rescue sterile bands. Isolated by disableSurvivalBaseline for measurement; not tuned in this checkpoint."),
   ];
   const representativeHistories = [
     history("known_zero", supportFixture({ ratio: 0, rolling: 0, chronicStreak: 8, deficit8: 8, recovery: 0, hunger: "crisis_deficit" })),
@@ -163,6 +168,17 @@ function buildStage0Ledger(demography, survival) {
       overlapWithoutBeingAdditive: true,
     },
     structuralFinding: "Age cohorts allocate and explain net-decided change; reproductive-capable adults do not drive fertility, and gross births/deaths cannot both accrue from the net-rate path in one year.",
+    // FOOD-DEMOGRAPHY-SEPARATION-2 — attribution-now vs behavior-later matrix.
+    // A path can be explanatory for current population accounting while still
+    // changing future behavior through death memory; both dimensions are stated.
+    deathMemoryLedger: [
+      { path: "current food stress -> death-memory severity", removesPopulationNow: false, changesFutureBehavior: true, disposition: "removed from production (redundant + attribution)" },
+      { path: "current water stress -> death-memory severity", removesPopulationNow: false, changesFutureBehavior: true, disposition: "removed from production (redundant + attribution)" },
+      { path: "food-caused unique deaths -> death memory", removesPopulationNow: true, changesFutureBehavior: true, disposition: "retained (legitimate bereavement from real deaths)" },
+      { path: "food-shaped cohort allocation -> cohort death memory", removesPopulationNow: false, changesFutureBehavior: true, disposition: "retained (real cohort loss; food only relabels realized deaths)" },
+      { path: "recent-death fertility suppression -> next-year fertility", removesPopulationNow: false, changesFutureBehavior: true, disposition: "retained (bounded bereavement/social disruption)" },
+      { path: "0.002 survival baseline -> net rate", removesPopulationNow: true, changesFutureBehavior: false, disposition: "retained (intrinsic replacement potential; isolated, not tuned)" },
+    ],
     representativeHistories,
   };
 

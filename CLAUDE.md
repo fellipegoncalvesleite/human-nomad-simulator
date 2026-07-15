@@ -53,7 +53,8 @@ This document is intended to replace repeated repository-wide rediscovery with a
 ```text
 Last verified against:
   FOOD–DEMOGRAPHY checkpoint tree on branch
-  checkpoint/food-demography-persistence-1, parent
+  checkpoint/food-demography-persistence-2, candidate parent
+  ed16dfe57f23090dd2b35efbd08585d89e1722b3 (persistence-1), whose parent is
   30a87b3aab96dc9b6276a5e148458ad9772770e0. The final checkpoint report records
   the resulting commit hash because a Git commit cannot contain its own hash.
 
@@ -66,27 +67,31 @@ Other cited commits — all CONFIRMED present in `git log --all`:
   736214f39728767b77b4e7989dc33c7b16642239.
 
 Last updated:
-  2026-07-14
+  2026-07-14 (FOOD-DEMOGRAPHY-SEPARATION-2)
 
 Implemented checkpoint:
-  FOOD–DEMOGRAPHY SEPARATION / DEMOGRAPHIC PERSISTENCE-1 — PASS. The local
-  ignored design note was consulted when available but is not claimed as a
-  committed artifact. §10–11 are the tracked canonical record.
+  FOOD–DEMOGRAPHY SEPARATION / DEMOGRAPHIC PERSISTENCE-1 — PASS, and
+  FOOD–DEMOGRAPHY SEPARATION / DEMOGRAPHIC PERSISTENCE-2 — PASS (residual
+  death-memory food path closed). Demographic persistence is complete. §10–11
+  are the tracked canonical record.
 
 Current active checkpoint:
-  EXPEDITIONARY LOGISTICAL MOBILITY / TASK CAMPS / VIEWSHED PERCEPTION /
-  FIRE SIGNALS-1. It was not begun by the demographic checkpoint.
+  CORE PIPELINE CONSOLIDATION / SEASON RESOLUTION / DECISION ORCHESTRATION
+  DECOMPOSITION-1. It was not begun by the demographic checkpoint.
+  Expeditionary logistics follows consolidation, not immediately.
 
-Known stale or unverified sections:
-  This checkpoint verified the repository/production-entry-point map, tick
-  order, demographic formulas, diagnostic seams, audit commands, graph, named
-  regression matrix, deterministic long runs, and documentation contract. NOT
-  independently re-verified in full: every per-domain
-  authority-matrix row in §7, the deep implementation claims throughout §8-9
-  and §12-15 (these are plausible and directionally consistent with the code
-  read during this pass, but were not read line-by-line against all ~90
-  src/sim/agents files), and exact cache caps/coefficients. Treat §7-9/12-15 as
-  a reasonable map, not a verified inventory.
+Verification provenance (do not blur these):
+  - Verified by the persistence-1 implementation run: 2×2, waterfall,
+    de-stacked nutrition production model, controlled bands, long runs.
+  - Independently re-verified by the persistence-1 verification pass, which
+    also FAILED it for the residual death-memory path now closed here.
+  - Newly verified by persistence-2 (this checkpoint, executed on
+    checkpoint/food-demography-persistence-2): death-memory severity reads
+    actual losses only; R0–R5 isolation; 0.002 baseline on/off; decline-cap
+    long-run metrics; full regression matrix; determinism; observer parity.
+  - Not yet verified: deep per-domain claims in §7–9/§12–15 remain a
+    navigational map, not a line-by-line inventory, across all ~90
+    src/sim/agents files; exact cache caps/coefficients.
 ```
 
 **Correction found during this pass:** §5's guessed production order was wrong
@@ -488,7 +493,7 @@ Optional runner diagnostics introduced for the active checkpoint must never be p
 | TypeScript config files | `tsconfig.json` (app) + `tsconfig.node.json` (vite/node config); both compiled in `build` | **VERIFIED** — no separate test config; there is no `test` script, testing is the audit scripts + `sim:benchmark` |
 | build config | `vite.config.ts`, `@vitejs/plugin-react` | **VERIFIED** |
 | README | public-facing project description | present, not modified by this pass |
-| `.gitignore` | ignores `node_modules/`, `dist/`, `artifacts/`, `docs/baselines/`, `timing_audit.txt`, `CLAUDE.md`/`AGENTS.md`/`PRODUCT.md`/`DESIGN.md`, `**/HANDOFF.md` and diagnostic/handoff patterns, `docs/superpowers/` | **VERIFIED** — this means CLAUDE.md/AGENTS.md themselves, and the specs/plans/handoff docs referenced throughout this document, are all **local-only, not tracked by git** |
+| `.gitignore` | ignores `node_modules/`, `dist/`, `artifacts/`, `docs/baselines/`, `timing_audit.txt`, `PRODUCT.md`/`DESIGN.md`, a `**/HANDOFF.md` pattern, diagnostic/handoff patterns, `docs/superpowers/` | **VERIFIED + CORRECTED (SEPARATION-2)** — `CLAUDE.md` and `AGENTS.md` were **removed from `.gitignore` in the persistence-1 commit and are now TRACKED**; they are committed with each checkpoint. `docs/HANDOFF.md` is also **tracked** (it predates the ignore pattern; a tracked path overrides a later `.gitignore` glob). Only `PRODUCT.md`, `DESIGN.md`, `docs/superpowers/`, and `*_DIAGNOSTIC.md` files remain genuinely untracked. The earlier "CLAUDE.md/AGENTS.md are local-only" claim is false as of persistence-1. |
 | root Markdown files | `PRODUCT.md`, `DESIGN.md`, `README.md` tracked; `CLAUDE.md`/`AGENTS.md` local-only per above | **VERIFIED** |
 | graph metadata | `src/architecture/graphData.ts` (hand-maintained NODES/LINKS); integrity checked by `scripts/checkGraph.mjs` (loads it via Vite SSR, asserts 0 duplicate node ids, 0 dangling links) | **VERIFIED** |
 | CI configuration | no `.github/workflows` directory exists — there is no CI; all checks are run locally/on-demand | **VERIFIED** |
@@ -1171,7 +1176,50 @@ Do not assume the expected hash is present. Resolve it before work.
 
 ## 10. Implemented demographic persistence and remaining logistical blocker
 
-### 10.0 Accepted result — 2026-07-14
+### 10.0B Residual death-memory closure — FOOD-DEMOGRAPHY-SEPARATION-2 — 2026-07-14
+
+**Status: PASS.** Persistence-1 (§10.0 below) de-stacked the *net-rate* nutrition
+pathways but left one residual food→fertility path through death memory, found by
+independent verification. Persistence-2 closes it.
+
+- **Residual path:** `advanceDeathMemory` derived death-memory *severity* as
+  `totalDeaths/pop + dependentDeaths*0.08 + adultDeaths*0.1 + seasonalFoodStress*0.18
+  + seasonalWaterStress*0.14` (only in a death year). Severity then set
+  `fertilitySuppressionFromRecentDeaths = severity*0.48 + dependentDeaths*0.03`,
+  read the following year as `recentDeathSuppression` and subtracted from
+  `fertilityPressure` at 0.18, entering the net rate at 0.012. The peak food-only
+  net-rate contribution is `1×0.18×0.48×0.18×0.012 = 0.000186624` — small, but a
+  second redundant food→fertility path on top of ordinary food fertility
+  suppression and food mortality. Classified **Case A (redundant re-application)
+  + Case B (cause label injected into bereavement severity)**.
+- **Repair:** death-memory severity now reads **actual experienced losses only** —
+  proportional loss (`totalDeaths/pop`) plus cohort loss (`dependent*0.08 +
+  adult*0.1`). The direct `seasonalFoodStress*0.18` and `seasonalWaterStress*0.14`
+  terms are removed from production, retained only under a non-persisted
+  `legacy_direct_food` diagnostic. The pure helper `deriveDeathMemorySeverityTerms`
+  makes this auditable. Food still reaches death memory only through the real
+  deaths it causes, not by copying current stress into severity.
+- **Retained deliberately:** (a) recent-death fertility suppression itself — a
+  bounded bereavement/social-disruption effect tied to actual deaths (proven still
+  active under adequate food with non-food deaths); (b) the food-shaped **cohort
+  allocation** path — dependent/working-adult loss is a distinct social
+  consequence (**Case C**); food only relabels which already-realized deaths are
+  dependents and adds no unique deaths; (c) the `0.002` survival baseline —
+  isolated on/off and shown to be a small intrinsic replacement contribution
+  (~0.0018–0.0048/yr) that does **not** rescue sterile bands (nonviable → extinct
+  with it disabled).
+- **Evidence:** `scripts/demographicDeathMemoryPathAudit.mjs` (cells R0–R5, unit
+  proofs, baseline on/off, diagnostics-off byte identity, determinism) PASSes;
+  `directFoodSeverityDelta = 0.18`, production severity is independent of the food
+  label, food stress with zero deaths produces zero suppression, and adequate-food
+  non-food deaths still produce bounded suppression. Controlled bands, the 2×2, the
+  per-lineage Map 1 run, and the long-run matrix (now reporting decline-cap
+  exposure) were re-run. See §11 and `docs/HANDOFF.md`.
+- **Residual limitation unchanged:** practical same-day food reach remains the
+  standing upstream limitation; it is deferred to the consolidation and
+  expeditionary-logistics checkpoints, not a food-arithmetic defect.
+
+### 10.0 Accepted result — 2026-07-14 (persistence-1)
 
 **Status: PASS.** The checkpoint proved a mixed cause and repaired only the
 downstream part. The physical-food pipeline remains unchanged.
@@ -1662,20 +1710,21 @@ Persistent settlement should require separate causal conditions such as repeated
 
 ## 14. Exact roadmap
 
-Demographic persistence is implemented. This future order is canonical:
+Demographic persistence is implemented (persistence-1 and persistence-2 both PASS). This future order is canonical:
 
-1. **EXPEDITIONARY LOGISTICAL MOBILITY / TASK CAMPS / VIEWSHED PERCEPTION / FIRE SIGNALS-1.**
-2. **CROWDING / RANGE RELEASE / GENERATIONAL DEPARTURE / VIABLE FISSION-1.**
-3. **SEASONAL ROUTE MIGRATION / VARIABLE NOMADIC ROUNDS-1.**
-4. **LANGUAGE / SEMANTIC COMMUNICATION / NAMING / DIALECT EVOLUTION-1.**
-5. **BAND CULTURE / IDENTITY / VIEWS / CUSTOMS / NORMS-1.**
-6. **INTER-BAND ENCOUNTERS / RELATIONSHIP MEMORY / EXCHANGE NETWORKS-1.**
-7. **RELIGION / MYTH / RITUAL / SACRED LANDSCAPE-1.**
-8. **SMALL-SCALE CONFLICT / FEUD / RETALIATION-1**, followed later by alliances, raids, and organized war.
-9. **EMERGENT TRAILS / ROUTES / ROADS / SEDENTISM.**
-10. **Major missing human biological and social systems.**
-11. **WHOLE-SIM CAUSAL CONNECTIVITY / DECORATIVE SYSTEMS AUDIT.**
-12. **PUBLIC POLISH + MVP CLOSURE.**
+1. **CORE PIPELINE CONSOLIDATION / SEASON RESOLUTION / DECISION ORCHESTRATION DECOMPOSITION-1.** ← active next checkpoint. Consolidation comes **before** expeditions: the demographic work exposed tick/season-resolution and decision-orchestration coupling that should be decomposed before new expedition mechanics are layered on.
+2. **EXPEDITIONARY LOGISTICAL MOBILITY / TASK CAMPS / VIEWSHED PERCEPTION / FIRE SIGNALS-1.**
+3. **CROWDING / RANGE RELEASE / GENERATIONAL DEPARTURE / VIABLE FISSION-1.**
+4. **SEASONAL ROUTE MIGRATION / VARIABLE NOMADIC ROUNDS-1.**
+5. **LANGUAGE / SEMANTIC COMMUNICATION / NAMING / DIALECT EVOLUTION-1.**
+6. **BAND CULTURE / IDENTITY / VIEWS / CUSTOMS / NORMS-1.**
+7. **INTER-BAND ENCOUNTERS / RELATIONSHIP MEMORY / EXCHANGE NETWORKS-1.**
+8. **RELIGION / MYTH / RITUAL / SACRED LANDSCAPE-1.**
+9. **SMALL-SCALE CONFLICT / FEUD / RETALIATION-1**, followed later by alliances, raids, and organized war.
+10. **EMERGENT TRAILS / ROUTES / ROADS / SEDENTISM.**
+11. **Major missing human biological and social systems.**
+12. **WHOLE-SIM CAUSAL CONNECTIVITY / DECORATIVE SYSTEMS AUDIT.**
+13. **PUBLIC POLISH + MVP CLOSURE.**
 
 Roadmap rules:
 
@@ -2308,7 +2357,8 @@ Keep this bounded to the latest 10–15 accepted architecture changes. Condense 
 
 | Checkpoint/commit | Architecture change | Remaining caveat |
 | --- | --- | --- |
-| `checkpoint: establish persistent human demography` (2026-07-14; exact hash in final report) | Stage 0 ledger, non-persisted controlled 2×2, waterfall, evidence-gated nutrition de-stack, Technical visibility, deterministic controlled/long-run/accounting audits, and tracked documentation contract | Single net rate and reconciled age cohorts remain; default worlds still contract where same-day practical food reach is poor; expedition logistics is next |
+| `checkpoint: close residual food-demography pathways` (2026-07-14; exact hash in final report) | Death-memory severity reads actual losses only (removed direct food/water stress terms; `deriveDeathMemorySeverityTerms` helper + `legacy_direct_food` diagnostic); R0–R5 isolation audit; 0.002 baseline on/off seam; long-run decline-cap metrics (`uncappedDemographicRate`/`declineCapBinds` + per-lineage `declineCapShare`/`maxContinuousDeclineCapYears`/`positiveRateShare`/`replacementYears`); Stage-0 ledger extended with death-memory paths; Technical death-memory attribution; documentation contradictions corrected; roadmap places consolidation before expeditions | Recent-death fertility suppression, food-shaped cohort allocation (Case C), and the 0.002 baseline are retained and documented; single net rate and reconciled age cohorts remain; default worlds still contract where same-day practical food reach is poor; consolidation is next, then expeditions |
+| `checkpoint: establish persistent human demography` (ed16dfe, 2026-07-14) | Stage 0 ledger, non-persisted controlled 2×2, waterfall, evidence-gated nutrition de-stack, Technical visibility, deterministic controlled/long-run/accounting audits, and tracked documentation contract | Superseded by the residual-path closure above; single net rate and reconciled age cohorts remain |
 | Documentation pass, 2026-07-14 (historical local-only pass) | Confirmed parent HEAD/backup branch, corrected production tick order, filled repository/entry-point and command maps, synced the then-active spec | Superseded by the tracked demographic checkpoint documentation above |
 | `30a87b3aab96dc9b6276a5e148458ad9772770e0` (CONFIRMED = HEAD) | Living ecology and all-map foundations consolidated on `main`; history is squashed here — earlier per-checkpoint commits (including the causal-agency-repair work, §9.8B) are not separately reachable | None remaining — branch/commit state confirmed |
 | `f33bebc23ecc21b971c98b48b31ca8bbfa9d2209` | All-map ecology validation and dynamic richness | Backup branch existence, maps, caches, and current pass state unverified |
@@ -2323,8 +2373,11 @@ Keep this bounded to the latest 10–15 accepted architecture changes. Condense 
 
 ### Next change-log entry
 
-Record expeditionary-logistics architecture only when that separate checkpoint
-is explicitly begun and accepted. Do not fold it into demographic calibration.
+Record **core pipeline consolidation / season resolution / decision orchestration
+decomposition** architecture when that checkpoint is explicitly begun and
+accepted — it is the active next checkpoint. Record expeditionary-logistics
+architecture only when that later, separate checkpoint is begun and accepted. Do
+not fold either into demographic calibration.
 
 ---
 
@@ -2343,6 +2396,6 @@ Status of each step:
 9. ✅ replaced `UNCERTAIN`/`REQUIRES REPOSITORY VERIFICATION` markers in the freshness blocks, §5, §6, §11, and AGENTS.md §4/§5/§8; markers in §7-9/§12-15's deeper claims were left in place where not independently re-verified — this was a deliberate scope decision (see Appendix A step 5), not an oversight.
 10. ✅ deleted/corrected statements contradicted by code: the ecology-before-decisions tick order, and the "Stage 0 not yet done" framing of §10.3/§11.2 (Stage 0 is actually complete, per the real spec file).
 11. ✅ updated `AGENTS.md` and `CLAUDE.md` together, same pass.
-12. ⚠️ **not applicable as written** — both files are `.gitignore`d (confirmed in this pass), so there is no commit to make; changes are local-only. A backup of the pre-this-session versions exists at `.backup-old-agent-docs-20260714/` (outside this pass's scope, left untouched).
+12. ✅ **applies — corrected in SEPARATION-2.** The persistence-1 commit removed `CLAUDE.md`/`AGENTS.md` from `.gitignore`, so both files are **tracked** and committed with each checkpoint (this documentation update ships in the persistence-2 commit). The original "both files are `.gitignore`d, no commit to make" note was true only before persistence-1 and is now false. A backup of pre-session versions exists at `.backup-old-agent-docs-20260714/` (gitignored, left untouched).
 
 This file is now a **repository-verified dossier for the sections marked VERIFIED CURRENT above**, and remains a **proposed/unverified dossier** for the remainder (§7-9/§12-15's deep claims). Do not treat the unverified remainder as more trustworthy than "plausible and evidence-adjacent."

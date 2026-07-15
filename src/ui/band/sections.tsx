@@ -622,6 +622,10 @@ export function DemographyFissionDetails({
         value={`${formatNumber(band.demography.healthCareFertilitySuppression ?? 0)} combined acute, recent-death, sickness, and care term`}
       />
       <Detail
+        label="· recent-death fertility suppression"
+        value={`${formatNumber(band.deathMemory?.fertilitySuppressionFromRecentDeaths ?? 0)} × 0.18 — bereavement from actual experienced deaths (proportional + dependent/adult loss); current food/water stress is NOT copied into it (SEPARATION-2)`}
+      />
+      <Detail
         label="ordinary mortality basis"
         value={`${formatNumber(band.demography.ordinaryMortalityBasis ?? 0)} × 0.014 = -${formatNumber(ordinaryMortalityRateEffect)} rate, excluding food`}
       />
@@ -630,6 +634,12 @@ export function DemographyFissionDetails({
         value={`ordinary contribution ${formatNumber(band.demography.foodMortalityContribution ?? 0)} × 0.014 = -${formatNumber(foodMortalityRateEffect)} rate · severe chronic hazard ${formatNumber(band.demography.foodSevereChronicHazard ?? 0)} adds -${formatNumber(band.demography.foodSevereChronicRatePenalty ?? 0)} crisis rate`}
       />
       <Detail label="net demographic rate" value={formatSigned(band.demography.netDemographicRate ?? 0)} />
+      <Detail
+        label="decline-cap clipping"
+        value={band.demography.declineCapBinds === true
+          ? `clipped: uncapped ${formatSigned(band.demography.uncappedDemographicRate ?? 0)} raised to ${formatSigned(band.demography.netDemographicRate ?? 0)} by the population decline floor`
+          : `not clipped (uncapped ${formatSigned(band.demography.uncappedDemographicRate ?? band.demography.netDemographicRate ?? 0)})`}
+      />
       <Detail label="dominant demographic constraint" value={dominantConstraint} />
       <Detail
         label="recent births / deaths (DEMOGRAPHY-MORTALITY-1)"
@@ -813,6 +823,10 @@ export function DeathMemoryDetails({ band }: { readonly band: Band }) {
           <Detail label="recent deaths" value={`${memory.recentDeathCount} total · dependent ${memory.recentDependentDeaths} · adult ${memory.recentAdultDeaths} · elder ${memory.recentElderDeaths}`} />
           <Detail label="cause" value={memory.deathMemoryCause ?? "unknown"} />
           <Detail label="severity" value={formatNumber(memory.deathMemorySeverity)} />
+          <Detail
+            label="severity basis"
+            value="actual experienced losses only: proportional deaths + dependent/adult cohort loss. Current food/water stress is not copied into severity (SEPARATION-2); food reaches death memory only through the real deaths it causes."
+          />
           <Detail label="caution modifier" value={formatNumber(memory.cautionModifier)} />
           <Detail label="fertility suppression" value={formatNumber(memory.fertilitySuppressionFromRecentDeaths)} />
           <Detail label="avoid place pressure" value={`${formatNumber(memory.avoidPlacePressure)}${memory.placeTileId === undefined ? "" : ` at ${String(memory.placeTileId)}`}`} />

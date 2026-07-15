@@ -236,20 +236,17 @@ function getSortedNeighborIds(tile: Tile): readonly TileId[] {
 // risk, route, or anchor logic. Probe candidate only — never a relocation candidate.
 // EMPIRICAL CALIBRATION CONSTANT (2K.1F; audited 2K.1F-A), not a historical law.
 const BELIEF_PROBE_SCORE_WEIGHT = 2.4;
-const VISIBLE_LANDSCAPE_PROBE_SCORE_WEIGHT = 2.0;
 
 // Probe target diversity + diminishing returns (2K.1G). How strongly a detected
 // no-information same-target probe loop degrades the logistical-probe candidate score,
 // so the band stays/forages/moves instead of re-scouting the same tile every season.
 // Suppressed inside deriveProbeDiminishingReturn when water need makes the recheck
 // rational. EMPIRICAL CALIBRATION CONSTANT (2K.1G), not a historical law.
-const PROBE_DIMINISHING_RETURN_SCORE_WEIGHT = 1.0;
 
 // Resource-scout value-of-information weight (2K.1H): scales the bounded VOI score of
 // the best scout candidate into the resource_scout candidate score, so beliefs about
 // resources elsewhere can win a residence-unchanged INFORMATION action over stay /
 // blind move — never a relocation candidate. EMPIRICAL CALIBRATION CONSTANT (2K.1H).
-const RESOURCE_SCOUT_SCORE_WEIGHT = 2.6;
 
 // Inferred-frontier curiosity weight (M0.7): the SMALL, cautious pull a settled band
 // feels to reconnoitre its band-known INFERRED near-water corridor (formed by
@@ -307,15 +304,10 @@ const SIDE_COUNTRY_PROBE_EXPLORATION_VALUE = 2.5;
 // OCCASIONALLY win the existing residence-UNCHANGED resource_scout toward an UNDER-KNOWN
 // NEARBY patch/side-country — feeding the scout→plant-test→2K.6-skill chain. NOT random
 // exploration, NOT migration, NOT yield: gated hard and rare (cooldown-bounded).
-const PROACTIVE_INFO_COOLDOWN_SEASONS = 12; // ≤ ~1 proactive scout per 3 years per band
-const PROACTIVE_INFO_MAX_FOOD_STRESS = 0.5; // not in survival crisis (then it forages, not learns)
-const PROACTIVE_INFO_MAX_MOBILITY_PRESSURE = 0.75; // not URGENTLY driven to relocate (a residence-
 // unchanged scout does not prevent moving next season; a genuine high-priority move still outscores it)
-const PROACTIVE_INFO_MIN_LABOR = 6; // has labor/logistical capacity to spare for learning
 // Information motive added when eligible — sized (like the M0.16B side probe) so a proactive
 // scout CAN win over a comfortable stay WHEN ELIGIBLE, while a real expansion/refuge move
 // (higher-scoring) still beats it; the long cooldown makes volume safe regardless. EMPIRICAL.
-const PROACTIVE_INFO_PULL = 2.5;
 
 // STUCK-SITE-1: staying in known harsh country can be valid, but a band should
 // not sit indefinitely on a site its own pressure model says is failing. This
@@ -356,20 +348,79 @@ const CORRIDOR_RELOCATION_SETTLE_RESET_SEASONS = 24;
 const CORRIDOR_RELOCATION_RELUCTANCE_PER_STEP = 0.015;
 const CORRIDOR_RELOCATION_RELUCTANCE_CAP = 0.06;
 
-interface CandidateDecision {
-  readonly action: Action;
-  readonly scoreBreakdown: ScoreBreakdown;
-  readonly score: number;
-  readonly primaryReason: Reason;
-  readonly secondaryReasons: readonly Reason[];
-  readonly riverAssessment?: RiverMovementAssessment;
-  // M0.8: an OPT-IN candidate (the M0.7 inferred-frontier probe, the M0.8 corridor
-  // relocation) is excluded from `coreDeliberationBreadth` so that merely OFFERING it
-  // (winning or not) cannot shift any band-known confidence that is coupled to how many
-  // options were weighed (see memory.ts travel-corridor confidence). Core survival
-  // candidates (stay/move/explore/probe/scout) leave this undefined.
-  readonly isOptInCandidate?: boolean;
-}
+// CORE-PIPELINE-DECOMPOSITION-2 — the shared candidate contract now lives in
+// decisionCandidateTypes.ts so extracted candidate-family modules can depend on it
+// without importing this orchestrator. Types only; behavior is unchanged.
+import type {
+  BandPressureSnapshot,
+  CandidateDecision,
+  CandidateEdgeMemo,
+  CandidateEvaluationCache,
+  CandidateTileMemo,
+  InferredFrontierTiles,
+  MovementDecisionProfiler,
+  MovementDecisionSubphase,
+  RiverMovementAssessment,
+} from "./decisionCandidateTypes";
+// CORE-PIPELINE-DECOMPOSITION-2 — extracted candidate family modules.
+import {
+  buildVisibleLandscapeProbeCandidate,
+  updateVisibleLandscapeCueProbeUse,
+} from "./candidates/visibleLandscapeCandidate";
+import {
+  buildResourceScoutCandidate,
+  buildResourceScoutContext,
+} from "./candidates/resourceScoutCandidate";
+import { buildPressureReliefProbeCandidate } from "./candidates/pressureReliefCandidate";
+// Re-export the audit-only scout selector so the benchmark's public entry point
+// (which loads this orchestrator module) keeps its stable import path.
+export { selectResourceScoutTargetForAudit } from "./candidates/resourceScoutCandidate";
+// CORE-PIPELINE-DECOMPOSITION-2 — shared candidate score-weight constants.
+import {
+  PROACTIVE_INFO_COOLDOWN_SEASONS,
+  PROACTIVE_INFO_MAX_FOOD_STRESS,
+  PROACTIVE_INFO_MAX_MOBILITY_PRESSURE,
+  PROACTIVE_INFO_MIN_LABOR,
+  PROACTIVE_INFO_PULL,
+  PROBE_DIMINISHING_RETURN_SCORE_WEIGHT,
+  RESOURCE_SCOUT_SCORE_WEIGHT,
+  VISIBLE_LANDSCAPE_PROBE_SCORE_WEIGHT,
+} from "./decisionConstants";
+// CORE-PIPELINE-DECOMPOSITION-2 — candidate edge / river-crossing assessment.
+import {
+  formatRiverCapability,
+  getBandRiverCrossingCapability,
+  getCandidateEdgeMemo,
+  getReportedKnowledgeTargetBias,
+  getRiverCorridorValue,
+  getRiverMovementAssessment,
+} from "./decisionEdgeContext";
+// CORE-PIPELINE-DECOMPOSITION-2 — shared scoring/reason/geometry kit.
+import {
+  clamp01,
+  compareCandidates,
+  compareTileIds,
+  compareTiles,
+  dotVectors,
+  emptyScoreBreakdown,
+  getActionSortKey,
+  getActionVector,
+  getDirectionBetweenCoords,
+  getGridDistance,
+  getObservedRisk,
+  isBandPassableDestination,
+  makeDecisionId,
+  makeReason,
+  makeReasonId,
+  makeTilePairKey,
+  measureDecision,
+  normalizeVector,
+  numericTileIdPart,
+  parseTileCoord,
+  round2,
+  scoreDecision,
+  sortCandidatesWithSeededTieBreak,
+} from "./decisionScoring";
 
 interface KnownTileCandidate {
   readonly tile: Tile;
@@ -394,138 +445,10 @@ interface UnknownFrontierCandidate {
   readonly blockedCrossingPenalty: number;
 }
 
-interface RiverMovementAssessment {
-  readonly crossing?: RiverCrossingProfile;
-  readonly seasonalState?: SeasonalRiverCrossingState;
-  readonly capability: RiverCrossingCapability;
-  readonly capabilityLabel: string;
-  readonly riverCrossingCost: number;
-  readonly riverCrossingRisk: number;
-  readonly riverCorridorValue: number;
-  readonly knownFordValue: number;
-  readonly blockedCrossingPenalty: number;
-  readonly memoryUseCount: number;
-  // CAUSAL-REPAIR-1 — practiced-crossing relief: the fraction of the raw
-  // crossing risk removed by the band's OWN repeated successful use of THIS
-  // crossing (KnownCrossingMemory useCount/successConfidence, discounted by
-  // remembered risk, decaying with staleness). Local, capped, forgettable.
-  readonly crossingPracticeRelief: number;
-}
-
-export type MovementDecisionSubphase =
-  | "candidateGeneration"
-  | "knownTileStats"
-  | "corridorLookupBuild"
-  | "knownMoveCandidateRadiusLookup"
-  | "knownMoveCandidateFiltering"
-  | "candidatePassabilityChecks"
-  | "candidatePressureScoring"
-  | "candidateOpportunityScoring"
-  | "candidateMemoryScoring"
-  | "candidateEncounterSocialScoring"
-  | "candidateFrontierDispersalScoring"
-  | "candidateSorting"
-  | "candidateReasonHydration"
-  | "reportBiasIntegration"
-  | "sideCountryEvidenceLookup"
-  | "adaptiveDecisionSupport"
-  | "campMovementDecisionSupport"
-  | "stuckSitePenalty"
-  | "unknownFrontierCandidateSelection"
-  | "inferredFrontierProbeSearch"
-  | "corridorRelocationGoalSelection"
-  | "finalDecisionSelection"
-  | "movementApplication"
-  | "observationUpdate"
-  | "memoryUpdate"
-  | "biomeAdaptationUpdate"
-  | "pressureStateDerivation"
-  | "pressureUpdate"
-  | "adaptiveStateUpdate"
-  | "animalPatternManagementUpdate"
-  | "campMovementStateUpdate";
-
-export interface MovementDecisionProfiler {
-  readonly measure: <TResult>(
-    phase: MovementDecisionSubphase,
-    operation: () => TResult,
-  ) => TResult;
-  readonly count?: (name: string, amount?: number) => void;
-}
-
-interface BandPressureSnapshot {
-  readonly bandId: BandId;
-  readonly tick: WorldTime["tick"];
-  readonly currentTileId: TileId;
-  readonly bandPressureState: BandPressureState;
-  readonly nearbyBandPressure: NearbyBandPressure;
-  readonly rangeSaturation: RangeSaturationState;
-  readonly frontierDispersalPressure: FrontierDispersalPressure;
-  readonly daughterDispersalPressure?: DaughterDispersalPressure;
-  readonly encounterTension: number;
-  readonly encounterTolerance: number;
-  readonly biomeCurrentTileFit: number;
-  readonly viabilityStatus: BandViabilityState;
-}
-
-interface CandidateTileMemo {
-  readonly tileId: TileId;
-  readonly nearbyPressure: NearbyBandPressure;
-  readonly daughterDispersal: DaughterDispersalPressure;
-  readonly crowdingPenalty: number;
-  readonly localUsePressure: number;
-  readonly pressureRecovery: number;
-  readonly biomeFit: ReturnType<typeof getBiomeAdaptationFit>;
-  readonly placeAttachment: number;
-  readonly attachmentValue: number;
-  readonly rememberedReliability: number;
-  readonly rememberedRisk: number;
-  readonly familiarCorridor: number;
-  readonly returnPlacePull: number;
-  readonly parentAwayValue: number;
-}
-
-interface CandidateEdgeMemo {
-  readonly edgeKey: string;
-  readonly toTilePassable: boolean;
-  readonly riverAssessment: RiverMovementAssessment;
-}
-
-type InferredFrontierTiles = NonNullable<Band["frontierKnowledge"]>["inferredTiles"];
-
 interface InferredFrontierProbeTarget {
   readonly tileId: TileId;
   readonly routeDistance: number;
   readonly routeRisk: number;
-}
-
-interface CandidateEvaluationCache {
-  readonly bandId: BandId;
-  readonly tick: WorldTime["tick"];
-  readonly pressureSnapshot: BandPressureSnapshot;
-  readonly tileScoresByTileId: Map<TileId, CandidateTileMemo>;
-  readonly edgeScoresByEdgeKey: Map<string, CandidateEdgeMemo>;
-  readonly knownTileCount: number;
-  readonly averageKnownTileConfidence: number;
-  readonly previousMovementVector?: Coord;
-  readonly parentAwayVector?: Coord;
-  readonly corridorByEdgeKey: ReadonlyMap<string, TravelCorridorMemory>;
-  readonly reportedBiasByKey: Map<string, ReturnType<typeof deriveReportedKnowledgeTargetBias>>;
-  readonly sideCountryEvidenceIndex: { value?: ReadonlyMap<TileId, number> };
-  readonly contextCache?: TickContextCache;
-  readonly profiler?: MovementDecisionProfiler;
-  readonly dryMarginContext?: DryMarginMobilityContext;
-  readonly anchorContext?: ResidentialAnchorContext;
-  readonly seasonalRoundContext?: SeasonalRoundScoringContext;
-  // Resource-belief probe pressure (2K.1F), computed once per decision and shared by
-  // the dry-margin probe-availability gate, the scout/probe candidate scores, and debug.
-  readonly beliefOpportunity: ResourceBeliefOpportunity;
-  readonly adaptiveSupport: AdaptiveDecisionSupport;
-  readonly campMovementSupport: CampMovementDecisionSupport;
-  // CAUSAL-REPAIR-1: computed once per decision — stable per-band tendencies and
-  // the repeated-low-support escalation signal (both pure, band-known only).
-  readonly tendencies: BandTendencyProfile;
-  readonly hardship: ChronicHardshipSignal;
 }
 
 function createCandidateEvaluationCache(
@@ -738,40 +661,6 @@ function getCandidateTileMemo(
   return memo;
 }
 
-function getCandidateEdgeMemo(
-  world: WorldState,
-  band: Band,
-  fromTileId: TileId,
-  toTileId: TileId,
-  intentKind: MobilityIntentKind | undefined,
-  decisionCache: CandidateEvaluationCache,
-): CandidateEdgeMemo {
-  const edgeKey = `${fromTileId}->${toTileId}:${intentKind ?? "none"}`;
-  const existing = decisionCache.edgeScoresByEdgeKey.get(edgeKey);
-
-  if (existing !== undefined) {
-    return existing;
-  }
-
-  const memo = measureDecision(
-    decisionCache.profiler,
-    "candidatePassabilityChecks",
-    () => {
-      const targetTile = getTile(world, toTileId);
-
-      return {
-        edgeKey,
-        toTilePassable: targetTile !== undefined && isBandPassableDestination(targetTile),
-        riverAssessment: getRiverMovementAssessment(world, band, fromTileId, toTileId, intentKind),
-      };
-    },
-  );
-
-  decisionCache.edgeScoresByEdgeKey.set(edgeKey, memo);
-
-  return memo;
-}
-
 function createEmptyRangeSaturation(
   world: WorldState,
   band: Band,
@@ -812,14 +701,6 @@ function createDefaultViabilityState(band: Band): BandViabilityState {
     status: "viable",
     reasonIds: [],
   };
-}
-
-function measureDecision<TResult>(
-  profiler: MovementDecisionProfiler | undefined,
-  phase: MovementDecisionSubphase,
-  operation: () => TResult,
-): TResult {
-  return profiler === undefined ? operation() : profiler.measure(phase, operation);
 }
 
 function buildCorridorLookup(band: Band): ReadonlyMap<string, TravelCorridorMemory> {
@@ -2326,296 +2207,6 @@ function buildExploreCandidate(
   };
 }
 
-// Resource-scout context (2K.1H), built from the band's OWN fields so it is identical
-// at decision time and at apply time (deterministic). Anti-omniscient: distance is
-// from known tile coords, novelty/no-gain from the band's own probe memory.
-function buildResourceScoutContext(world: WorldState, band: Band): ResourceScoutContext {
-  const currentTile = getTile(world, band.position);
-  const population = Math.max(1, band.demography.population);
-  const scoutCapacity = clamp01(band.demography.workingAdults / population);
-  const probeRecord = (tileId: TileId) =>
-    band.probeMemory?.recentTargets.find((record) => record.tileId === tileId);
-  // 2K.6B / INFO-1: is this band currently in PROACTIVE information-seeking mode? Stable
-  // (not in survival crisis, not driven to relocate) + has spare labor + its proactive
-  // cooldown has elapsed. When true, selectResourceScoutTarget relaxes the VOI floor so an
-  // under-known nearby patch becomes a valid scout target (a stable band learns before a
-  // crisis); when false the selector is BYTE-IDENTICAL to pre-INFO-1. Deterministic.
-  const proactiveFoodStress = getCanonicalFoodStress(band);
-  const proactiveMobilityPressure = band.pressureState?.mobilityPressure ?? 0;
-  const proactiveLabor = band.carryingCapacity?.populationDemand?.laborCapacity ?? band.size ?? 0;
-  const proactiveCooldownOk =
-    band.proactiveInfoMemory === undefined ||
-    Number(world.time.tick) - Number(band.proactiveInfoMemory.lastProactiveInfoTick) >=
-      PROACTIVE_INFO_COOLDOWN_SEASONS;
-  const proactiveInfoMode =
-    proactiveFoodStress < PROACTIVE_INFO_MAX_FOOD_STRESS &&
-    proactiveMobilityPressure < PROACTIVE_INFO_MAX_MOBILITY_PRESSURE &&
-    proactiveLabor >= PROACTIVE_INFO_MIN_LABOR &&
-    proactiveCooldownOk;
-  return {
-    currentTileId: band.position,
-    currentTick: Number(world.time.tick),
-    proactiveInfoMode,
-    season: world.time.season,
-    waterStress: band.pressureState?.waterStress ?? 0,
-    foodStress: band.pressureState?.foodStress ?? 0,
-    perCapitaReturn:
-      band.carryingCapacity?.perCapitaReturn.perCapitaReturn ??
-      band.perCapitaReturn?.perCapitaReturn ??
-      0.5,
-    chronicDecline: band.returnTrend?.chronicDecline === true,
-    scoutCapacity,
-    exhaustedRangeStress: band.exhaustedRangeAudit?.stressLevel ?? 0,
-    distanceTo: (tileId) => {
-      const tile = getTile(world, tileId);
-      if (tile === undefined || currentTile === undefined) {
-        return undefined;
-      }
-      return Math.abs(tile.coord.x - currentTile.coord.x) + Math.abs(tile.coord.y - currentTile.coord.y);
-    },
-    probeNovelty: (tileId) => probeTargetNovelty(band.probeMemory, tileId, Number(world.time.tick)),
-    probeNoGain: (tileId) => probeRecord(tileId)?.consecutiveNoGain ?? 0,
-    // 2K.5: the band's own capped recent rings, so scout selection can derive
-    // patch-return readiness (follow-up observation/testing guidance only).
-    recentPlantUseTests: band.recentPlantUseTests,
-    recentCauseSpecificEvents: band.recentCauseSpecificEvents,
-    // 2K.7: the band's PERSISTED learned exploitation skill (from prior seasons — this season's
-    // scout has not run yet, so this is competence already held, never about-to-be-gained). Lets
-    // a band slightly prefer scouting/testing a KNOWN patch whose class it has learned to use.
-    // undefined → byte-identical to pre-2K.7 selection.
-    exploitationSkill: band.exploitationSkill,
-    // 2K.12: the band's OWN learned seasonal-ecology memory + the reader flag, so scout
-    // target selection can carry a bounded, selection-only seasonal bias. Flag default OFF
-    // → byte-identical to pre-2K.12 selection.
-    seasonalEcologyMemory: band.seasonalEcologyMemory,
-    seasonalEcologyReadersEnabled: world.auditOptions?.seasonalEcologyMemoryReadersEnabled === true,
-  };
-}
-
-// Audit-only helper: lets benchmark tooling inspect the exact resource-scout
-// target selected from a band's private known-world state without reimplementing
-// this file's scout context construction. Pure; not used by sim behavior.
-export function selectResourceScoutTargetForAudit(
-  world: WorldState,
-  band: Band,
-): ResourceScoutCandidate | undefined {
-  return selectResourceScoutTarget(band.resourceKnowledgeState, buildResourceScoutContext(world, band));
-}
-
-// 2K.1H: general resource_scout candidate. A residence-unchanged INFORMATION action
-// toward the best value-of-information resource belief (the band's own bounded patch
-// memories). Competes with stay / move / probe; never feeds relocation. It carries the
-// anchor-hold bonus (residence stays) so it can beat a blind move when worth scouting.
-function buildResourceScoutCandidate(
-  world: WorldState,
-  band: Band,
-  decisionId: DecisionId,
-  decisionCache: CandidateEvaluationCache,
-): CandidateDecision | undefined {
-  const currentTile = getTile(world, band.position);
-
-  if (currentTile === undefined) {
-    return undefined;
-  }
-
-  const scoutContext = buildResourceScoutContext(world, band);
-  const candidate = selectResourceScoutTarget(band.resourceKnowledgeState, scoutContext);
-
-  if (candidate === undefined) {
-    return undefined;
-  }
-
-  const edgeMemo = getCandidateEdgeMemo(world, band, currentTile.id, candidate.targetTileId, "expand_known_world", decisionCache);
-  const targetTile = getTile(world, candidate.targetTileId);
-
-  if (!edgeMemo.toTilePassable || edgeMemo.riverAssessment.blockedCrossingPenalty > 0.8 || targetTile === undefined) {
-    return undefined;
-  }
-
-  // 2K.6B / INFO-1: when the band is proactive-eligible (the scout context computed stability
-  // + spare labor + cooldown elapsed — and the selector surfaced this under-known/under-used
-  // target only because of that mode), boost the residence-unchanged scout so it occasionally
-  // WINS over a comfortable stay — learning before a crisis. A real expansion/refuge move
-  // (higher-scoring) still beats it; the cooldown bounds it to ≤1 per window per band; it
-  // feeds the scout→plant-test→2K.6-skill chain. (The "known patch, unknown USE" case is a
-  // valid proactive target, so we do NOT exclude well-known patches here.)
-  const proactiveInfoEligible = scoutContext.proactiveInfoMode === true;
-  const proactiveInfoBoost = proactiveInfoEligible ? PROACTIVE_INFO_PULL : 0;
-  const reportedTargetBias = getReportedKnowledgeTargetBias(band, candidate.targetTileId, decisionCache, {
-    currentTick: world.time.tick,
-    targetKnown: band.knowledge.observedTiles[candidate.targetTileId] !== undefined,
-    routeEvidence:
-      edgeMemo.riverAssessment.knownFordValue > 0.12 ||
-      edgeMemo.riverAssessment.riverCorridorValue > 0.12 ||
-      candidate.confidenceBefore > 0.32,
-    localEvidence: candidate.distance <= 2,
-  });
-
-  const currentRecord = band.knowledge.observedTiles[currentTile.id];
-  const currentUsePressure = getLocalUsePressureValue(band.usePressure[currentTile.id]);
-  const scoreBreakdown: ScoreBreakdown = {
-    ...emptyScoreBreakdown(),
-    // Residence-unchanged: keep the local survival value of staying put, plus a small
-    // route/risk cost for sending the task group. The pull is the VOI additive below.
-    foodValue: clamp01((currentRecord?.observedRichness ?? 0.35) * 0.18),
-    waterValue: clamp01((currentRecord?.observedWaterAccess ?? 0.35) * 0.14),
-    memoryConfidence: candidate.confidenceBefore,
-    movementCost: clamp01(candidate.distance / 12 + candidate.laborCost * 0.2),
-    riskCost: clamp01(
-      edgeMemo.riverAssessment.riverCrossingRisk * 0.34 +
-        (band.pressureState?.riskPressure ?? 0) * 0.14 +
-        reportedTargetBias.cautionPenalty * 0.28,
-    ),
-    localUsePressure: clamp01(currentUsePressure * 0.18),
-    routeValue: reportedTargetBias.opportunityBias,
-    expectedFutureValue: clamp01(candidate.expectedInfoValue + reportedTargetBias.opportunityBias * 0.12),
-    frontierProbeValue: clamp01(candidate.voiScore + reportedTargetBias.opportunityBias * 0.18),
-  };
-
-  const action: Action = {
-    type: "resource_scout",
-    originTileId: currentTile.id,
-    targetTileId: candidate.targetTileId,
-    scoutKind: candidate.scoutKind,
-    targetResourceClass: candidate.targetResourceClass,
-  };
-
-  const primaryReason = makeReason(decisionId, "primary", numericTileIdPart(candidate.targetTileId), {
-    type: "frontier_probe",
-    strength: candidate.voiScore,
-    confidence: candidate.confidenceBefore,
-    relatedTileIds: [currentTile.id, candidate.targetTileId],
-    intentKind: "expand_known_world",
-    currentTileId: currentTile.id,
-    targetTileId: candidate.targetTileId,
-    frontierValue: candidate.voiScore,
-    isProactiveInfo: proactiveInfoEligible ? true : undefined,
-  });
-
-  return {
-    action,
-    scoreBreakdown,
-    score: round2(
-      scoreDecision(scoreBreakdown) +
-        candidate.voiScore * RESOURCE_SCOUT_SCORE_WEIGHT +
-        getAnchorHoldBonus(decisionCache.anchorContext) +
-        proactiveInfoBoost,
-    ),
-    primaryReason,
-    secondaryReasons: [],
-    riverAssessment: edgeMemo.riverAssessment,
-  };
-}
-
-function buildPressureReliefProbeCandidate(
-  world: WorldState,
-  band: Band,
-  decisionId: DecisionId,
-  decisionCache: CandidateEvaluationCache,
-): CandidateDecision | undefined {
-  const currentTile = getTile(world, band.position);
-  const relief = decisionCache.campMovementSupport.pressureRelief.scoutProbeBridge;
-
-  if (currentTile === undefined || relief === undefined || relief.actionStrategy !== "scout_probe") {
-    return undefined;
-  }
-
-  const targetTile = getTile(world, relief.tileId);
-  const edgeMemo = getCandidateEdgeMemo(world, band, currentTile.id, relief.tileId, "expand_known_world", decisionCache);
-
-  if (targetTile === undefined || !edgeMemo.toTilePassable || edgeMemo.riverAssessment.blockedCrossingPenalty > 0.8) {
-    return undefined;
-  }
-
-  const currentRecord = band.knowledge.observedTiles[currentTile.id];
-  const currentUsePressure = getLocalUsePressureValue(band.usePressure[currentTile.id]);
-  const scoreBreakdown: ScoreBreakdown = {
-    ...emptyScoreBreakdown(),
-    foodValue: clamp01((currentRecord?.observedRichness ?? 0.35) * 0.16),
-    waterValue: clamp01((currentRecord?.observedWaterAccess ?? 0.35) * 0.14),
-    memoryConfidence: relief.knownness,
-    movementCost: relief.crossingTravelCost,
-    riskCost: clamp01(edgeMemo.riverAssessment.riverCrossingRisk * 0.26 + relief.uncertainty * 0.12),
-    localUsePressure: clamp01(currentUsePressure * 0.18),
-    routeValue: relief.sameRiverCountry ? 0.14 : 0.06,
-    expectedFutureValue: relief.pressureReliefScore,
-    frontierProbeValue: clamp01(relief.pressureReliefScore * 0.72 + (1 - relief.uncertainty) * 0.14),
-    recoveryBenefit: relief.campSicknessWearRelief,
-    depletionPenalty: clamp01(currentUsePressure * 0.12),
-    riverCrossingCost: edgeMemo.riverAssessment.riverCrossingCost,
-    riverCrossingRisk: edgeMemo.riverAssessment.riverCrossingRisk,
-    riverCorridorValue: edgeMemo.riverAssessment.riverCorridorValue,
-    knownFordValue: edgeMemo.riverAssessment.knownFordValue,
-    blockedCrossingPenalty: edgeMemo.riverAssessment.blockedCrossingPenalty,
-    logisticalProbeValue: relief.pressureReliefScore,
-  };
-  const action: Action = {
-    type: "logistical_probe",
-    originTileId: currentTile.id,
-    targetTileId: relief.tileId,
-    prospectTileIds: [relief.tileId],
-  };
-  const primaryReason = makeReason(decisionId, "primary", numericTileIdPart(relief.tileId), {
-    type: "logistical_probe_selected",
-    strength: relief.pressureReliefScore,
-    confidence: relief.knownness,
-    relatedTileIds: [currentTile.id, relief.tileId],
-    bandId: band.id,
-    currentTileId: currentTile.id,
-    targetTileId: relief.tileId,
-    prospectTileIds: [relief.tileId],
-    stayValue: 0,
-    scoutValue: relief.pressureReliefScore,
-    moveValue: 0,
-    marginalReturn: relief.supportAdequacy,
-    departureThreshold: relief.waterRefugeAdequacy,
-    uncertainty: relief.uncertainty,
-    socialRisk: 0,
-    crossingRisk: relief.crossingTravelCost,
-    travelCost: relief.crossingTravelCost,
-    basis: [
-      relief.reasonLabel,
-      relief.betterThanCurrent ? "better than current" : "good-enough relief, not richer-country migration",
-      relief.sameRiverCountry ? "river country retained" : "familiar edge checked first",
-    ],
-  });
-
-  return {
-    action,
-    scoreBreakdown,
-    score: round2(
-      scoreDecision(scoreBreakdown) +
-        relief.pressureReliefScore * 1.24 +
-        getAnchorHoldBonus(decisionCache.anchorContext) +
-        (decisionCache.campMovementSupport.pressureRelief.localOrbitTrap.detected ? 0.06 : 0),
-    ),
-    primaryReason,
-    secondaryReasons: [
-      makeReason(decisionId, "secondary", 36, {
-        type: "scout_before_relocation",
-        strength: relief.pressureReliefScore,
-        confidence: relief.knownness,
-        relatedTileIds: [currentTile.id, relief.tileId],
-        bandId: band.id,
-        currentTileId: currentTile.id,
-        targetTileId: relief.tileId,
-        prospectTileIds: [relief.tileId],
-        stayValue: 0,
-        scoutValue: relief.pressureReliefScore,
-        moveValue: 0,
-        departureThreshold: relief.waterRefugeAdequacy,
-        uncertainty: relief.uncertainty,
-        socialRisk: 0,
-        crossingRisk: relief.crossingTravelCost,
-        travelCost: relief.crossingTravelCost,
-        basis: ["pressure relief probe", relief.reasonLabel],
-      }),
-    ],
-    riverAssessment: edgeMemo.riverAssessment,
-    isOptInCandidate: true,
-  };
-}
-
 // M0.7: act on M0.6 inferred frontier knowledge from a SETTLED band. A band dwelling on
 // the near-water margin holds inferred corridor knowledge but has no unknown immediate
 // neighbours (its 2-ring is observed), so explore_unknown_neighbor cannot act on it. This
@@ -4021,209 +3612,6 @@ function buildLogisticalProbeCandidate(
   };
 }
 
-function buildVisibleLandscapeProbeCandidate(
-  world: WorldState,
-  band: Band,
-  decisionId: DecisionId,
-  decisionCache: CandidateEvaluationCache,
-): CandidateDecision | undefined {
-  const currentTile = getTile(world, band.position);
-  const currentRecord = band.knowledge.observedTiles[band.position];
-
-  if (currentTile === undefined || currentRecord === undefined) {
-    return undefined;
-  }
-
-  const cue = (band.visibleLandscapeCues ?? [])
-    .filter((entry) =>
-      entry.status !== "stale" &&
-      entry.confidence >= 0.38 &&
-      band.knowledge.observedTiles[entry.approximateTileId] === undefined,
-    )
-    .sort((left, right) =>
-      right.confidence - left.confidence ||
-      left.distanceTiles - right.distanceTiles ||
-      left.cueId.localeCompare(right.cueId),
-    )[0];
-
-  if (cue === undefined) {
-    return undefined;
-  }
-
-  const targetTile = getTile(world, cue.approximateTileId);
-  if (targetTile === undefined) {
-    return undefined;
-  }
-
-  const distance = getGridDistance(currentTile, targetTile);
-  if (distance <= 0 || distance > 10) {
-    return undefined;
-  }
-
-  const edgeMemo = getCandidateEdgeMemo(world, band, currentTile.id, targetTile.id, "expand_known_world", decisionCache);
-  if (!edgeMemo.toTilePassable || edgeMemo.riverAssessment.blockedCrossingPenalty > 0.8) {
-    return undefined;
-  }
-
-  const currentUsePressure = getLocalUsePressureValue(band.usePressure[currentTile.id]);
-  const targetKindPull = visibleCueProbeKindPull(cue.kind);
-  // PERCEPTION-MOBILITY-1C — a chronically poor band that can clearly see nearby
-  // WATER should not ignore it forever. This boosts the SCOUT/PROBE value (never a
-  // relocation) so the band investigates the cue; observing the shore then feeds
-  // the existing, fully-gated residential scorer. Anti-omniscient: the cue is an
-  // uncertain visible hint, the probe legitimately observes it, and no hidden water
-  // truth, exact target, or direct relocation is used.
-  const isWaterCue =
-    cue.kind === "visible_water" ||
-    cue.kind === "visible_wetland" ||
-    cue.kind === "lake_shore_visible" ||
-    cue.kind === "delta_like_area" ||
-    cue.kind === "river_or_tributary_corridor";
-  const probeSupportDebug = band.perCapitaReturn?.supportDebug ?? band.carryingCapacity?.perCapitaReturn?.supportDebug;
-  const bandPoorness = clamp01(
-    Math.max(
-      decisionCache.pressureSnapshot.bandPressureState.foodStress,
-      probeSupportDebug?.deficitRatio ?? 0,
-    ) + (band.returnTrend?.chronicDecline === true ? 0.2 : 0),
-  );
-  const nearbyWaterUrgency =
-    isWaterCue && !cue.blockedByTerrain ? clamp01(bandPoorness * (distance <= 6 ? 1 : 0.5)) : 0;
-  const routeConfidence = clamp01(
-    cue.confidence * 0.42 +
-      edgeMemo.riverAssessment.knownFordValue * 0.22 +
-      edgeMemo.riverAssessment.riverCorridorValue * 0.18 +
-      (distance <= 5 ? 0.12 : 0),
-  );
-  const scoreBreakdown: ScoreBreakdown = {
-    ...emptyScoreBreakdown(),
-    foodValue: clamp01((currentRecord.observedRichness ?? 0.35) * 0.16),
-    waterValue: clamp01((currentRecord.observedWaterAccess ?? 0.35) * 0.16 + (cue.kind === "visible_water" ? cue.confidence * 0.16 : 0) + nearbyWaterUrgency * 0.22),
-    memoryConfidence: cue.confidence,
-    movementCost: clamp01(distance / 12),
-    riskCost: clamp01(
-      edgeMemo.riverAssessment.riverCrossingRisk * 0.34 +
-        (band.pressureState?.riskPressure ?? 0) * 0.12 +
-        (cue.blockedByTerrain ? 0.12 : 0),
-    ),
-    routeValue: routeConfidence,
-    explorationValue: clamp01(cue.confidence * 0.5 + targetKindPull * 0.22 + nearbyWaterUrgency * 0.12),
-    frontierProbeValue: clamp01(cue.confidence * 0.62 + targetKindPull * 0.22 + nearbyWaterUrgency * 0.18),
-    localSurvivalValue: clamp01((currentRecord.observedRichness ?? 0.35) * 0.18 + (currentRecord.observedWaterAccess ?? 0.35) * 0.14 + nearbyWaterUrgency * 0.3),
-    localUsePressure: clamp01(currentUsePressure * 0.14),
-    foodStress: decisionCache.pressureSnapshot.bandPressureState.foodStress,
-    waterStress: decisionCache.pressureSnapshot.bandPressureState.waterStress,
-    mobilityPressure: decisionCache.pressureSnapshot.bandPressureState.mobilityPressure,
-    riverCrossingCost: edgeMemo.riverAssessment.riverCrossingCost,
-    riverCrossingRisk: edgeMemo.riverAssessment.riverCrossingRisk,
-    riverCorridorValue: edgeMemo.riverAssessment.riverCorridorValue,
-    knownFordValue: edgeMemo.riverAssessment.knownFordValue,
-    blockedCrossingPenalty: edgeMemo.riverAssessment.blockedCrossingPenalty,
-    scoutValue: cue.confidence,
-    logisticalProbeValue: cue.confidence,
-  };
-  const action: Action = {
-    type: "logistical_probe",
-    originTileId: currentTile.id,
-    targetTileId: targetTile.id,
-    prospectTileIds: [targetTile.id],
-  };
-  const basis = [`visible_landscape:${cue.kind}:${cue.direction}`];
-  const primaryReason = makeReason(decisionId, "primary", numericTileIdPart(targetTile.id), {
-    type: "logistical_probe_selected",
-    strength: cue.confidence,
-    confidence: routeConfidence,
-    relatedTileIds: [currentTile.id, targetTile.id],
-    bandId: band.id,
-    currentTileId: currentTile.id,
-    targetTileId: targetTile.id,
-    prospectTileIds: [targetTile.id],
-    scoutValue: cue.confidence,
-    uncertainty: round2(1 - cue.confidence),
-    crossingRisk: edgeMemo.riverAssessment.riverCrossingRisk,
-    travelCost: distance,
-    basis,
-  });
-  const diminishingReturn = deriveProbeDiminishingReturn(band.probeMemory, targetTile.id, Number(world.time.tick), {
-    waterStress: decisionCache.pressureSnapshot.bandPressureState.waterStress,
-    routeConfidence,
-    hasAlternativeTarget: (band.visibleLandscapeCues ?? []).length > 1,
-    resourceBeliefRelevant: false,
-    exhaustedRangeStress: band.exhaustedRangeAudit?.stressLevel ?? 0,
-  });
-  const probeDiminishingReturnPull = diminishingReturn.probeDiminishingReturnPenalty * PROBE_DIMINISHING_RETURN_SCORE_WEIGHT;
-
-  return {
-    action,
-    scoreBreakdown,
-    score: round2(
-      scoreDecision(scoreBreakdown) +
-        cue.confidence * VISIBLE_LANDSCAPE_PROBE_SCORE_WEIGHT +
-        getAnchorHoldBonus(decisionCache.anchorContext) -
-        probeDiminishingReturnPull,
-    ),
-    primaryReason,
-    secondaryReasons: [
-      makeReason(decisionId, "secondary", 1, {
-        type: "scout_before_relocation",
-        strength: cue.confidence,
-        confidence: routeConfidence,
-        relatedTileIds: [currentTile.id, targetTile.id],
-        bandId: band.id,
-        currentTileId: currentTile.id,
-        targetTileId: targetTile.id,
-        prospectTileIds: [targetTile.id],
-        scoutValue: cue.confidence,
-        uncertainty: round2(1 - cue.confidence),
-        crossingRisk: edgeMemo.riverAssessment.riverCrossingRisk,
-        travelCost: distance,
-        basis,
-      }),
-    ],
-    riverAssessment: edgeMemo.riverAssessment,
-  };
-}
-
-function visibleCueProbeKindPull(kind: NonNullable<Band["visibleLandscapeCues"]>[number]["kind"]): number {
-  switch (kind) {
-    case "visible_water":
-    case "visible_wetland":
-    case "lake_shore_visible":
-    case "delta_like_area":
-    case "river_or_tributary_corridor":
-      return 0.22;
-    case "greener_lowland":
-    case "open_valley":
-      return 0.16;
-    case "pass_or_saddle":
-    case "opposite_bank":
-      return 0.12;
-    case "higher_ground":
-    case "dry_or_barren_country":
-      return 0.06;
-  }
-}
-
-function updateVisibleLandscapeCueProbeUse(
-  band: Band,
-  action: Action,
-  scoutOrProbeTargetId: TileId | undefined,
-): readonly NonNullable<Band["visibleLandscapeCues"]>[number][] | undefined {
-  const cues = band.visibleLandscapeCues;
-  if (cues === undefined || scoutOrProbeTargetId === undefined || action.type !== "logistical_probe") {
-    return cues;
-  }
-
-  return cues.map((cue) =>
-    cue.approximateTileId === scoutOrProbeTargetId
-      ? {
-          ...cue,
-          status: "partly_checked",
-          influencedScoutOrProbeCount: cue.influencedScoutOrProbeCount + 1,
-        }
-      : cue,
-  );
-}
-
 function buildNoOpCandidate(
   world: WorldState,
   band: Band,
@@ -5101,74 +4489,6 @@ function getRecentRelocationSettlementCost(world: WorldState, band: Band): numbe
   const dependentShare = band.demography.dependents / Math.max(1, band.demography.population);
   const establishmentCost = seasonsSince <= 1 ? 0.22 : 0.07;
   return clamp01(establishmentCost + hardship + dependentShare * 0.08);
-}
-
-function scoreDecision(scoreBreakdown: ScoreBreakdown): number {
-  return round2(
-    scoreBreakdown.foodValue * 1.45 +
-      scoreBreakdown.waterValue * 1.2 +
-      scoreBreakdown.waterRefugeSecurity * 0.52 +
-      scoreBreakdown.dryRefugePull * 0.28 +
-      scoreBreakdown.aquaticValue * 0.72 +
-      scoreBreakdown.memoryConfidence * 0.48 +
-      scoreBreakdown.routeValue * 0.42 +
-      scoreBreakdown.attachmentValue * 0.62 +
-      scoreBreakdown.populationPressure * 0.22 +
-      scoreBreakdown.storageValue * 0.42 +
-      scoreBreakdown.explorationValue * 1.25 +
-      scoreBreakdown.expectedFutureValue * 1.1 +
-      scoreBreakdown.intentAlignment * 1.08 +
-      scoreBreakdown.movementInertia * 0.34 +
-      scoreBreakdown.frontierProbeValue * 0.72 +
-      scoreBreakdown.localSurvivalValue * 0.64 -
-      scoreBreakdown.placeAttachment * 0.36 +
-      scoreBreakdown.rememberedReliability * 0.3 +
-      scoreBreakdown.familiarCorridor * 0.28 +
-      scoreBreakdown.returnPlacePull * 0.42 -
-      scoreBreakdown.localUsePressure * 0.44 +
-      scoreBreakdown.placeAttachmentPull * 0.4 +
-      scoreBreakdown.netMovePressure * 0.72 +
-      scoreBreakdown.recoveryBenefit * 0.52 -
-      scoreBreakdown.depletionPenalty * 0.88 -
-      scoreBreakdown.riverCorridorValue * 0.72 +
-      scoreBreakdown.knownFordValue * 0.82 -
-      scoreBreakdown.nearbyBandPressure * 0.24 -
-      scoreBreakdown.parentCoreOverlap * 0.16 +
-      scoreBreakdown.inheritedFamiliarityPull * 0.18 +
-      scoreBreakdown.safeFrontierPull * 0.62 -
-      scoreBreakdown.rangeSaturation * 0.34 +
-      scoreBreakdown.perCapitaReturn * 0.24 +
-      scoreBreakdown.frontierDispersalPressure * 0.42 +
-      scoreBreakdown.knownOpportunityPull * 1.04 +
-      scoreBreakdown.scoutValue * 0.62 +
-      scoreBreakdown.moveValue * 0.42 +
-      scoreBreakdown.riverProspectStrength * 0.36 +
-      scoreBreakdown.logisticalProbeValue * 0.92 -
-      scoreBreakdown.lossOfFallbackSecurity * 0.42 -
-      scoreBreakdown.socialAccessRisk * 0.36 +
-      scoreBreakdown.explorationBaseline * 0.72 +
-      scoreBreakdown.crowdingExploreBoost * 0.48 +
-      scoreBreakdown.saturationExploreBoost * 0.58 +
-      scoreBreakdown.daughterDispersalExploreBoost * 0.7 -
-      scoreBreakdown.explorationRiskPenalty * 0.92 -
-      scoreBreakdown.encounterTension * 0.46 +
-      scoreBreakdown.encounterTolerance * 0.14 -
-      scoreBreakdown.splitRisk * 0.36 -
-      scoreBreakdown.crowdingPenalty * 0.72 -
-      scoreBreakdown.biomeMismatchPenalty * 0.42 +
-      scoreBreakdown.biomeCompetence * 0.16 -
-      scoreBreakdown.riverCrossingCost * 1.25 -
-      scoreBreakdown.riverCrossingRisk * 1.08 -
-      scoreBreakdown.blockedCrossingPenalty * 8 -
-      scoreBreakdown.foodStress * 0.1 -
-      scoreBreakdown.waterStress * 0.1 -
-      scoreBreakdown.mobilityPressure * 0.05 -
-      scoreBreakdown.movementCost * 1.05 -
-      scoreBreakdown.riskCost * 1.0 -
-      scoreBreakdown.rememberedRisk * 0.34 -
-      scoreBreakdown.reversalPenalty * 0.46 -
-      scoreBreakdown.socialCost * 0.7,
-  );
 }
 
 function buildCommonSecondaryReasons(
@@ -6350,120 +5670,6 @@ function getPassableUnknownNeighborIds(
   );
 }
 
-function getRiverMovementAssessment(
-  world: WorldState,
-  band: Band,
-  fromTileId: TileId,
-  toTileId: TileId,
-  intentKind: MobilityIntentKind | undefined,
-): RiverMovementAssessment {
-  const capability = getBandRiverCrossingCapability(band);
-  const crossing = getRiverCrossingForMovement(world, fromTileId, toTileId);
-  const fromTile = world.tiles[fromTileId];
-  const toTile = world.tiles[toTileId];
-  const memory = crossing === undefined
-    ? undefined
-    : band.crossingMemories[makeRiverCrossingKey(crossing.fromTileId, crossing.toTileId)];
-  const seasonalState =
-    crossing === undefined
-      ? undefined
-      : getSeasonalRiverCrossingState(world, crossing, capability);
-  const memoryUseCount = memory?.useCount ?? 0;
-  const knownFordValue = crossing === undefined
-    ? 0
-    : clamp01(
-        (crossing.knownFord ? 0.3 : 0) +
-          (memory?.successConfidence ?? 0) * 0.34 +
-          (memory?.seasonalReliability ?? 0) * 0.24 -
-          (memory?.riskMemory ?? crossing.risk) * 0.18,
-      );
-  const riverCorridorValue = getRiverCorridorValue(fromTile, toTile, intentKind);
-  const rawCost = seasonalState?.effectiveCrossingCost ?? 0;
-  const rawRisk = seasonalState?.effectiveRisk ?? 0;
-  // CAUSAL-REPAIR-1 — one real local learning loop (crossingPractice.ts):
-  // repeated successful use of THIS crossing earns a bounded, perishable
-  // relief on the crossing risk the decision pays here. The band's stable
-  // crossing-caution tendency shifts the risk it perceives ±12% before relief.
-  const crossingPracticeRelief = deriveCrossingPracticeRelief(memory, Number(world.time.tick)).relief;
-  const crossingCautionScale = 1 + deriveBandTendencies(band).crossingCaution * 0.12;
-
-  return {
-    crossing,
-    seasonalState,
-    capability,
-    capabilityLabel: formatRiverCapability(capability),
-    riverCrossingCost: round2(clamp01(rawCost / 2.8)),
-    riverCrossingRisk: round2(clamp01(rawRisk * crossingCautionScale * (1 - crossingPracticeRelief))),
-    riverCorridorValue,
-    knownFordValue: round2(knownFordValue),
-    blockedCrossingPenalty: seasonalState?.isBlockedWithoutCapability === true ? 1 : 0,
-    memoryUseCount,
-    crossingPracticeRelief,
-  };
-}
-
-function getBandRiverCrossingCapability(band: Band): RiverCrossingCapability {
-  const crossingPractice = Object.values(band.crossingMemories).some((memory) =>
-    memory.useCount >= 2 && memory.successConfidence >= 0.5);
-  const aquaticPractice = (band.recentIntraSeasonTrips ?? []).filter((trip) =>
-    trip.taskGroupType === "fishing_group" || trip.taskGroupType === "water_group").length >= 3;
-  const engineeringResponse = (band.practicalAdaptation?.responses ?? []).some((response) =>
-    response.family === "engineering_structure" &&
-    (response.status === "forming" || response.status === "active"));
-  const fragments = band.practicalAdaptation?.fragments ?? [];
-  const componentSubjects = new Set(fragments
-    .filter((fragment) => fragment.knowledgeState !== "incorrect" && fragment.knowledgeState !== "dormant")
-    .map((fragment) => fragment.subject));
-  const componentBasis = componentSubjects.has("buoyancy_under_load") &&
-    componentSubjects.has("binding_under_load") &&
-    componentSubjects.has("staged_shuttle_crossing");
-
-  return {
-    canUseFords: true,
-    canUseShallowCrossings: crossingPractice || aquaticPractice || engineeringResponse,
-    canAttemptBasicRaftCrossing: engineeringResponse && componentBasis,
-  };
-}
-
-function formatRiverCapability(capability: RiverCrossingCapability): string {
-  return [
-    capability.canUseFords ? "fords" : undefined,
-    capability.canUseShallowCrossings ? "shallow" : undefined,
-    capability.canAttemptBasicRaftCrossing ? "basic_raft" : undefined,
-  ]
-    .filter((value): value is string => value !== undefined)
-    .join("+") || "none";
-}
-
-function getRiverCorridorValue(
-  fromTile: Tile | undefined,
-  toTile: Tile | undefined,
-  intentKind: MobilityIntentKind | undefined,
-): number {
-  if (fromTile === undefined || toTile === undefined) {
-    return 0;
-  }
-
-  const sameRiverSegment =
-    fromTile.riverSegmentId !== undefined &&
-    fromTile.riverSegmentId === toTile.riverSegmentId;
-  const bothRiverLandscape =
-    (fromTile.isRiverbank || fromTile.isFloodplain || fromTile.isRiver || fromTile.isMarshChannel) &&
-    (toTile.isRiverbank || toTile.isFloodplain || toTile.isRiver || toTile.isMarshChannel);
-  const confluenceBonus = toTile.isConfluence ? 0.18 : 0;
-  const estuaryBonus = toTile.isEstuary ? 0.14 : 0;
-  const intentBonus = intentKind === "follow_river_corridor" ? 0.22 : 0;
-  const continuity = clamp01(
-    (sameRiverSegment ? 0.44 : 0) +
-      (bothRiverLandscape ? 0.28 : 0) +
-      confluenceBonus +
-      estuaryBonus +
-      intentBonus,
-  );
-
-  return round2(continuity);
-}
-
 function getDecisionContextSnapshot(
   world: WorldState,
   band: Band,
@@ -6616,12 +5822,6 @@ function getFamiliarCorridor(
   return decisionCache.corridorByEdgeKey.get(makeTilePairKey(fromTileId, toTileId));
 }
 
-function makeTilePairKey(left: TileId, right: TileId): string {
-  return String(left).localeCompare(String(right)) <= 0
-    ? `${left}|${right}`
-    : `${right}|${left}`;
-}
-
 function getPopulationPressure(band: Band): number {
   return clamp01(
     band.demography.population / 86 +
@@ -6726,36 +5926,6 @@ function getAverageKnownTileConfidence(knowledge: KnowledgeState): number {
   return records.reduce((total, record) => total + record.confidence, 0) / records.length;
 }
 
-function getReportedKnowledgeTargetBias(
-  band: Band,
-  tileId: TileId,
-  decisionCache: CandidateEvaluationCache,
-  input: Parameters<typeof deriveReportedKnowledgeTargetBias>[2],
-): ReturnType<typeof deriveReportedKnowledgeTargetBias> {
-  const usableEvidence = input.targetKnown || input.routeEvidence || input.localEvidence === true;
-  const key = [
-    String(tileId),
-    input.currentTick,
-    usableEvidence ? "usable" : "unusable",
-  ].join("|");
-  const cached = decisionCache.reportedBiasByKey.get(key);
-
-  if (cached !== undefined) {
-    decisionCache.profiler?.count?.("reportBiasCacheHits");
-    return cached;
-  }
-
-  const bias = measureDecision(
-    decisionCache.profiler,
-    "reportBiasIntegration",
-    () => deriveReportedKnowledgeTargetBias(band, tileId, input),
-  );
-  decisionCache.reportedBiasByKey.set(key, bias);
-  decisionCache.profiler?.count?.("reportBiasComputed");
-
-  return bias;
-}
-
 function getKnownSideCountryResourceEvidence(
   band: Band,
   tileId: TileId,
@@ -6828,10 +5998,6 @@ function sideCountryResourceEvidence(memory: ResourcePatchMemory): number {
   return clamp01(reasonEvidence + confidenceEvidence);
 }
 
-function getGridDistance(first: Tile, second: Tile): number {
-  return Math.abs(first.coord.x - second.coord.x) + Math.abs(first.coord.y - second.coord.y);
-}
-
 function getMobilityPressure(band: Band, scoreBreakdown: ScoreBreakdown): number {
   return clamp01(
     getCanonicalFoodStress(band) * 0.34 +
@@ -6876,20 +6042,6 @@ function getIntentAlignment(
   }
 
   return clamp01((dotVectors(actionVector, intent.directionVector) + 1) / 2);
-}
-
-function getActionVector(currentTileId: TileId, targetTileId: TileId): Coord | undefined {
-  const currentCoord = parseTileCoord(currentTileId);
-  const targetCoord = parseTileCoord(targetTileId);
-
-  return currentCoord === undefined || targetCoord === undefined
-    ? undefined
-    : getDirectionBetweenCoords(currentCoord, targetCoord);
-}
-
-function isBandPassableDestination(tile: Tile): boolean {
-  // Rivers and wetlands shape movement through banks/crossing edges; bands do not occupy water tiles.
-  return !tile.isAquatic;
 }
 
 function getPreviousMovementVector(world: WorldState, band: Band): Coord | undefined {
@@ -6998,240 +6150,4 @@ function compareUnknownFrontierCandidates(
   }
 
   return compareTileIds(left.tileId, right.tileId);
-}
-
-function getObservedRisk(tile: Tile): number {
-  return clamp01(
-    tile.riskProfile.floodRisk * 0.34 +
-      tile.riskProfile.droughtRisk * 0.34 +
-      tile.riskProfile.diseaseRisk * 0.32,
-  );
-}
-
-function emptyScoreBreakdown(): ScoreBreakdown {
-  return {
-    foodValue: 0,
-    waterValue: 0,
-    waterRefugeSecurity: 0,
-    dryRefugePull: 0,
-    aquaticValue: 0,
-    movementCost: 0,
-    riskCost: 0,
-    memoryConfidence: 0,
-    routeValue: 0,
-    attachmentValue: 0,
-    populationPressure: 0,
-    storageValue: 0,
-    explorationValue: 0,
-    socialCost: 0,
-    expectedFutureValue: 0,
-    intentAlignment: 0,
-    movementInertia: 0,
-    reversalPenalty: 0,
-    frontierProbeValue: 0,
-    localSurvivalValue: 0,
-    placeAttachment: 0,
-    rememberedReliability: 0,
-    rememberedRisk: 0,
-    familiarCorridor: 0,
-    returnPlacePull: 0,
-    foodStress: 0,
-    waterStress: 0,
-    localUsePressure: 0,
-    mobilityPressure: 0,
-    placeAttachmentPull: 0,
-    netMovePressure: 0,
-    recoveryBenefit: 0,
-    depletionPenalty: 0,
-    riverCrossingCost: 0,
-    riverCrossingRisk: 0,
-    riverCorridorValue: 0,
-    knownFordValue: 0,
-    blockedCrossingPenalty: 0,
-    nearbyBandPressure: 0,
-    parentCoreOverlap: 0,
-    daughterDispersalPressure: 0,
-    inheritedFamiliarityPull: 0,
-    safeFrontierPull: 0,
-    crowdingPenalty: 0,
-    biomeCompetence: 0,
-    biomeMismatchPenalty: 0,
-    rangeSaturation: 0,
-    perCapitaReturn: 0,
-    frontierDispersalPressure: 0,
-    knownOpportunityPull: 0,
-    explorationBaseline: 0,
-    crowdingExploreBoost: 0,
-    saturationExploreBoost: 0,
-    daughterDispersalExploreBoost: 0,
-    explorationRiskPenalty: 0,
-    encounterTension: 0,
-    encounterTolerance: 0,
-    splitRisk: 0,
-    scoutValue: 0,
-    moveValue: 0,
-    currentMarginalReturn: 0,
-    expectedNextReturn: 0,
-    lossOfFallbackSecurity: 0,
-    riverProspectStrength: 0,
-    socialAccessRisk: 0,
-    logisticalProbeValue: 0,
-  };
-}
-
-function makeDecisionId(time: WorldTime, bandId: BandId): DecisionId {
-  return `decision:${bandId}:${time.tick}` as DecisionId;
-}
-
-function makeReasonId(
-  decisionId: DecisionId,
-  group: "primary" | "secondary" | "rejection",
-  index: number,
-): ReasonId {
-  return `reason:${decisionId}:${group}:${index}` as ReasonId;
-}
-
-function makeReason<TReason extends Omit<Reason, "id" | "relatedEventIds"> & {
-  readonly relatedEventIds?: readonly never[];
-}>(
-  decisionId: DecisionId,
-  group: "primary" | "secondary" | "rejection",
-  index: number,
-  reason: TReason,
-): Reason {
-  return {
-    ...reason,
-    id: makeReasonId(decisionId, group, index),
-    relatedEventIds: [],
-  } as unknown as Reason;
-}
-
-function compareCandidates(left: CandidateDecision, right: CandidateDecision): number {
-  if (left.score !== right.score) {
-    return right.score - left.score;
-  }
-
-  return getActionSortKey(left.action).localeCompare(getActionSortKey(right.action));
-}
-
-// VAR-1: sort movement candidates by score, but with a small deterministic
-// seeded jitter so a band facing CLOSE alternatives picks differently per run
-// seed (divergent migration). When world.runSeed is undefined (every legacy/
-// test path), jitter is zero and this reduces EXACTLY to `sort(compareCandidates)`
-// — byte-identical to pre-VAR-1. The jitter is bounded by MOVEMENT_TIEBREAK_
-// EPSILON (< typical score gaps), so a clear winner is never displaced; only
-// the order of genuinely-near candidates changes. Keyed on (runSeed, tick,
-// bandId, action key), so it is stable for a given seed and reproducible.
-function sortCandidatesWithSeededTieBreak(
-  world: WorldState,
-  band: Band,
-  candidates: readonly CandidateDecision[],
-): CandidateDecision[] {
-  const runSeed = world.runSeed;
-
-  if (runSeed === undefined) {
-    return [...candidates].sort(compareCandidates);
-  }
-
-  const tick = Number(world.time.tick);
-  const ranked = candidates.map((candidate) => {
-    const actionKey = getActionSortKey(candidate.action);
-    const jitter =
-      seededTieBreakJitter(runSeed, [tick, String(band.id), actionKey]) * MOVEMENT_TIEBREAK_EPSILON;
-
-    return { candidate, actionKey, effectiveScore: candidate.score + jitter };
-  });
-
-  ranked.sort((left, right) =>
-    left.effectiveScore !== right.effectiveScore
-      ? right.effectiveScore - left.effectiveScore
-      : left.actionKey.localeCompare(right.actionKey),
-  );
-
-  return ranked.map((entry) => entry.candidate);
-}
-
-function getActionSortKey(action: Action): string {
-  if (action.type === "stay") {
-    return `0:${action.tileId}`;
-  }
-
-  if (action.type === "move_to_tile") {
-    return `1:${action.targetTileId}`;
-  }
-
-  if (action.type === "explore_unknown_neighbor") {
-    return `2:${action.targetTileId}`;
-  }
-
-  if (action.type === "logistical_probe") {
-    return `3:${action.targetTileId}`;
-  }
-
-  return `9:${action.type}`;
-}
-
-function compareTileIds(left: TileId, right: TileId): number {
-  return String(left).localeCompare(String(right));
-}
-
-function compareTiles(left: Tile, right: Tile): number {
-  if (left.coord.y !== right.coord.y) {
-    return left.coord.y - right.coord.y;
-  }
-
-  if (left.coord.x !== right.coord.x) {
-    return left.coord.x - right.coord.x;
-  }
-
-  return compareTileIds(left.id, right.id);
-}
-
-function numericTileIdPart(tile: Tile | TileId): number {
-  const tileId = typeof tile === "string" ? tile : tile.id;
-  const parts = String(tileId).split(":");
-  const x = Number(parts[1] ?? 0);
-  const y = Number(parts[2] ?? 0);
-
-  return Number.isFinite(x) && Number.isFinite(y) ? y * 1000 + x : 0;
-}
-
-function parseTileCoord(tileId: TileId): Coord | undefined {
-  const [, rawX, rawY] = String(tileId).split(":");
-  const x = Number(rawX);
-  const y = Number(rawY);
-
-  return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : undefined;
-}
-
-function getDirectionBetweenCoords(from: Coord, to: Coord): Coord {
-  return normalizeVector({
-    x: to.x - from.x,
-    y: to.y - from.y,
-  }) ?? { x: 0, y: 0 };
-}
-
-function normalizeVector(vector: Coord): Coord | undefined {
-  const magnitude = Math.hypot(vector.x, vector.y);
-
-  if (magnitude <= 0.0001) {
-    return undefined;
-  }
-
-  return {
-    x: vector.x / magnitude,
-    y: vector.y / magnitude,
-  };
-}
-
-function dotVectors(left: Coord, right: Coord): number {
-  return left.x * right.x + left.y * right.y;
-}
-
-function clamp01(value: number): number {
-  return Math.max(0, Math.min(1, value));
-}
-
-function round2(value: number): number {
-  return Math.round(value * 100) / 100;
 }

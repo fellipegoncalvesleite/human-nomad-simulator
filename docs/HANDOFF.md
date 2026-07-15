@@ -181,6 +181,77 @@ has a seed input — the sim layer just never consumes it. All audits/baselines 
 
 ## Current Status
 
+### CORE PIPELINE CONSOLIDATION / DECISION ORCHESTRATION DECOMPOSITION-2 — PROGRESS / FAIL → DECOMPOSITION-3 (2026-07-15)
+
+Work on `checkpoint/core-pipeline-decomposition-2`, branched from the accepted
+consolidation-1 tip `9a45f58198adca819332415f7cb8a42d599f866c`. No history
+rewritten, nothing pushed, prior branches intact.
+
+**Verdict: Workstream A (decision orchestrator decomposition) is COMPLETE and
+verified; Workstreams B (adaptation public boundary) and C (context lifecycle
+4→2) remain.** Per the strict gate (which requires all three), this is honest
+progress toward DECOMPOSITION-3, not a full PASS. Roadmap not advanced to
+expeditions.
+
+**Workstream A — done, with exact fingerprint parity at every step:**
+
+The 7237-line `bandDecision.ts` decision orchestrator was decomposed by
+extracting its shared apparatus and three substantial candidate families into
+owned modules. `bandDecision.ts` is now 6153 lines (−1084, ~15%; ~35 internal
+functions moved out, ~24% function reduction). New modules:
+
+- `rules/decisionCandidateTypes.ts` — the shared candidate contract
+  (`CandidateDecision`, `CandidateEvaluationCache`, memos, `RiverMovementAssessment`,
+  profiler types). Types only.
+- `rules/decisionScoring.ts` — the shared scoring/reason/geometry kit (23
+  functions: `scoreDecision`, `emptyScoreBreakdown`, `makeReason`/`makeReasonId`/
+  `makeDecisionId`, `compareCandidates`, `sortCandidatesWithSeededTieBreak`,
+  `getGridDistance`, `measureDecision`, tile/vector primitives, `clamp01`/`round2`).
+- `rules/decisionEdgeContext.ts` — the per-edge memo + river-crossing assessment
+  cluster (`getCandidateEdgeMemo`, `getRiverMovementAssessment`,
+  `getBandRiverCrossingCapability`, `getRiverCorridorValue`,
+  `getReportedKnowledgeTargetBias`).
+- `rules/decisionConstants.ts` — shared candidate score-weight constants.
+- `rules/candidates/visibleLandscapeCandidate.ts`,
+  `rules/candidates/resourceScoutCandidate.ts`,
+  `rules/candidates/pressureReliefCandidate.ts` — three candidate families, each
+  owning its eligibility, evidence, benefits/risks, and scored contribution.
+
+Each family/shared module imports ONLY from the shared contract, scoring kit,
+edge context, constants, and agent modules — **never from the orchestrator**
+(no cycle). The orchestrator imports the family builders (delegates, not owns).
+No god context, no service locator, no forwarding barrel. The uniform candidate
+contract `(world, band, decisionId, decisionCache) → CandidateDecision | undefined`
+already existed and is now the explicit contribution interface. Deterministic
+candidate id/tie-break (`makeDecisionId`, `compareCandidates`,
+`sortCandidatesWithSeededTieBreak`) is owned by the scoring kit.
+
+New audit `scripts/decisionBoundaryAudit.mjs` (PASS) verifies: families are not
+re-defined in the orchestrator, no family/shared-kit module imports the
+orchestrator, the orchestrator imports the builders, and ≥3 families are
+extracted. The deterministic benchmark fingerprint is **byte-identical to
+`9a45f58`** after every extraction step; the regression matrix (build, graph,
+order-invariance, import-boundary, causal-agency, movement, practical-adaptation,
+invention-3, routines-2, food-pipeline, demographic-persistence,
+terminal-extinction) is green.
+
+**Remaining for DECOMPOSITION-3:**
+
+- **Workstream B — adaptation public boundary:** formalize a single public
+  interface over `band.practicalAdaptation`/`practicalResponses.ts`; route
+  external deep imports through it; add an adaptation-boundary audit with an
+  allowlist; confirm one effect-application boundary and no double application.
+- **Workstream C — context lifecycle:** classify the 4 per-tick
+  `buildTickContextCache` rebuilds and consolidate to ≤2 with explicit layers +
+  invalidation + a context-lifecycle audit.
+- **Optionally more of Workstream A:** the remaining candidate families
+  (stay/move/explore/logistical/side-country/inferred-frontier/corridor) can be
+  extracted the same way now that the shared kit exists; the tile-memo cluster
+  (`getCandidateTileMemo` + place-memory/attachment helpers) would need to move
+  first for the stay/move families.
+
+---
+
 ### CORE PIPELINE CONSOLIDATION / SEASON RESOLUTION / DECISION ORCHESTRATION DECOMPOSITION-1 — PROGRESS / FAIL → DECOMPOSITION-2 (2026-07-15)
 
 Work on `checkpoint/core-pipeline-consolidation-1`, branched from the accepted

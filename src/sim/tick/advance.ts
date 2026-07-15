@@ -28,6 +28,7 @@ import { advanceFaunaStocks } from "../agents/faunaStock";
 import { advanceForestPatchState } from "../agents/forestPatches";
 import { advancePlantPatchState } from "../agents/plantStock";
 import type { WorldState } from "../world/types";
+import type { FoodDemographyDiagnostics } from "../diagnostics/foodDemographyDiagnostics";
 import { getCalendarDay, getWorldTimeForDay } from "./time";
 
 // AUDIT-ONLY observer hook (ACTIVITY-GROUPS-9). A debug trace sink that lets an
@@ -50,14 +51,18 @@ export interface SeasonalDecisionObservation {
 
 export type SeasonalDecisionObserver = (observation: SeasonalDecisionObservation) => void;
 
-export function advanceWorldOneSeason(world: WorldState): WorldState {
-  return advanceWorldByDays(world, SEASON_LENGTH_DAYS);
+export function advanceWorldOneSeason(
+  world: WorldState,
+  diagnostics?: FoodDemographyDiagnostics,
+): WorldState {
+  return advanceWorldByDays(world, SEASON_LENGTH_DAYS, undefined, diagnostics);
 }
 
 export function advanceWorldByDays(
   world: WorldState,
   elapsedDays: number,
   decisionObserver?: SeasonalDecisionObserver,
+  diagnostics?: FoodDemographyDiagnostics,
 ): WorldState {
   const days = Math.max(0, Math.floor(elapsedDays));
 
@@ -75,7 +80,7 @@ export function advanceWorldByDays(
     current = runSeasonalCompatibilityTick({
       ...current,
       time: getWorldTimeForDay(boundaryDay as DayNumber),
-    }, decisionObserver);
+    }, decisionObserver, diagnostics);
     currentDay = getCalendarDay(current.time);
   }
 
@@ -93,9 +98,10 @@ export function advanceWorldByDays(
 function runSeasonalCompatibilityTick(
   timeAdvancedWorld: WorldState,
   decisionObserver?: SeasonalDecisionObserver,
+  diagnostics?: FoodDemographyDiagnostics,
 ): WorldState {
   const preDecisionCache = buildTickContextCache(timeAdvancedWorld);
-  const worldBeforeDecisions = updateBandContextStates(timeAdvancedWorld, preDecisionCache);
+  const worldBeforeDecisions = updateBandContextStates(timeAdvancedWorld, preDecisionCache, diagnostics);
   const worldBeforeDecisionsWithAcuteRisk = applyAcuteRiskContext(worldBeforeDecisions);
   const acuteRiskPreDecisionCache = buildTickContextCache(worldBeforeDecisionsWithAcuteRisk);
   const bandsById: Record<string, Band> = { ...worldBeforeDecisionsWithAcuteRisk.bands };
@@ -143,9 +149,18 @@ function runSeasonalCompatibilityTick(
   };
 
   const postDecisionCache = buildTickContextCache(worldAfterDecisions);
-  const worldAfterRangeContext = applyRangeSaturationContext(worldAfterDecisions, postDecisionCache);
+  const worldAfterRangeContext = applyRangeSaturationContext(
+    worldAfterDecisions,
+    postDecisionCache,
+    undefined,
+    diagnostics,
+  );
   const worldAfterContext = applyEncounterContext(worldAfterRangeContext, postDecisionCache);
-  const worldAfterDemography = updateBandsDemographyAndFission(worldAfterContext, postDecisionCache);
+  const worldAfterDemography = updateBandsDemographyAndFission(
+    worldAfterContext,
+    postDecisionCache,
+    diagnostics,
+  );
   const worldAfterViability = updateBandViabilityStates(worldAfterDemography);
   // DEEP-TIME-HISTORY-TECH-1 — spring-gated yearly durable-history observation.
   // Placed AFTER demography+viability so this year's fissions and deaths are
@@ -171,7 +186,11 @@ function runSeasonalCompatibilityTick(
   // tile context; only non-baseline pressure/recovery is stored.
   const worldAfterForests = advanceForestPatchState(worldAfterPlants, postDecisionCache);
 
-  return updateBandContextStates(worldAfterForests, buildTickContextCache(worldAfterForests));
+  return updateBandContextStates(
+    worldAfterForests,
+    buildTickContextCache(worldAfterForests),
+    diagnostics,
+  );
 }
 
 function getNextSeasonBoundaryDay(day: number): number {

@@ -1142,6 +1142,12 @@ export interface BandDemography extends PopulationAccountingState {
   // injury, crowding, and movement hardship for Technical causal proof.
   readonly foodMortalityContribution?: NormalizedIntensity;
   readonly foodFertilitySuppression?: NormalizedIntensity;
+  readonly foodSevereChronicHazard?: NormalizedIntensity;
+  readonly foodSevereChronicRatePenalty?: number;
+  readonly baselineFertilityBasis?: NormalizedIntensity;
+  readonly healthCareFertilitySuppression?: NormalizedIntensity;
+  readonly ordinaryMortalityBasis?: NormalizedIntensity;
+  readonly netDemographicRate?: number;
   readonly householdCrowdingPressure: NormalizedIntensity;
   readonly splitPressure: NormalizedIntensity;
   readonly lastDemographicUpdate: WorldTime;

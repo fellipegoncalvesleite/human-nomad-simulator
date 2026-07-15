@@ -46,6 +46,7 @@ import { deriveTileLearnedSupport } from "./patchExploitationKnowledge";
 import { getTile } from "../world/generate";
 import { isBandPassableDestination } from "../world/passability";
 import type { WorldState } from "../world/types";
+import type { FoodDemographyDiagnostics } from "../diagnostics/foodDemographyDiagnostics";
 
 // Carrying capacity + per-capita return + daughter colonization (checkpoint 2J).
 // Bounded (anchor catchment + salient memory candidates), deterministic, and
@@ -96,6 +97,7 @@ export function deriveCarryingCapacity(
     readonly nearbyCrowding: number;
     readonly localPopulationEstimate: number;
     readonly riskPenalty: number;
+    readonly diagnostics?: FoodDemographyDiagnostics;
   },
 ): CarryingCapacityResult | undefined {
   const currentTile = getTile(world, band.position);
@@ -350,7 +352,26 @@ export function deriveCarryingCapacity(
   });
   const projectedCatchmentSupport =
     preliminarySupportFloor * (1 - nomadicScalePressure.logisticalInefficiencyPenalty);
-  const humanFoodLedger = deriveHumanFoodSupportLedger(band, adultEquivalentDemand);
+  const physicalHumanFoodLedger = deriveHumanFoodSupportLedger(band, adultEquivalentDemand);
+  // Diagnostic counterfactual only: hold support at the canonical neutral seam
+  // (ratio exactly 1, maintenance rather than surplus). Physical receipts and
+  // losses remain visible on the ledger, while the audit excludes an eight-season
+  // history wash-in. No production caller supplies this option.
+  const humanFoodLedger = input.diagnostics?.foodMode === "canonically_adequate"
+    ? {
+        ...physicalHumanFoodLedger,
+        totalUsableSupport: adultEquivalentDemand,
+        populationDemand: adultEquivalentDemand,
+        rawSupportRatio: 1,
+        foodStress: 0,
+        supportUnitContract:
+          "diagnostic maintenance adequacy at the canonical ledger seam; physical receipts remain reported separately",
+        reasonIds: [
+          ...physicalHumanFoodLedger.reasonIds,
+          `reason:diagnostic-canonical-adequacy:${band.id}:${Number(time.tick)}` as ReasonId,
+        ].slice(-16),
+      }
+    : physicalHumanFoodLedger;
   const adjustedReachableSupport = humanFoodLedger.totalUsableSupport;
   const rawSupportRatio = adjustedReachableSupport / adultEquivalentDemand;
   const clampedSupportRatio = clamp01(rawSupportRatio);

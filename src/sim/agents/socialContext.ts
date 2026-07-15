@@ -72,6 +72,7 @@ import { getTile } from "../world/generate";
 import { getRiverCrossingForMovement } from "../world/hydrography";
 import { isBandPassableDestination } from "../world/passability";
 import type { Tile, WorldState } from "../world/types";
+import type { FoodDemographyDiagnostics } from "../diagnostics/foodDemographyDiagnostics";
 
 const LOCAL_RANGE_RADIUS = 4;
 const TREND_WINDOW_SHORT = 4;
@@ -124,6 +125,7 @@ function countContext(
 export function updateBandContextStates(
   world: WorldState,
   cache = buildTickContextCache(world),
+  diagnostics?: FoodDemographyDiagnostics,
 ): WorldState {
   const updated = applyBandReadabilityContext(applyRelationshipMemorySocialEcologyContext(applyBodyCampSurvivalLogisticsContext(applyForagingLearningAdaptationContext(applyProtoAccessContext(applyVisibleNatureContext(applyResourceEcologyContext(applyProtoCampContext(applyInnerFissionSocialReadabilityContext(
     advanceRangeFriction(
@@ -131,7 +133,7 @@ export function updateBandContextStates(
         applyEncounterContext(
           applyDispositionContext(
             applyFrontierOpportunityContext(
-              applyRangeSaturationContext(world, cache),
+              applyRangeSaturationContext(world, cache, undefined, diagnostics),
               cache,
             ),
             cache,
@@ -151,6 +153,7 @@ export function applyRangeSaturationContext(
   world: WorldState,
   cache: TickContextCache,
   profiler?: SocialContextProfiler,
+  diagnostics?: FoodDemographyDiagnostics,
 ): WorldState {
   const baseBands = getActiveBandsFromCache(world, cache)
     .reduce<Record<string, Band>>((bandsById, band) => {
@@ -167,6 +170,7 @@ export function applyRangeSaturationContext(
         nearbyCrowding: baseRangeSaturation.nearbyCrowding,
         localPopulationEstimate: baseRangeSaturation.localPopulationEstimate,
         riskPenalty: band.pressureState?.riskPressure ?? 0.3,
+        ...(diagnostics === undefined ? {} : { diagnostics }),
       }));
       const rangeSaturation = carrying === undefined
         ? baseRangeSaturation

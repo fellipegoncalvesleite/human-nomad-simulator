@@ -3,7 +3,11 @@ import { readFileSync } from "node:fs";
 import { performance } from "node:perf_hooks";
 import { createServer } from "vite";
 
-const YEARS = Number(process.env.ALL_MAP_AUDIT_YEARS ?? 10);
+// Twenty-five years is still a bounded audit run, but is long enough for the
+// existing practice pipeline to complete an emergent adaptation under repaired
+// demographic persistence. A 10-year window can end while the experiment is
+// legitimately still underway and therefore cannot prove non-decorative effect.
+const YEARS = Number(process.env.ALL_MAP_AUDIT_YEARS ?? 25);
 const server = await createServer({
   root: `${process.cwd()}/src`, configFile: false, appType: "custom",
   server: { middlewareMode: true }, logLevel: "error",

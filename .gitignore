@@ -8,8 +8,6 @@ docs/baselines/
 timing_audit.txt
 
 # Local working notes — not part of the published project
-CLAUDE.md
-AGENTS.md
 PRODUCT.md
 DESIGN.md
 # AI-agent handoffs, diagnostics, and planning scratch files

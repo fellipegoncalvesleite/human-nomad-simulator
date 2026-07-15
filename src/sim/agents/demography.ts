@@ -14,6 +14,7 @@ import type {
   PopulationAccountingState,
   SeasonalHungerClassification,
   SocialPressureProfile,
+  SeasonalSupportState,
   TravelCorridorMemory,
 } from "./types";
 import { createDaughterDeepHistory } from "./bandHistory";
@@ -60,7 +61,14 @@ import { getNeighborTiles, getTile } from "../world/generate";
 import { FISSION_TIEBREAK_EPSILON, seededTieBreakJitter } from "../core/seededVariation";
 import { getDepletionAdjustedRichness } from "../world/depletion";
 import { getNomadicScaleClass, NOMADIC_MAX_MOBILE_BANDS_WARNING_COUNT } from "./nomadicScale";
-import { deriveCanonicalNutritionState } from "./seasonalSurvival";
+import {
+  deriveCanonicalNutritionState,
+  type CanonicalNutritionState,
+} from "./seasonalSurvival";
+import type {
+  DiagnosticDemographyMode,
+  FoodDemographyDiagnostics,
+} from "../diagnostics/foodDemographyDiagnostics";
 import {
   getRiverCrossingForMovement,
   makeRiverCrossingKey,
@@ -123,6 +131,7 @@ const MEGA_BAND_FISSION_COOLDOWN_TICKS = 16;
 export function updateBandsDemographyAndFission(
   world: WorldState,
   contextCache?: TickContextCache,
+  diagnostics?: FoodDemographyDiagnostics,
 ): WorldState {
   if (!shouldRunAnnualDemography(world)) {
     return world;
@@ -154,7 +163,7 @@ export function updateBandsDemographyAndFission(
       ...world,
       bands: bandsById,
     };
-    const computation = computeBandDemography(currentWorld, band, contextCache);
+    const computation = computeBandDemography(currentWorld, band, contextCache, diagnostics);
     const bandWithDemography = applyDemographyUpdate(currentWorld, band, computation);
     const maybeFission =
       computation.shouldCreateDaughter && Object.keys(bandsById).length < MAX_BANDS
@@ -182,18 +191,136 @@ export function updateBandsDemographyAndFission(
   };
 }
 
-export function updateBandDemography(world: WorldState, band: Band): BandDemography {
-  return computeBandDemography(world, band).demography;
+export function updateBandDemography(
+  world: WorldState,
+  band: Band,
+  diagnostics?: FoodDemographyDiagnostics,
+): BandDemography {
+  return computeBandDemography(world, band, undefined, diagnostics).demography;
 }
 
 function shouldRunAnnualDemography(world: WorldState): boolean {
   return world.time.tick > 0 && world.time.season === "spring";
 }
 
+export interface FoodDemographyRateTerms {
+  readonly mode: DiagnosticDemographyMode;
+  readonly currentFoodStress: number;
+  readonly recentFoodStress: number;
+  readonly chronicFoodStress: number;
+  readonly foodPerPersonStress: number;
+  readonly foodFertilityBaseBonus: number;
+  readonly foodFertilitySuppression: number;
+  readonly severeChronicFoodHazard: number;
+  readonly foodMortalityContribution: number;
+  readonly survivalBaseline: number;
+  readonly directChronicDeficitRatePenalty: number;
+  readonly severeRepeatedSeasonalBite: number;
+  readonly severeChronicFoodRatePenalty: number;
+  readonly fertilityRatePenaltyFromFood: number;
+  readonly mortalityRatePenaltyFromFood: number;
+  readonly survivalBaselineRatePenaltyFromFood: number;
+  readonly totalFoodRatePenalty: number;
+}
+
+// Complete food-only ledger for the annual net-rate calculation. Production uses
+// `actual`, the evidence-gated de-stacked arithmetic. `legacy_stacked` reproduces
+// the checkpoint-entry calculation for the causal 2x2 audit. `de_stacked` is an
+// explicit diagnostic spelling of the production food terms. No mode is persisted.
+export function deriveFoodDemographyRateTerms(
+  nutrition: CanonicalNutritionState,
+  support: SeasonalSupportState | undefined,
+  mode: DiagnosticDemographyMode = "actual",
+): FoodDemographyRateTerms {
+  const useDeStackedFoodDemography = mode !== "legacy_stacked";
+  const currentFoodStress = nutrition.currentFoodStress;
+  const recentFoodStress = nutrition.recentFoodStress;
+  const chronicFoodStress = nutrition.chronicFoodStress;
+  const foodPerPersonStress = nutrition.foodDemographicPressure;
+  const actualSevereRepeatedSeasonalBite =
+    support?.hungerClassification === "crisis_deficit"
+      ? 0.006
+      : support?.hungerClassification === "chronic_plus_seasonal_stress"
+        ? 0.0035
+        : support?.chronicDeficitStreak !== undefined && support.chronicDeficitStreak >= 4
+          ? 0.002
+          : 0;
+  const foodFertilityBaseBonus = useDeStackedFoodDemography
+    ? 0.14
+    : (1 - foodPerPersonStress) * 0.14;
+  // A single nonlinear severity signal preserves the distinct physiological
+  // consequence of severe, sustained deprivation. It is consumed once by each
+  // vital-rate path instead of being repeated as chronic subtraction, a baseline
+  // trim, and an additional crisis bite. Pressure below 0.72 has no severe tail;
+  // above it, chronic exposure controls the smooth ramp to the maximum increment.
+  const severeChronicFoodHazard = useDeStackedFoodDemography
+    ? clamp01(
+        (Math.max(0, foodPerPersonStress - 0.72) / 0.28) * chronicFoodStress,
+      )
+    : 0;
+  const foodFertilitySuppression = useDeStackedFoodDemography
+    ? clamp01(
+        foodPerPersonStress * 0.22 + severeChronicFoodHazard * 0.22,
+      )
+    : clamp01(
+        foodPerPersonStress * 0.22 +
+          chronicFoodStress * 0.2 +
+          recentFoodStress * 0.1,
+      );
+  const foodMortalityContribution = useDeStackedFoodDemography
+    ? clamp01(foodPerPersonStress * 0.36)
+    : clamp01(foodPerPersonStress * 0.36 + chronicFoodStress * 0.28);
+  const survivalBaseline = useDeStackedFoodDemography
+    ? 0.002
+    : chronicFoodStress > 0.2
+      ? 0.0014
+      : 0.002;
+  const directChronicDeficitRatePenalty = useDeStackedFoodDemography
+    ? 0
+    : chronicFoodStress * 0.006;
+  const severeRepeatedSeasonalBite = useDeStackedFoodDemography
+    ? 0
+    : actualSevereRepeatedSeasonalBite;
+  const severeChronicFoodRatePenalty = useDeStackedFoodDemography
+    ? severeChronicFoodHazard * 0.008
+    : 0;
+  const fertilityRatePenaltyFromFood =
+    ((0.14 - foodFertilityBaseBonus) + foodFertilitySuppression) * 0.012;
+  const mortalityRatePenaltyFromFood = foodMortalityContribution * 0.014;
+  const survivalBaselineRatePenaltyFromFood = 0.002 - survivalBaseline;
+
+  return {
+    mode,
+    currentFoodStress,
+    recentFoodStress,
+    chronicFoodStress,
+    foodPerPersonStress,
+    foodFertilityBaseBonus,
+    foodFertilitySuppression,
+    severeChronicFoodHazard,
+    foodMortalityContribution,
+    survivalBaseline,
+    directChronicDeficitRatePenalty,
+    severeRepeatedSeasonalBite,
+    severeChronicFoodRatePenalty,
+    fertilityRatePenaltyFromFood,
+    mortalityRatePenaltyFromFood,
+    survivalBaselineRatePenaltyFromFood,
+    totalFoodRatePenalty:
+      fertilityRatePenaltyFromFood +
+      mortalityRatePenaltyFromFood +
+      survivalBaselineRatePenaltyFromFood +
+      directChronicDeficitRatePenalty +
+      severeRepeatedSeasonalBite +
+      severeChronicFoodRatePenalty,
+  };
+}
+
 function computeBandDemography(
   world: WorldState,
   band: Band,
   contextCache?: TickContextCache,
+  diagnostics?: FoodDemographyDiagnostics,
 ): DemographyComputation {
   const previous = band.demography;
   const population = toPopulationCount(previous.population);
@@ -207,6 +334,11 @@ function computeBandDemography(
   const largeBandFissionPressure = band.nomadicScalePressure?.largeBandFissionPressure ?? getPopulationScalePressure(population);
   const seasonalSupport = band.seasonalSupport;
   const nutrition = deriveCanonicalNutritionState(seasonalSupport);
+  const foodTerms = deriveFoodDemographyRateTerms(
+    nutrition,
+    seasonalSupport,
+    diagnostics?.demographyMode ?? "actual",
+  );
   const seasonalFoodStress = nutrition.currentFoodStress;
   const seasonalWaterStress = clamp01(
     Math.max(
@@ -215,7 +347,6 @@ function computeBandDemography(
       seasonalSupport?.hungerClassification === "chronic_water_deficit" ? 0.36 : 0,
     ),
   );
-  const repeatedSeasonalHunger = nutrition.recentFoodStress;
   const chronicSeasonalDeficit = nutrition.chronicFoodStress;
   const recentDeathSuppression = band.deathMemory?.fertilitySuppressionFromRecentDeaths ?? 0;
   const acuteRiskEffect = band.acuteRisk?.activeEffect;
@@ -237,8 +368,8 @@ function computeBandDemography(
     Object.keys(world.bands).length >= MAX_BANDS &&
     population >= 120 &&
     largeBandFissionPressure > 0.34;
-  const chronicDeficitStress = nutrition.chronicFoodStress;
-  const foodStress = nutrition.foodDemographicPressure;
+  const chronicDeficitStress = foodTerms.chronicFoodStress;
+  const foodStress = foodTerms.foodPerPersonStress;
   const waterStress = clamp01((pressureState?.waterStress ?? 0.22) + seasonalWaterStress * 0.18 + acuteSeasonalStress * 0.12);
   const riskStress = clamp01(pressureState?.riskPressure ?? currentRecord?.observedRisk ?? 0.28);
   const comfortablePopulation = getComfortablePopulation(band, currentRecord);
@@ -253,15 +384,27 @@ function computeBandDemography(
   // Crowding/logistical scale remain independent pressures below; they must not
   // create a second food system.
   const foodPerPersonStress = foodStress;
-  const foodFertilitySuppression = clamp01(
-    foodPerPersonStress * 0.22 + chronicDeficitStress * 0.2 + repeatedSeasonalHunger * 0.1,
-  );
-  const foodMortalityContribution = clamp01(
-    foodPerPersonStress * 0.36 + chronicDeficitStress * 0.28,
-  );
+  const foodFertilitySuppression = foodTerms.foodFertilitySuppression;
+  const foodMortalityContribution = foodTerms.foodMortalityContribution;
+  const healthCareFertilitySuppression =
+    acuteSeasonalStress * 0.08 +
+    recentDeathSuppression * 0.18 +
+    logisticsFertilitySuppression * 0.16 +
+    logisticsCareBurden * 0.08;
+  const ordinaryMortalityBasis =
+    waterStress * 0.24 +
+    riskStress * 0.22 +
+    nomadicScalePressure * 0.16 +
+    logisticalInefficiency * 0.12 +
+    seasonalWaterStress * 0.08 +
+    acuteMortalityRisk * 0.22 +
+    acuteActivityPenalty * 0.08 +
+    logisticsSicknessMortality * 0.18 +
+    logisticsCareBurden * 0.06 +
+    (maxBandCapBlockingFragmentation ? 0.1 : 0);
   const fertilityPressure = clamp01(
     0.34 +
-      (1 - foodPerPersonStress) * 0.14 +
+      foodTerms.foodFertilityBaseBonus +
       (1 - waterStress) * 0.12 -
       riskStress * 0.14 -
       householdCrowdingPressure * 0.1 -
@@ -294,33 +437,28 @@ function computeBandDemography(
       : population >= 300
         ? -0.032
         : -0.018;
+  const growthCapChronicStress = foodTerms.mode === "legacy_stacked"
+    ? chronicDeficitStress
+    : 0;
   const maxGrowthRate = population >= 300
     ? 0.004
     : population >= 150
-      ? Math.max(0.003, 0.008 - chronicDeficitStress * 0.006)
-      : Math.max(0.004, 0.014 - chronicDeficitStress * 0.01);
-  // DEMOGRAPHY-MORTALITY-1 — end the "immortal crisis gridlock": a chronically
-  // deficit / high-mortality band should slowly SHRINK (toward a smaller remnant
-  // that stabilises as demand falls, or eventual collapse) instead of hovering
-  // forever. Mortality + chronic-deficit bite slightly harder, and the small
-  // survival baseline is trimmed (not removed) while starving — so a starving band
-  // gets no free growth. Healthy bands (low mortality/chronic) are barely affected,
-  // preserving prosperous growth/fission. Tuned conservatively from fresh runs.
-  const survivalBaseline = chronicDeficitStress > 0.2 ? 0.0014 : 0.002;
-  const severeRepeatedSeasonalBite =
-    seasonalSupport?.hungerClassification === "crisis_deficit"
-      ? 0.006
-      : seasonalSupport?.hungerClassification === "chronic_plus_seasonal_stress"
-        ? 0.0035
-        : seasonalSupport?.chronicDeficitStreak !== undefined && seasonalSupport.chronicDeficitStreak >= 4
-          ? 0.002
-          : 0;
+      ? Math.max(0.003, 0.008 - growthCapChronicStress * 0.006)
+      : Math.max(0.004, 0.014 - growthCapChronicStress * 0.01);
+  // FOOD-DEMOGRAPHY-SEPARATION-1 — ordinary food pressure acts once through
+  // fertility and once through mortality. One nonlinear severe-deprivation hazard
+  // can additionally suppress fertility and impose crisis mortality; the legacy
+  // chronic subtraction, baseline trim, and hunger-label bites remain absent.
+  const survivalBaseline = foodTerms.survivalBaseline;
+  const severeRepeatedSeasonalBite = foodTerms.severeRepeatedSeasonalBite;
+  const severeChronicFoodRatePenalty = foodTerms.severeChronicFoodRatePenalty;
   const growthRate = clamp(
     survivalBaseline +
       fertilityPressure * 0.012 -
       mortalityPressure * 0.014 -
-      chronicDeficitStress * 0.006 -
-      severeRepeatedSeasonalBite,
+      foodTerms.directChronicDeficitRatePenalty -
+      severeRepeatedSeasonalBite -
+      severeChronicFoodRatePenalty,
     maxDeclineRate,
     maxGrowthRate,
   );
@@ -426,6 +564,12 @@ function computeBandDemography(
     foodPerPersonStress: round2(foodPerPersonStress),
     foodMortalityContribution: round2(foodMortalityContribution),
     foodFertilitySuppression: round2(foodFertilitySuppression),
+    foodSevereChronicHazard: round2(foodTerms.severeChronicFoodHazard),
+    foodSevereChronicRatePenalty: round4(foodTerms.severeChronicFoodRatePenalty),
+    baselineFertilityBasis: round2(0.34 + foodTerms.foodFertilityBaseBonus),
+    healthCareFertilitySuppression: round2(clamp01(healthCareFertilitySuppression)),
+    ordinaryMortalityBasis: round2(clamp01(ordinaryMortalityBasis)),
+    netDemographicRate: round4(growthRate),
     householdCrowdingPressure: round2(householdCrowdingPressure),
     splitPressure: round2(splitPressure),
     lastDemographicUpdate: world.time,

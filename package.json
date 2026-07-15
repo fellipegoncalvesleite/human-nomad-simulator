@@ -8,7 +8,10 @@
     "dev": "vite",
     "build": "tsc -p tsconfig.json && tsc -p tsconfig.node.json && vite build",
     "preview": "vite preview",
-    "sim:benchmark": "node scripts/simBenchmark.mjs"
+    "sim:benchmark": "node scripts/simBenchmark.mjs",
+    "audit:food-demography": "node scripts/foodDemographySeparationAudit.mjs",
+    "audit:demographic-persistence": "node scripts/demographicPersistenceAudit.mjs",
+    "audit:demographic-long-run": "node scripts/demographicLongRunAudit.mjs"
   },
   "dependencies": {
     "d3-drag": "^3.0.0",

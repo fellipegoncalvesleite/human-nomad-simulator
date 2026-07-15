@@ -39,6 +39,7 @@ import type { BandId, SimulationSeed, StepMode, TileId } from "../core/types";
 import type { Decision } from "../rules/types";
 import { advanceWorldByDays } from "../tick/advance";
 import type { SeasonalDecisionObserver } from "../tick/advance";
+import type { FoodDemographyDiagnostics } from "../diagnostics/foodDemographyDiagnostics";
 import { getDaysForStepMode, resetWorldTime } from "../tick/time";
 import {
   createRegionalDebugWorld,
@@ -146,12 +147,13 @@ export function stepSim(
   steps: number,
   stepMode: StepMode = "seasonal",
   decisionObserver?: SeasonalDecisionObserver,
+  diagnostics?: FoodDemographyDiagnostics,
 ): WorldState {
   let current = world;
   const elapsedDays = getDaysForStepMode(stepMode);
 
   for (let index = 0; index < steps; index += 1) {
-    current = advanceWorldByDays(current, elapsedDays, decisionObserver);
+    current = advanceWorldByDays(current, elapsedDays, decisionObserver, diagnostics);
   }
 
   return current;

@@ -579,6 +579,14 @@ export function DemographyFissionDetails({
         )} from ${latestFission.originTileId} to ${
           latestFission.targetTileId ?? "near parent"
         }`;
+  const nutrition = band.seasonalSupport;
+  const ledger = band.carryingCapacity?.perCapitaReturn.supportDebug.humanFoodLedger;
+  const foodFertilityRateEffect = (band.demography.foodFertilitySuppression ?? 0) * 0.012;
+  const foodMortalityRateEffect = (band.demography.foodMortalityContribution ?? 0) * 0.014;
+  const ordinaryMortalityRateEffect = (band.demography.ordinaryMortalityBasis ?? 0) * 0.014;
+  const dominantConstraint = foodFertilityRateEffect + foodMortalityRateEffect >= ordinaryMortalityRateEffect
+    ? `food: fertility -${formatNumber(foodFertilityRateEffect)} rate + mortality -${formatNumber(foodMortalityRateEffect)} rate`
+    : `non-food mortality: -${formatNumber(ordinaryMortalityRateEffect)} rate; food combined -${formatNumber(foodFertilityRateEffect + foodMortalityRateEffect)} rate`;
 
   return (
     <>
@@ -593,7 +601,36 @@ export function DemographyFissionDetails({
       />
       <Detail label="fertility pressure" value={formatNumber(band.demography.fertilityPressure)} />
       <Detail label="mortality pressure" value={formatNumber(band.demography.mortalityPressure)} />
-      <Detail label="· food mortality contribution" value={formatNumber(band.demography.foodMortalityContribution ?? 0)} />
+      <Detail
+        label="demographic accounting model"
+        value="bounded aggregate net rate plus visible intrinsic replacement churn; age cohorts allocate births/deaths but do not set the vital rates"
+      />
+      <Detail
+        label="reproductive basis"
+        value={`${band.demography.workingAdults}/${band.demography.population} working-adult projection; Technical proxy only, not yet causal reproductive capacity`}
+      />
+      <Detail
+        label="baseline fertility basis"
+        value={`${formatNumber(band.demography.baselineFertilityBasis ?? 0.48)} × 0.012 before water, risk, crowding, food, health, and care constraints`}
+      />
+      <Detail
+        label="food fertility effect"
+        value={`suppression ${formatNumber(band.demography.foodFertilitySuppression ?? 0)} × 0.012 = -${formatNumber(foodFertilityRateEffect)} rate`}
+      />
+      <Detail
+        label="health / care fertility suppression"
+        value={`${formatNumber(band.demography.healthCareFertilitySuppression ?? 0)} combined acute, recent-death, sickness, and care term`}
+      />
+      <Detail
+        label="ordinary mortality basis"
+        value={`${formatNumber(band.demography.ordinaryMortalityBasis ?? 0)} × 0.014 = -${formatNumber(ordinaryMortalityRateEffect)} rate, excluding food`}
+      />
+      <Detail
+        label="food mortality effect"
+        value={`ordinary contribution ${formatNumber(band.demography.foodMortalityContribution ?? 0)} × 0.014 = -${formatNumber(foodMortalityRateEffect)} rate · severe chronic hazard ${formatNumber(band.demography.foodSevereChronicHazard ?? 0)} adds -${formatNumber(band.demography.foodSevereChronicRatePenalty ?? 0)} crisis rate`}
+      />
+      <Detail label="net demographic rate" value={formatSigned(band.demography.netDemographicRate ?? 0)} />
+      <Detail label="dominant demographic constraint" value={dominantConstraint} />
       <Detail
         label="recent births / deaths (DEMOGRAPHY-MORTALITY-1)"
         value={`${band.demography.lastBirths ?? 0} born · ${band.demography.lastDeaths ?? 0} died · matured ${band.demography.lastDependentsMatured ?? 0} · aged-to-elder ${band.demography.lastAdultsAged ?? 0} · elders died ${band.demography.lastEldersDied ?? 0}`}
@@ -602,6 +639,18 @@ export function DemographyFissionDetails({
       <Detail label="renewal evidence" value={renewal.summary} />
       <Detail label="food/person stress" value={formatNumber(band.demography.foodPerPersonStress)} />
       <Detail label="· food fertility suppression" value={formatNumber(band.demography.foodFertilitySuppression ?? 0)} />
+      <Detail
+        label="physical food support / demand"
+        value={ledger === undefined
+          ? "not evaluated yet"
+          : `${formatNumber(ledger.totalUsableSupport)} / ${formatNumber(ledger.populationDemand)} physical support units; ratio ${formatNumber(ledger.rawSupportRatio)}`}
+      />
+      <Detail
+        label="food state current / recent / chronic"
+        value={nutrition === undefined
+          ? "not evaluated yet"
+          : `${formatNumber(nutrition.currentFoodStress ?? 0)} / ${formatNumber(nutrition.recentFoodStress ?? 0)} / ${formatNumber(nutrition.chronicFoodStress ?? 0)}`}
+      />
       <Detail label="household crowding" value={formatNumber(band.demography.householdCrowdingPressure)} />
       <Detail label="split pressure" value={formatNumber(band.demography.splitPressure)} />
       <Detail label="fission threshold" value="split >= 0.64 and population >= 46" />

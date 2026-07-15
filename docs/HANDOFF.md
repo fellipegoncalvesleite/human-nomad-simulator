@@ -181,6 +181,61 @@ has a seed input — the sim layer just never consumes it. All audits/baselines 
 
 ## Current Status
 
+### FOOD–DEMOGRAPHY SEPARATION / DEMOGRAPHIC PERSISTENCE-1 — PASS (2026-07-14)
+
+Work was performed on `checkpoint/food-demography-persistence-1` in the clean
+isolated worktree `/home/fellipe/human-nomad-simulator-food-demography`, parent
+`30a87b3aab96dc9b6276a5e148458ad9772770e0`. The original checkout's unrelated
+dirty `.gitignore`/handoff/local-document state was preserved. No history was
+rewritten and nothing was pushed. The final report records the mandatory commit
+hash; message: `checkpoint: establish persistent human demography`.
+
+The diagnosis is mixed. Stage 0 proved that death-cause fields are overlapping
+post-accounting attribution, while one canonical nutrition deficit was applied
+several times inside the net rate. The deterministic 2×2 showed that the
+downstream stack explained 83% of Map 1's ten-year entry decline and 48% of Map
+2's; adequate physical support removed the remaining decline. Production now
+uses one ordinary food pressure plus one nonlinear severe-chronic hazard. The
+physical food pipeline and all food yields/conversions/losses were left
+unchanged. Controlled healthy/moderate bands replace losses over 50 years;
+marginal bands can decline without cap pinning; recovered bands stabilize; zero
+food remains terminally extinct. Population accounting reconciles exactly.
+
+The physical-food waterfall found no duplicate loss, bad unit conversion,
+dropped receipt, stale ledger, or hidden-food defect. High-support habitat can
+deliver above demand; lower practical regimes are dominated by exhausted,
+failed, or absent same-day activities, not transport/processing loss or unknown
+local truth. Overnight range, provisioning, task camps, field processing,
+repeated retrieval, and return logistics remain architectural limitations.
+They were not hidden by increasing local yield.
+
+New non-persisted diagnostics and audits:
+
+- `src/sim/diagnostics/foodDemographyDiagnostics.ts`;
+- `scripts/foodDemographySeparationAudit.mjs` (Stage 0 ledger, four cells,
+  default-off parity, waterfall, zero/intermittent/severe/recovery fixtures);
+- `scripts/demographicPersistenceAudit.mjs` (controlled regimes and exact gross
+  accounting);
+- `scripts/demographicLongRunAudit.mjs` (Map 1/Map 2/single-origin/no-human,
+  observer parity, fingerprints, state caps).
+
+Technical now exposes the aggregate accounting warning, physical support and
+demand, current/recent/chronic food state, baseline and food fertility effects,
+ordinary and severe food mortality effects, accumulators, net balance, and the
+dominant constraint. It explicitly does not claim that the working-adult proxy
+causes fertility. Full formulas, evidence, structural evaluation, and academic
+constraints are canonical in `CLAUDE.md` §§10–11; `AGENTS.md` carries only the
+operational consequences and commands.
+
+**Remaining demographic limitation:** the bounded single-net-rate model still
+uses sign-gated accumulators and reconciled aggregate age cohorts. Gross churn
+is visible and exact, but independent ordinary birth/mortality hazards and
+causal reproductive-age structure are follow-up architecture, not part of this
+repair.
+
+**Current active checkpoint (not begun here):** EXPEDITIONARY LOGISTICAL
+MOBILITY / TASK CAMPS / VIEWSHED PERCEPTION / FIRE SIGNALS-1.
+
 ### LIVING ECOLOGY FOOD PIPELINE-A — canonical causal foundation (2026-07-11)
 
 **Phase result: PASS.** This bounded checkpoint replaces the dangerous inverted
@@ -6116,6 +6171,15 @@ UI in `src/ui/BandPanel.tsx`, audit + `--targeted-cause-event-check` in
 
 ## Recommended Next Step
 
+**Current recommendation after the accepted demographic-persistence
+checkpoint:** EXPEDITIONARY LOGISTICAL MOBILITY / TASK CAMPS / VIEWSHED
+PERCEPTION / FIRE SIGNALS-1. Preserve physical receipts and the repaired
+demographic response. Address multi-day access, provisioning, task-camp
+placement, viewshed-limited perception, field processing, retrieval, and return
+logistics without creating local food or revealing hidden ecology. The older
+recommendations below are historical checkpoint context and do not override
+this current roadmap.
+
 **After PERFORMANCE ARCHITECTURE-2 RADICAL:** if accepted, proceed to a
 targeted sim-hot-path cache/index pass, not new content. Focus on the measured
 remaining costs: movement candidate generation, carrying-capacity/range
@@ -6469,6 +6533,19 @@ exception; daughter colours related-but-distinct and never visually confusing.
 ---
 
 ## Checkpoint Log
+
+- **FOOD–DEMOGRAPHY SEPARATION / DEMOGRAPHIC PERSISTENCE-1** — *implemented
+  2026-07-14, PASS.* Added a non-persisted canonical-ledger adequate-food arm,
+  legacy/de-stacked demographic diagnostics, full arithmetic contribution
+  ledger, four-cell separation, food waterfall, controlled persistence, exact
+  population reconciliation, and repeated long-run observer-parity audits.
+  Production consolidates correlated food penalties into one ordinary pressure
+  and a nonlinear severe-chronic hazard; no food-stage coefficient changed.
+  Healthy/moderate persistence and recovery pass; severe no-food extinction
+  remains. Graph 209 nodes/734 links, 0 duplicate/0 dangling. Remaining default
+  contraction is attributed to practical same-day reach/logistics; expedition
+  architecture is next. Exact commit hash and command matrix are in the final
+  checkpoint report.
 
 - **CUMULATIVE PRACTICAL LEARNING / RECOMBINATION / ANIMAL ROUTINES-2** —
   *implemented 2026-07-10, PASS recommended.* Verified the interrupted self-rumor

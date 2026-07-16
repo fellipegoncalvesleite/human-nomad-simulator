@@ -931,6 +931,12 @@ export interface ExpeditionRecord {
   readonly phase: ExpeditionPhase;
   readonly originTileId: TileId;
   readonly targetTileId: TileId;
+  /**
+   * The band-remembered patch this party was sent to. Carried explicitly so the work
+   * day resolves the SAME memory the launch chose: a patch is anchored to an
+   * approximate tile but may span linked tiles, so matching on tile alone can miss.
+   */
+  readonly targetPatchId: string;
   /** Deterministic outbound route origin→target (inclusive). No teleporting. */
   readonly routeTileIds: readonly TileId[];
   /** Where the party physically is right now (an index into routeTileIds). */

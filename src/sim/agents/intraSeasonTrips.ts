@@ -212,6 +212,19 @@ function applyTripDay(world: WorldState, day: number): WorldState {
       continue;
     }
 
+    // EXPEDITIONARY-2 §1 — REQUIRED PHYSICAL CORRECTION. This path is the SAME-DAY
+    // activity path and nothing else. A round trip that does not fit the genuine
+    // same-day budget used to be resolved here anyway: it was merely LABELLED
+    // "overnight"/"continues" by classifyOutcome while still depleting the distant
+    // stock and crediting the band's food ledger on the departure day — a teleport
+    // with no travel time, provisions, carry ceiling, return leg, or risk.
+    // Multi-day work now belongs to the expedition lifecycle (expedition.ts), which
+    // launches from the same band-known candidate and delivers a receipt only on
+    // physical return. Skipping here is what removes the fake instant credit.
+    if (deriveTripDurationDays(candidate.distanceTiles) > 1) {
+      continue;
+    }
+
     const activityBand =
       candidate.seededResourceKnowledgeState === undefined
         ? band
@@ -439,7 +452,12 @@ function isPlantGatherTrip(
   );
 }
 
-function selectTripCandidate(world: WorldState, band: Band, day: number): TripCandidate | undefined {
+function selectTripCandidate(
+  world: WorldState,
+  band: Band,
+  day: number,
+  maxDistanceTiles: number = MAX_TRIP_DISTANCE_TILES,
+): TripCandidate | undefined {
   const seededResourceKnowledgeState =
     (band.resourceKnowledgeState?.patchMemories.length ?? 0) === 0
       ? buildStartingLocalReconnaissanceState(world, band, day)
@@ -469,7 +487,7 @@ function selectTripCandidate(world: WorldState, band: Band, day: number): TripCa
 
     const distanceTiles = getGridDistance(origin, target);
 
-    if (distanceTiles <= 0 || distanceTiles > MAX_TRIP_DISTANCE_TILES) {
+    if (distanceTiles <= 0 || distanceTiles > maxDistanceTiles) {
       continue;
     }
 
@@ -2317,7 +2335,19 @@ function deriveObjectiveLabel(objective: IntraSeasonTripObjective): string {
 }
 
 function estimateTaskGroupPeople(band: Band, taskGroupType: IntraSeasonTripTaskGroupType): number {
-  const adults = Math.max(1, Math.round(band.demography.workingAdults));
+  // EXPEDITIONARY-2 (Slice E) — adults who are physically AWAY on an expedition are not
+  // at camp and cannot staff a same-day task group. They were committed exactly once when
+  // the party departed and return to availability only when it comes home. This is read
+  // straight off band state (rather than importing the expedition module) to keep the
+  // dependency direction one-way: expedition -> intraSeasonTrips, never back.
+  const awayWorkers = (band.expeditions ?? [])
+    .filter((expedition) =>
+      expedition.phase === "prepared" ||
+      expedition.phase === "outbound" ||
+      expedition.phase === "operating" ||
+      expedition.phase === "returning")
+    .reduce((total, expedition) => total + expedition.partyWorkers, 0);
+  const adults = Math.max(1, Math.round(Math.max(0, band.demography.workingAdults - awayWorkers)));
   const baseShare =
     taskGroupType === "water_group" || taskGroupType === "memory_refresh_group"
       ? 0.12
@@ -2739,6 +2769,40 @@ function summarizePeopleByActivityType(
 // A day-return loop fits inside one daily travel budget; longer round trips imply a
 // night out or a multi-day foray. NONE of these move the residential marker — a
 // `continues` trip is a task group ranging far while the camp stays fixed.
+/**
+ * EXPEDITIONARY-2 §1 — the real duration of a round trip to `distanceTiles`, in activity
+ * days. This is the single boundary between the two physical paths: 1 day => the
+ * ordinary same-day activity path; more than 1 day => the expedition lifecycle.
+ */
+export function deriveTripDurationDays(distanceTiles: number): number {
+  return Math.max(1, Math.ceil((distanceTiles * 2) / SAME_DAY_ROUND_TRIP_TILE_BUDGET));
+}
+
+/**
+ * EXPEDITIONARY-2 — the band-known trip target the expedition lifecycle should consider,
+ * using this module's own bounded patch-memory selection (so an expedition can never
+ * target country the band does not remember). `maxDistanceTiles` lets a party look past
+ * the daily-trip cap; the caller owns feasibility.
+ */
+export function selectExpeditionTripCandidate(
+  world: WorldState,
+  band: Band,
+  day: number,
+  maxDistanceTiles: number,
+): { readonly memory: ResourcePatchMemory; readonly targetTileId: TileId; readonly distanceTiles: number } | undefined {
+  const candidate = selectTripCandidate(world, band, day, maxDistanceTiles);
+
+  if (candidate === undefined || deriveTripDurationDays(candidate.distanceTiles) <= 1) {
+    return undefined;
+  }
+
+  return {
+    memory: candidate.memory,
+    targetTileId: candidate.targetTileId,
+    distanceTiles: candidate.distanceTiles,
+  };
+}
+
 function classifyOutcome(estimatedDurationDays: number): IntraSeasonTripOutcome {
   if (estimatedDurationDays <= 1) {
     return "returns_same_day";

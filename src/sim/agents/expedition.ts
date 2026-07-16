@@ -24,7 +24,14 @@ import { getWorldTimeForDay } from "../tick/time";
 import type { WorldState } from "../world/types";
 import type { DailyAction } from "./dailyActions";
 import { deriveCarriedWaterRelief, deriveCarryingRelief } from "./adaptationBoundary";
-import { compareExpeditionBands, isActiveExpeditionBand, resolveExpeditionTargetWork } from "./intraSeasonTrips";
+import {
+  buildExpeditionRouteTiles,
+  compareExpeditionBands,
+  deriveTripDurationDays,
+  isActiveExpeditionBand,
+  resolveExpeditionTargetWork,
+  selectExpeditionTripCandidate,
+} from "./intraSeasonTrips";
 import type { ResourcePatchMemory } from "./resourceKnowledge";
 import type {
   Band,
@@ -57,8 +64,18 @@ export const EXPEDITION_OBSERVATION_CAP = 6;
 export const EXPEDITION_MAX_WORK_DAYS = 3;
 /** Harvest units one worker can physically carry home. */
 export const EXPEDITION_CARRY_UNITS_PER_WORKER = 0.12;
-/** Harvest units one worker eats per day away (trip-local provisioning; never a store). */
-export const EXPEDITION_PROVISION_UNITS_PER_WORKER_DAY = 0.006;
+/**
+ * Harvest units one worker eats per day away (trip-local provisioning; never a store).
+ *
+ * Scale note: harvest units are a fraction of ONE patch's seasonal availability (a
+ * per-trip draw is capped around 0.5, see intraSeasonTrips `deriveResourceReturnRecord`),
+ * so a party's own subsistence has to be a small fraction of a take — at a larger rate a
+ * party mathematically eats its entire cargo on every trip and nothing can ever come
+ * home, which is physically wrong rather than merely pessimistic. This is a real,
+ * non-trivial cost (a long trip with a poor take can still net ~zero, which is the
+ * intended "expeditions are not free" outcome) but it does not make delivery impossible.
+ */
+export const EXPEDITION_PROVISION_UNITS_PER_WORKER_DAY = 0.0008;
 
 /**
  * The genuine same-day envelope: can a party walk to `distanceTiles` and back within one
@@ -257,11 +274,12 @@ export function createPreparedExpedition(params: {
   readonly band: Band;
   readonly taskKind: ExpeditionTaskKind;
   readonly targetTileId: TileId;
+  readonly targetPatchId: string;
   readonly routeTileIds: readonly TileId[];
   readonly partyWorkers: number;
   readonly day: DayNumber;
 }): ExpeditionRecord {
-  const { band, taskKind, targetTileId, routeTileIds, partyWorkers, day } = params;
+  const { band, taskKind, targetTileId, targetPatchId, routeTileIds, partyWorkers, day } = params;
   const time = getWorldTimeForDay(day);
   const legDays = Math.ceil((routeTileIds.length - 1) / EXPEDITION_BASE_TILES_PER_DAY);
   const plannedDays = Math.min(EXPEDITION_MAX_DURATION_DAYS, legDays * 2 + EXPEDITION_MAX_WORK_DAYS);
@@ -272,6 +290,7 @@ export function createPreparedExpedition(params: {
     phase: "prepared",
     originTileId: band.position,
     targetTileId,
+    targetPatchId,
     routeTileIds,
     positionTileId: band.position,
     routeIndex: 0,
@@ -394,7 +413,7 @@ function advanceExpeditionOneDay(
     // Physical work: draw the distant stock through the SAME harvest resolution a near
     // trip uses. The stock is depleted here, standing at the target. The receipt is not
     // food yet — it becomes cargo.
-    const memory = findTargetMemory(band, withProvisions.targetTileId);
+    const memory = findTargetMemory(band, withProvisions.targetPatchId);
 
     if (memory === undefined) {
       return {
@@ -459,9 +478,14 @@ function advanceExpeditionOneDay(
   return { world, expedition: moved, depositRecord };
 }
 
-/** The band's own bounded patch memory for the target — band-known evidence only. */
-function findTargetMemory(band: Band, targetTileId: TileId): ResourcePatchMemory | undefined {
-  return band.resourceKnowledgeState?.patchMemories?.find((memory) => memory.approximateTile === targetTileId);
+/**
+ * The band's own bounded patch memory for the target — band-known evidence only, matched
+ * by the patch identity the launch recorded (never by tile shape, which can drift).
+ * A party whose remembered patch has since been forgotten finds nothing, which is the
+ * physical `target_not_found` case.
+ */
+function findTargetMemory(band: Band, targetPatchId: string): ResourcePatchMemory | undefined {
+  return band.resourceKnowledgeState?.patchMemories?.find((memory) => String(memory.patchId) === targetPatchId);
 }
 
 /**
@@ -479,17 +503,95 @@ export const expeditionDailyAction: DailyAction = {
   },
 };
 
+/** Days between launch attempts, so a band cannot spam parties at a distant target. */
+const EXPEDITION_LAUNCH_CADENCE_DAYS = 6;
+
+/**
+ * How many working adults may physically leave. Bounded by what is left at camp after
+ * other parties are already away, and never more than a third of the residential
+ * workforce — a band does not empty its camp. Returns 0 when nobody can safely go,
+ * which is the physical "insufficient labor" block.
+ */
+function deriveDepartableWorkers(band: Band): number {
+  const available = getResidentialWorkingAdults(band);
+  const maxShare = Math.floor(band.demography.workingAdults / 3);
+  return Math.max(0, Math.min(available - 2, maxShare));
+}
+
+/**
+ * EXPEDITIONARY-2 §1/Slice C — consider sending a party to band-known country that the
+ * same-day path can no longer reach. The target comes from the trip authority's own
+ * bounded patch-memory selection, so an expedition can never aim at hidden country.
+ * Every rejection below is a physical constraint, not a score: no capacity, no spare
+ * adults, no remembered distant target, no passable route.
+ */
+function maybeLaunchExpedition(world: WorldState, band: Band, day: DayNumber): Band {
+  const active = (band.expeditions ?? []).filter((expedition) => isExpeditionAway(expedition.phase));
+
+  if (active.length >= EXPEDITION_ACTIVE_CAP || Number(day) % EXPEDITION_LAUNCH_CADENCE_DAYS !== 0) {
+    return band;
+  }
+
+  const partyWorkers = deriveDepartableWorkers(band);
+
+  if (partyWorkers < 2) {
+    return band;
+  }
+
+  const candidate = selectExpeditionTripCandidate(world, band, Number(day), EXPEDITION_MAX_ROUTE_TILES);
+
+  if (candidate === undefined || active.some((expedition) => expedition.targetTileId === candidate.targetTileId)) {
+    return band;
+  }
+
+  const route = buildExpeditionRouteTiles(world, band.position, candidate.targetTileId, EXPEDITION_MAX_ROUTE_TILES);
+
+  // No passable route within the bounded neighbourhood => physically unreachable. The
+  // band simply does not go; it never teleports to the target.
+  if (route === undefined || route.length - 1 > EXPEDITION_MAX_ROUTE_TILES) {
+    return band;
+  }
+
+  const legDays = Math.ceil((route.length - 1) / EXPEDITION_BASE_TILES_PER_DAY);
+
+  if (legDays * 2 + 1 > EXPEDITION_MAX_DURATION_DAYS) {
+    return band;
+  }
+
+  const expedition = createPreparedExpedition({
+    band,
+    taskKind: "distant_plant_gathering",
+    targetTileId: candidate.targetTileId,
+    targetPatchId: String(candidate.memory.patchId),
+    routeTileIds: route,
+    partyWorkers,
+    day,
+  });
+  return attachExpedition(band, expedition);
+}
+
 function applyExpeditionDay(world: WorldState, day: DayNumber): WorldState {
   const bandsById: Record<string, Band> = { ...world.bands };
   let currentWorld = world;
   let changed = false;
 
   for (const band of Object.values(world.bands).sort(compareExpeditionBands)) {
-    if (!isActiveExpeditionBand(band) || (band.expeditions ?? []).length === 0) {
+    if (!isActiveExpeditionBand(band)) {
       continue;
     }
 
-    const currentBand = bandsById[band.id] ?? band;
+    const launched = maybeLaunchExpedition(currentWorld, bandsById[band.id] ?? band, day);
+
+    if (launched !== (bandsById[band.id] ?? band)) {
+      bandsById[band.id] = launched;
+      changed = true;
+    }
+
+    if ((launched.expeditions ?? []).length === 0) {
+      continue;
+    }
+
+    const currentBand = launched;
     const nextExpeditions: ExpeditionRecord[] = [];
     const deposits: IntraSeasonTripRecord[] = [];
     let outcomes = [...(currentBand.recentExpeditionOutcomes ?? [])];

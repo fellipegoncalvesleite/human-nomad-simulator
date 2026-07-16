@@ -181,6 +181,71 @@ has a seed input — the sim layer just never consumes it. All audits/baselines 
 
 ## Current Status
 
+### EXPEDITIONARY LOGISTICAL MOBILITY-2 — production spine (2026-07-16)
+
+Work on `checkpoint/expeditionary-logistical-mobility-2`, branched from `d66946a`.
+Nothing pushed; prior branches intact.
+
+**Slice A — registry cycle resolved.** `DEFAULT_DAILY_ACTIONS` moved out of
+`intraSeasonTrips.ts` into the neutral leaf `agents/dailyActionRegistry.ts`, which
+imports both action owners and is imported by neither. Dependency graph is acyclic:
+`tick/advance.ts → dailyActionRegistry → {intraSeasonTrips, expedition}` and
+`expedition → intraSeasonTrips` only. Registration order is a fixed literal (trips
+then expeditions), so daily reducers run in a stable, explainable sequence with no
+module-init TDZ. `simBenchmark.mjs` repointed.
+
+**§1 REQUIRED CORRECTION — the fake instant multi-day credit is removed.** The split
+is now **duration, not distance**: `deriveTripDurationDays(distanceTiles)` (exported
+from the trip authority) is the single boundary. `applyTripDay` now `continue`s on any
+candidate whose round trip does not fit the genuine same-day budget, so the former
+5–10-tile band no longer depletes a distant stock and credits the ledger on the
+departure day. Trips genuinely inside the same-day envelope are untouched.
+Measured boundary: 1 tile → 1 day, 4 tiles → 1 day (same-day path), 5 tiles → 2 days,
+10 tiles → 3 days (expedition path).
+
+**Slice B — authoritative lifecycle** (`agents/expedition.ts`): phases
+prepared → outbound → operating → returning → completed/aborted/lost, deterministic
+ids (`hashSeedString`, no counters/clock), physical route + `routeIndex`/`positionTileId`,
+travel/work day counters, provisions, cargo with a carry ceiling, optional task camp,
+carried observations, bounded terminal outcomes. Caps: 2 active parties/band, 6 outcome
+records, 24 route tiles, 24 duration days, 3 work days, 6 observations.
+
+**Slice C — launch** is owned by the party/trip authority path (`expedition.ts` calling
+the trip module's own bounded patch-memory selector `selectExpeditionTripCandidate`),
+NOT by `bandDecision.ts` — which is untouched. Targets are band-remembered only
+(`bandKnownTargetOnly`), so hidden country cannot be aimed at. Launch is blocked
+physically by: no party capacity, fewer than 2 spare adults, no remembered distant
+target, no passable route within the bounded neighbourhood, or a leg that would exceed
+the duration cap.
+
+**Slice D — legs are physical.** A party advances `deriveTilesPerDay` route tiles/day
+(load ratio, injury, and — through the public adaptation boundary only —
+`deriveCarryingRelief`/`deriveCarriedWaterRelief`), so outbound and return each take
+days and the party always stands on a real route tile.
+
+**Slice E — labor reconciled once.** `estimateTaskGroupPeople` now sizes camp task
+groups from working adults **minus** those away on expeditions (read directly off band
+state to keep the one-way dependency), so departure genuinely reduces camp capacity and
+return restores it. `deriveDepartableWorkers` never lets a band empty its camp
+(≤ ⅓ of workforce, leaving ≥ 2 adults).
+
+**Slices F/G — provisions and receipt timing.** Provisions are trip-local: the party
+eats `EXPEDITION_PROVISION_UNITS_PER_WORKER_DAY` per worker per day out of what it
+carries — no band store is introduced, and no free calories. The target harvest is
+resolved by the SAME `resolvePhysicalFoodHarvest` a near trip uses (same stock
+depletion, same losses), becomes **cargo**, and is capped by
+`deriveCarryCapacityUnits`; the excess is `lostUnits`. Food reaches the camp only in
+`buildReturnedRecord`, which dates the receipt to the RETURN day/tick and sets
+`consumedByEconomy` — the single gate the canonical `humanFoodSupport` ledger reads.
+Nothing before the return sets it.
+
+**Remaining for a PASS:** viewshed, fire/smoke signals, knowledge-latency application
+on return, acute-risk episodes, adaptation efficacy feedback, task-camp comparison
+scenario, UI/reporting, Chronicle, the remaining focused audits, controlled scenarios,
+full regression, and long runs.
+
+---
+
 ### EXPEDITIONARY LOGISTICAL MOBILITY-1 — FAIL / PROGRESS → EXPEDITIONARY LOGISTICAL MOBILITY-2 (2026-07-16)
 
 **Verdict: FAIL (gate not met).** No production expedition behavior was implemented.

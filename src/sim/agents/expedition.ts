@@ -26,9 +26,12 @@ import type { DailyAction } from "./dailyActions";
 import { deriveCarriedWaterRelief, deriveCarryingRelief } from "./adaptationBoundary";
 import {
   KM_PER_TILE,
-  deriveMobilityCapacity,
+  deriveAvailableMobilityPools,
+  deriveTravelPace,
   recordExpeditionDistance,
   recordWalkingDay,
+  selectPartyComposition,
+  type TravelContext,
 } from "./bandMobility";
 import {
   buildExpeditionRouteTiles,
@@ -45,6 +48,7 @@ import type {
   ExpeditionObservation,
   ExpeditionOutcomeReason,
   ExpeditionOutcomeSummary,
+  ExpeditionPartyComposition,
   ExpeditionPhase,
   ExpeditionRecord,
   ExpeditionTaskCamp,
@@ -148,16 +152,27 @@ function deriveTilesPerDay(band: Band, expedition: ExpeditionRecord, currentTick
   const carried = expedition.cargo.harvestUnits;
   const capacity = Math.max(0.0001, expedition.cargo.carryCapacityUnits);
   const loadRatio = Math.max(0, Math.min(1, carried / capacity));
-  // EXPEDITIONARY-3 — pace is no longer a flat constant. It comes from this band's
-  // DERIVED mobility capacity (composition + nutrition + conditioning − fatigue), in km,
-  // converted at the map's documented scale. Two bands in identical terrain therefore
-  // walk differently, and the same band walks differently when hungry, tired, or better
-  // conditioned. Urgency raises willingness (food stress is the need signal); it scales
-  // real capacity and so cannot manufacture stamina.
+  // EXPEDITIONARY-4 §6 — pace comes from the ONE canonical travel-pace boundary, in the
+  // travel context this party is physically in: an injured party limps, a loaded return
+  // party is slower than its own outbound leg, an information party travels light, and
+  // an ordinary resource party walks at party capacity. Urgency (food stress) raises
+  // willingness inside the authority; it cannot manufacture stamina. The party's §8
+  // pool composition shapes its pace: who walks decides how far the party goes.
   const urgency = Math.max(0, Math.min(1, band.pressureState?.foodStress ?? 0));
-  const mobility = deriveMobilityCapacity(band, { loadRatio, urgency });
-  // A loaded return party is genuinely slower than the same party walking out.
-  const kmToday = loadRatio > 0 ? mobility.loadedKmPerActiveDay : mobility.currentKmPerActiveDay;
+  const context: TravelContext =
+    expedition.injuryLoad > 0.25
+      ? "delayed_or_injured_party"
+      : loadRatio > 0
+        ? "loaded_return_party"
+        : expedition.taskKind === "distant_patch_verification" || expedition.taskKind === "route_reconnaissance"
+          ? "selected_reconnaissance_party"
+          : "resource_expedition";
+  const pace = deriveTravelPace(band, context, {
+    loadRatio,
+    urgency,
+    injuryLoad: expedition.injuryLoad,
+    partyComposition: expedition.partyComposition,
+  });
   // Practiced carrying/water handling (public adaptation boundary only) recovers part of
   // the load cost — learned technique, kept distinct from bodily conditioning.
   const carryingRelief = deriveCarryingRelief(band, currentTick);
@@ -166,9 +181,7 @@ function deriveTilesPerDay(band: Band, expedition: ExpeditionRecord, currentTick
     1 +
     Math.max(0, Math.min(0.2, carryingRelief.relief ?? 0)) +
     Math.max(0, Math.min(0.1, waterRelief.relief ?? 0));
-  const injuryPenalty = Math.max(0.4, 1 - expedition.injuryLoad);
-  const tiles = (kmToday * reliefFactor * injuryPenalty) / KM_PER_TILE;
-  return Math.max(1, Math.floor(tiles));
+  return Math.max(1, Math.floor(pace.tilesPerTravelDay * reliefFactor));
 }
 
 /**
@@ -294,9 +307,10 @@ export function createPreparedExpedition(params: {
   readonly targetPatchId: string;
   readonly routeTileIds: readonly TileId[];
   readonly partyWorkers: number;
+  readonly partyComposition?: ExpeditionPartyComposition;
   readonly day: DayNumber;
 }): ExpeditionRecord {
-  const { band, taskKind, targetTileId, targetPatchId, routeTileIds, partyWorkers, day } = params;
+  const { band, taskKind, targetTileId, targetPatchId, routeTileIds, partyWorkers, partyComposition, day } = params;
   const time = getWorldTimeForDay(day);
   const legDays = Math.ceil((routeTileIds.length - 1) / EXPEDITION_BASE_TILES_PER_DAY);
   const plannedDays = Math.min(EXPEDITION_MAX_DURATION_DAYS, legDays * 2 + EXPEDITION_MAX_WORK_DAYS);
@@ -318,6 +332,7 @@ export function createPreparedExpedition(params: {
     travelDaysElapsed: 0,
     workDaysElapsed: 0,
     partyWorkers,
+    ...(partyComposition === undefined ? {} : { partyComposition }),
     cargo: {
       harvestUnits: 0,
       lostUnits: 0,
@@ -448,9 +463,12 @@ function advanceExpeditionOneDay(
     const memory = findTargetMemory(band, withProvisions.targetPatchId);
 
     if (memory === undefined) {
+      // The band forgot this patch while the party was walking to it. That is stale
+      // evidence, NOT an absent target — the distinction matters because it should
+      // revise how the band trusts old memory, not how it rates the country.
       return {
         world,
-        expedition: { ...withProvisions, phase: "returning", outcomeReason: "target_not_found" },
+        expedition: { ...withProvisions, phase: "returning", outcomeReason: "evidence_stale" },
       };
     }
 
@@ -480,7 +498,7 @@ function advanceExpeditionOneDay(
         phase: doneWorking ? "returning" : "operating",
         workDaysElapsed: workDays,
         pendingReturnRecord: work.record,
-        outcomeReason: taken > 0 ? "returned_with_cargo" : "target_not_found",
+        outcomeReason: classifyTargetWorkOutcome(work.record, taken),
         cargo: {
           ...withProvisions.cargo,
           harvestUnits: round4(carried),
@@ -532,6 +550,54 @@ function advanceExpeditionOneDay(
  * A party whose remembered patch has since been forgotten finds nothing, which is the
  * physical `target_not_found` case.
  */
+/**
+ * EXPEDITIONARY-4 §5.3 — map the resolved work record onto an explicit expedition
+ * outcome. The resolver already knows exactly why nothing came back; collapsing that
+ * into a generic `target_not_found` (as the first implementation did) destroys the
+ * evidence a band needs to revise memory correctly and makes the natural outcome
+ * distribution unreadable. Exported for the target-resolution audit.
+ *
+ * Precedence is the physical identity chain, outermost failure first:
+ * route endpoint → patch existence (fresh vs stale evidence) → stock state →
+ * band-known seasonality → the work itself.
+ */
+export function classifyTargetWorkOutcome(
+  record: IntraSeasonTripRecord,
+  taken: number,
+): ExpeditionOutcomeReason {
+  if (taken > 0) {
+    return "returned_with_cargo";
+  }
+
+  // The physical resolver stamps `failed_due_to_distance` on the record ONLY when the
+  // walked route did not end at the target (nor an accepted adjacent stand): the party
+  // is standing somewhere that is not the patch, so nothing below it can be judged.
+  if (record.activityOutcome === "failed_due_to_distance") {
+    return "route_endpoint_mismatch";
+  }
+
+  const failureReason = record.physicalFoodHarvest?.failureReason;
+
+  if (failureReason === "physical_source_absent") {
+    // No patch at the stand tile. Whether that indicts the COUNTRY or the EVIDENCE
+    // depends on how good the evidence was: a fresh, confident memory that turns out
+    // wrong means the target is genuinely absent; a stale/inferred one means the band's
+    // information failed, not the place.
+    return record.physicalFoodHarvest?.knownness === "known_target" ? "target_absent" : "evidence_stale";
+  }
+
+  if (failureReason === "physically_exhausted") {
+    return "physically_exhausted";
+  }
+
+  if (record.activityOutcome === "failed_due_to_season_mismatch") {
+    return "seasonally_inactive";
+  }
+
+  // The party stood at a real patch and the attempt itself returned nothing.
+  return "harvest_failed";
+}
+
 function findTargetMemory(band: Band, targetPatchId: string): ResourcePatchMemory | undefined {
   return band.resourceKnowledgeState?.patchMemories?.find((memory) => String(memory.patchId) === targetPatchId);
 }
@@ -586,13 +652,37 @@ function maybeLaunchExpedition(world: WorldState, band: Band, day: DayNumber): B
     return band;
   }
 
+  // §8 — the party is drawn from the AVAILABLE mobility-role pools (present adults
+  // only; adults already away are committed elsewhere and cannot be drawn twice). An
+  // ordinary gathering party fills from typical walkers first, touching the scarce
+  // high-capacity pool only when it must.
+  const availablePools = deriveAvailableMobilityPools(band);
+  const partyComposition = selectPartyComposition(availablePools, partyWorkers, "balanced");
+
+  if (partyComposition === undefined) {
+    return band;
+  }
+
   const candidate = selectExpeditionTripCandidate(world, band, Number(day), EXPEDITION_MAX_ROUTE_TILES);
 
   if (candidate === undefined || active.some((expedition) => expedition.targetTileId === candidate.targetTileId)) {
     return band;
   }
 
-  const route = buildExpeditionRouteTiles(world, band.position, candidate.targetTileId, EXPEDITION_MAX_ROUTE_TILES);
+  // §5.2 (multi-tile patch) — aim at the remembered anchor tile first; when the anchor
+  // itself is unreachable, any of the patch's linked tiles is an equally valid physical
+  // stand (deterministic order), and reaching one does not lose the patch identity.
+  let route = buildExpeditionRouteTiles(world, band.position, candidate.targetTileId, EXPEDITION_MAX_ROUTE_TILES);
+
+  if (route === undefined) {
+    for (const linkedTileId of [...candidate.memory.linkedTiles].sort((a, b) => String(a).localeCompare(String(b)))) {
+      route = buildExpeditionRouteTiles(world, band.position, linkedTileId, EXPEDITION_MAX_ROUTE_TILES);
+
+      if (route !== undefined) {
+        break;
+      }
+    }
+  }
 
   // No passable route within the bounded neighbourhood => physically unreachable. The
   // band simply does not go; it never teleports to the target.
@@ -613,6 +703,7 @@ function maybeLaunchExpedition(world: WorldState, band: Band, day: DayNumber): B
     targetPatchId: String(candidate.memory.patchId),
     routeTileIds: route,
     partyWorkers,
+    partyComposition,
     day,
   });
   return attachExpedition(band, expedition);
@@ -667,6 +758,15 @@ function applyExpeditionDay(world: WorldState, day: DayNumber): WorldState {
 
       if (isTerminalPhase(result.expedition.phase)) {
         const delivered = result.depositRecord?.physicalFoodHarvest?.usableSupport ?? 0;
+        const provisionalReason =
+          result.expedition.outcomeReason ?? (result.expedition.phase === "lost" ? "party_lost" : "returned_information_only");
+        // §5.3 — harvest physically taken at the target but nothing survived the walk
+        // home (the party ate it / the carry ceiling lost it): the RETURN failed, not
+        // the target. Distinct from every target-stage failure above.
+        const terminalReason: ExpeditionOutcomeReason =
+          provisionalReason === "returned_with_cargo" && delivered <= 0 && result.expedition.phase === "completed"
+            ? "cargo_return_failed"
+            : provisionalReason;
         // Observation only: how far this whole journey actually walked, out and back.
         mobility = recordExpeditionDistance(
           mobility,
@@ -676,7 +776,7 @@ function applyExpeditionDay(world: WorldState, day: DayNumber): WorldState {
           summarizeOutcome(
             result.expedition,
             result.expedition.phase,
-            result.expedition.outcomeReason ?? (result.expedition.phase === "lost" ? "party_lost" : "returned_information_only"),
+            terminalReason,
             delivered,
           ),
           ...outcomes,

@@ -165,9 +165,17 @@ export function resolveExpeditionTargetWork(
 ): { readonly world: WorldState; readonly record: IntraSeasonTripRecord } {
   const time = getWorldTimeForDay(day);
   const faunaGeo = deriveFaunaStockGeography(world);
+  // EXPEDITIONARY-4 §5.2 (multi-tile patch) — a remembered patch is anchored to an
+  // approximate tile but may span linked tiles. If the walked route physically ends on
+  // one of the patch's linked tiles rather than the anchor, the party IS standing at
+  // the patch: work resolves at the linked stand tile without losing the patch identity
+  // the launch recorded.
+  const standTileId = routeTiles[routeTiles.length - 1];
+  const workTileId =
+    standTileId !== targetTileId && memory.linkedTiles.includes(standTileId) ? standTileId : targetTileId;
   const candidate: TripCandidate = {
     memory,
-    targetTileId,
+    targetTileId: workTileId,
     distanceTiles,
     cause,
     score: 0,
@@ -177,10 +185,17 @@ export function resolveExpeditionTargetWork(
     nearbyProbeBonus: 0,
     logisticsSelectionBias: 0,
   };
-  const baseRecord = buildTripRecord(world, band, candidate, day, time.tick, time.season, faunaGeo);
+  // EXPEDITIONARY-4 §5 — the party is PHYSICALLY at the target when this resolves. The
+  // same-day shadow gates (`failed_due_to_distance`, `delayed_return`, low-memory
+  // hesitation) model whether a day-group would even get there; applying them to a
+  // party that already walked the route zeroed the physical work request and was the
+  // proven cause of the generic target_not_found dominance (218/362 in the 40y audit).
+  const baseRecord = buildTripRecord(world, band, candidate, day, time.tick, time.season, faunaGeo, {
+    physicallyAtTarget: true,
+  });
   // Override the route with the expedition's real, already-walked physical route so
-  // `routeReached` reflects that the party is genuinely standing at the target rather
-  // than re-deriving a short daily path.
+  // `routeReached` reflects where the party is genuinely standing rather than
+  // re-deriving a short daily path.
   const expeditionRecord: IntraSeasonTripRecord = { ...baseRecord, pathTiles: routeTiles };
   return resolvePhysicalFoodHarvest(world, expeditionRecord, time, faunaGeo);
 }
@@ -774,6 +789,11 @@ function buildTripRecord(
   tick: TickNumber,
   season: IntraSeasonTripRecord["season"],
   faunaGeo: FaunaStockGeography,
+  // EXPEDITIONARY-4 §5 — set only by the expedition work day: the party has already
+  // physically walked the route and is standing at the target, so the same-day
+  // travel-uncertainty gates must not zero its work request. Same-day trips never
+  // pass this and remain byte-identical.
+  presence?: { readonly physicallyAtTarget: boolean },
 ): IntraSeasonTripRecord {
   const roundTripTiles = candidate.distanceTiles * 2;
   const estimatedDurationDays = Math.max(1, Math.ceil(roundTripTiles / SAME_DAY_ROUND_TRIP_TILE_BUDGET));
@@ -817,6 +837,7 @@ function buildTripRecord(
     day,
     faunaReturnFactor,
     plantReturnFactor,
+    presence?.physicallyAtTarget === true,
   );
   // ECO-SEASON-1: realized seasonal ecology the group observes at its target this season.
   // Recorded on the trip (debug) and used to scale the SHADOW estimate only — never the
@@ -1129,6 +1150,7 @@ function deriveActivityOutcomeDetail(
   day: DayNumber,
   faunaReturnFactor: number,
   plantReturnFactor: number,
+  physicallyAtTarget: boolean = false,
 ): ActivityOutcomeDetail {
   const effective = effectiveResourceConfidence(candidate.memory, Number(tick));
   const seasonMismatch = isKnownSeasonMismatch(candidate.memory, season, effective.effectiveSeasonConfidence);
@@ -1142,7 +1164,10 @@ function deriveActivityOutcomeDetail(
     isFoodClass(candidate.memory.resourceClassId) &&
     effective.effectiveAccessConfidence >= 0.22 &&
     effective.effectivePresenceConfidence >= 0.18;
+  // EXPEDITIONARY-4 §5 — "will we even get there?" is not a question for a party that
+  // is already standing at the target; physical access was resolved by the walked route.
   const distanceRiskKnown =
+    !physicallyAtTarget &&
     estimatedDurationDays > 1 &&
     candidate.distanceTiles >= 8 &&
     effective.effectiveAccessConfidence < 0.35 &&
@@ -1164,6 +1189,7 @@ function deriveActivityOutcomeDetail(
     lowMemoryConfidence,
     effective.effectivePresenceConfidence,
     effective.effectiveYieldConfidence,
+    physicallyAtTarget,
   );
   const outcomeReasonIds = [
     makeActivityReasonId(bandId, day, "outcome", outcome, candidate.targetTileId),
@@ -1205,6 +1231,7 @@ function classifyActivityOutcome(
   lowMemoryConfidence: boolean,
   presenceConfidence: number,
   yieldConfidence: number,
+  physicallyAtTarget: boolean = false,
 ): IntraSeasonTripActivityResult {
   if (waterRiskKnown) {
     return candidate.cause === "water_check" ? "failed_due_to_water_risk" : "abandoned_due_to_risk";
@@ -1216,6 +1243,16 @@ function classifyActivityOutcome(
 
   if (seasonMismatch && candidate.cause !== "memory_refresh") {
     return "failed_due_to_season_mismatch";
+  }
+
+  // EXPEDITIONARY-4 §5 — a party standing at the target does not hesitate over how much
+  // it trusts its memory of the place, and cannot be "delayed getting there": it is
+  // there. It attempts the work; the PHYSICAL resolver (patch existence, stock,
+  // depletion) decides what the attempt yields. Belief-confidence keeps shaping the
+  // requested amount downstream, so bounded knowledge still matters — it just no longer
+  // pretends a present party is absent.
+  if (physicallyAtTarget && isFoodClass(candidate.memory.resourceClassId)) {
+    return estimatedPeopleCount >= 2 ? "partial_success" : "target_found";
   }
 
   if (lowMemoryConfidence) {

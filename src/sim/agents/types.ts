@@ -888,13 +888,45 @@ export type ExpeditionPhase =
 export type ExpeditionOutcomeReason =
   | "returned_with_cargo"
   | "returned_information_only"
-  | "target_not_found"
+  // EXPEDITIONARY-4 §5.3 — distinct physical causes must NOT collapse into one bucket.
+  // (The former generic `target_not_found` no longer exists; every zero-cargo work
+  // outcome below names the exact stage of the identity chain that failed.)
+  // The party arrived, its evidence was fresh, and the remembered patch genuinely
+  // was not there.
+  | "target_absent"
+  // The evidence itself was stale/inferred/forgotten: either the band no longer
+  // remembers the patch it sent the party to, or the memory was too weak to name a
+  // real physical source when the party stood at the tile.
+  | "evidence_stale"
+  // The patch physically exists but its stock is drawn down to nothing (depletion).
   | "physically_exhausted"
+  // Band-known seasonality says the patch is not active this season; the party
+  // declined to work it rather than pretending a harvest.
+  | "seasonally_inactive"
+  // The walked route ended somewhere that is NOT the target tile (nor a linked/
+  // shore-adjacent stand for it) — physical access failed, not the patch.
+  | "route_endpoint_mismatch"
+  // The party stood at a real patch, attempted the work, and it returned nothing.
+  | "harvest_failed"
+  // Harvest was physically taken at the target but nothing survived the return
+  // (provisions consumed it / carry ceiling lost it) — the trip, not the target, failed.
+  | "cargo_return_failed"
   | "provisions_ran_out"
   | "route_impassable"
   | "injury_forced_return"
   | "season_window_closed"
   | "party_lost";
+
+/**
+ * EXPEDITIONARY-4 §8 — aggregate mobility-role counts a party was drawn from.
+ * Never individuals, never a sex claim (Option B). Defined here (the type leaf) so
+ * both the expedition record and the mobility authority share one shape.
+ */
+export interface ExpeditionPartyComposition {
+  readonly limited: number;
+  readonly typical: number;
+  readonly high: number;
+}
 
 /** What the party physically carries home. Information is not cargo that feeds anyone. */
 export interface ExpeditionCargo {
@@ -952,6 +984,12 @@ export interface ExpeditionRecord {
   readonly workDaysElapsed: number;
   /** Aggregate composition — never individual people. */
   readonly partyWorkers: number;
+  /**
+   * EXPEDITIONARY-4 §8 — which mobility-role pools these workers were drawn from
+   * (limited/typical/high). Aggregate counts, conserved against the band's pools; a
+   * high-capacity adult committed here is unavailable to every other party until return.
+   */
+  readonly partyComposition?: ExpeditionPartyComposition;
   readonly cargo: ExpeditionCargo;
   readonly taskCamp?: ExpeditionTaskCamp;
   /** Physical risk actually experienced, per-leg capped (no duplicate application). */

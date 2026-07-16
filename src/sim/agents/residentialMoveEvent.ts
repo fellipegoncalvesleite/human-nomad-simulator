@@ -38,6 +38,10 @@ import { readSeasonalEcologyHint } from "./seasonalEcologyReader";
 // INVENTION-1: practiced carrying response relieves a bounded share of the
 // dependent/elder hardship terms of a burdened residential move.
 import { deriveCarriedWaterRelief, deriveCarryingRelief } from "./adaptationBoundary";
+// EXPEDITIONARY-4 §6/§7 — the ONE canonical travel-pace boundary. A whole-band
+// residential column derives its pace here (cohorts, possessions, cohesion), so this
+// module no longer carries private tiles-per-day constants.
+import { deriveTravelPace } from "./bandMobility";
 import { deriveTemporaryWatercraftAssessmentForMove } from "./storageSuitability";
 import type {
   Band,
@@ -118,22 +122,25 @@ function buildResidentialMoveEvent(
   const distanceTiles = Math.max(1, pathTiles.length - 1);
   const startDay = startDayForKind(moveKind);
   const watercraftDelayDays = 0;
-  // CAUSAL-REPAIR-2: urgency quickens the PACE, not only the departure day.
-  // An emergency water escape forced-marches ~2 tiles/day, a food-pressure
-  // escape ~1.5; ordinary relocations keep the unhurried 1 tile/day (packing,
-  // foraging en route, dependents). Record/display only — the seasonal
-  // decision, endpoint, and determinism are unchanged; the quicker pace is
-  // paid as extra hardship risk below.
+  // EXPEDITIONARY-4 §6/§7 — the column's pace comes from the canonical mobility
+  // authority: the whole band moves with its dependents, elders, and camp burden, so
+  // it is physically slower than a selected party over the same route. Urgency raises
+  // willingness (a force-marching column overreaches), never stamina; the quicker
+  // pace is paid as extra hardship risk below. The seasonal decision and endpoint are
+  // unchanged — this derives duration/effort of the ALREADY-decided move.
+  const ordinaryPace = deriveTravelPace(band, "whole_band_residential_move").tilesPerTravelDay;
   const paceTilesPerDay =
-    moveKind === "emergency_water_move" ? 2 :
-    moveKind === "food_pressure_move" ? 1.5 :
-    1;
+    moveKind === "emergency_water_move"
+      ? deriveTravelPace(band, "emergency_residential_move", { urgency: 1 }).tilesPerTravelDay
+      : moveKind === "food_pressure_move"
+        ? deriveTravelPace(band, "emergency_residential_move", { urgency: 0.5 }).tilesPerTravelDay
+        : ordinaryPace;
   const durationDays = Math.max(
     1,
-    Math.min(14, Math.ceil(distanceTiles / paceTilesPerDay) + watercraftDelayDays),
+    Math.min(14, Math.ceil(distanceTiles / Math.max(0.2, paceTilesPerDay)) + watercraftDelayDays),
   );
   const endDay = Math.min(SEASON_LENGTH_DAYS - 1, startDay + durationDays);
-  const hardship = deriveMigrationHardship(world, band, distanceTiles, status, undefined, paceTilesPerDay);
+  const hardship = deriveMigrationHardship(world, band, distanceTiles, status, undefined, paceTilesPerDay, ordinaryPace);
   const hardshipOutcome = classifyResidentialMovementHardshipOutcome({
     hasResidentialIntent: isResidentialMovementIntentKind(decision.mobilityIntent?.kind),
     executionOpportunity: true,
@@ -196,6 +203,7 @@ function deriveMigrationHardship(
   status: ResidentialMoveStatus,
   temporaryWatercraft: ReturnType<typeof deriveTemporaryWatercraftAssessmentForMove>,
   paceTilesPerDay: number,
+  ordinaryPaceTilesPerDay: number,
 ): {
   readonly risk: number;
   readonly level: "low" | "moderate" | "high" | "severe";
@@ -214,10 +222,10 @@ function deriveMigrationHardship(
       : world.time.season === "winter"
         ? 0.08
         : 0;
-  // A forced-march pace (>1 tile/day) is paid as extra hardship risk — the
-  // quicker escape trades rest, foraging en route, and care time for speed.
-  // Ordinary 1 tile/day moves pay exactly 0 here.
-  const forcedMarchRisk = Math.max(0, paceTilesPerDay - 1) * 0.12;
+  // A forced-march pace (beyond the band's OWN ordinary column pace) is paid as extra
+  // hardship risk — the quicker escape trades rest, foraging en route, and care time
+  // for speed. A column moving at its ordinary derived pace pays exactly 0 here.
+  const forcedMarchRisk = Math.max(0, paceTilesPerDay - ordinaryPaceTilesPerDay) * 0.12;
   // INVENTION-1: a practiced carrying response (band's own pre-move state)
   // relieves at most 60% × cap(0.4) = 24% of the dependent/elder burden terms
   // of the move — real but bounded; every other hardship term is fully paid.

@@ -1,7 +1,7 @@
 import type { BandId, ReasonId, RouteId, TileId, TickNumber } from "../core/types";
 import type { NormalizedIntensity } from "../rules/types";
 import type { WorldState } from "../world/types";
-import { deriveAdaptiveHumanProfile } from "./adaptiveHuman";
+import { deriveAdaptiveHumanProfile } from "./adaptationBoundary";
 import { deriveCampFootholdProfile } from "./campFoothold";
 import { deriveCampMovementProfile } from "./campMovement";
 import { deriveCanonicalEvents } from "./eventSystem";

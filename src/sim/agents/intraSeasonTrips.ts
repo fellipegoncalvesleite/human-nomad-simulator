@@ -49,7 +49,7 @@ import {
 } from "./faunaStock";
 import { derivePlantGatherPatchTrace, derivePlantGatherReturnFactor, resolvePlantFoodHarvest, type PlantGatherPatchTraceBase } from "./plantStock";
 import { deriveResourceClassAvailability } from "./resourceClasses";
-import { deriveHuntingSafetyRelief } from "./practicalResponses";
+import { deriveHuntingSafetyRelief } from "./adaptationBoundary";
 import {
   classifyActivityReturnKind,
   getActivityReturnSemantics,

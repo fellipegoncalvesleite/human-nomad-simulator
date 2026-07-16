@@ -181,6 +181,109 @@ has a seed input — the sim layer just never consumes it. All audits/baselines 
 
 ## Current Status
 
+### CORE PIPELINE CONSOLIDATION / DECISION ORCHESTRATION DECOMPOSITION-3 — Adaptation boundary + Context lifecycle (2026-07-15)
+
+**Verdict: PASS.** Both binding workstreams passed their binding audits, the full
+regression matrix is green, and the deterministic fingerprint is byte-identical
+to baseline at 25y AND at 300y (map1 `0d440a3e…`, map2 `c1b218b6…`). Core pipeline
+consolidation is COMPLETE — roadmap advances to EXPEDITIONARY LOGISTICAL
+MOBILITY-1. Commit: `checkpoint: finalize core pipeline consolidation` (hash
+recorded in the checkpoint's final report; a commit cannot contain its own hash).
+
+Regression executed on this branch (all green):
+- `tsc -p tsconfig.json` + `tsc -p tsconfig.node.json` + `npm run build` — pass.
+- Deterministic benchmark (`--scenario baseline --years 25 --deterministic`) —
+  `firstFingerprint === secondFingerprint === baseline`, two fresh processes.
+- `checkGraph.mjs` — clean (0 dup / 0 dangling) with the new `adaptationBoundary`
+  node + 5 links. `git diff --check` — clean.
+- Binding audits: `adaptationBoundaryAudit.mjs` PASS (8/8 checks),
+  `contextLifecycleAudit.mjs` PASS (full=2/tick, partial=1/tick, stale-read-free
+  across 6 scenarios).
+- Regression audits: `decisionBoundaryAudit`, `importBoundaryAudit`,
+  `seasonOrderInvarianceAudit`, `livingEcologyFoodPipelineAudit`,
+  `livingEcologyTrophicAudit`, `allMapLivingEcologyAudit`,
+  `demographicPersistenceAudit`, `demographicRenewalAudit`,
+  `demographicDeathMemoryPathAudit`, `foodDemographySeparationAudit`,
+  `postEcologyHardshipOutcomeAudit`, `postEcologyReturnKindAudit`,
+  `postEcologyTerminalExtinctionAudit`, `dynamicSnapshotEcologyParityAudit` — all
+  PASS; `catchmentInvariants` all cases PASS; `architectureMetricsAudit` /
+  `livingEcologyWorldAudit` measurement/diagnostic (exit 0).
+- Long-run 300y matrix (map1 / map2 / map2_single_origin / no_human_map1, each
+  with `--repeat`): PASS; 300y fingerprints byte-identical to stored baselines
+  (only `runtimeMs` differs; map2 wall-clock ~622s→~447s, consistent with the
+  4→2 rebuild reduction).
+
+Work on `checkpoint/core-pipeline-decomposition-3`, branched from `5422991`
+(decomposition-2). No history rewritten, nothing pushed, prior branches intact.
+Both binding workstreams (B: adaptation public boundary; C: context lifecycle
+4→2) are implemented with **exact deterministic-benchmark fingerprint parity to
+`5422991`** verified after every step. Workstream A remains intact.
+
+**Workstream B — adaptation/invention public boundary (done):**
+
+- Canonical state: `band.practicalAdaptation`. Advance writers:
+  `advancePracticalAdaptation`, `advanceAdaptiveHumanState`. Effect boundary:
+  `practicalResponses.ts` (`deriveCarryingCondition` / `deriveWaterRouteCondition`
+  / `deriveWaterStorageCondition` / `deriveEffectiveStorageCapacity`). Efficacy:
+  the `evaluate*Efficacy` readers. Inheritance:
+  `inheritPracticalAdaptationForDaughter` (fission).
+- New public interface `src/sim/agents/adaptationBoundary.ts` — the ONE sanctioned
+  entry for production SIM code outside the subsystem. It exposes a curated 35
+  named operations (advance / decision support / adaptive-human profile / effect
+  conditions / per-system reliefs / efficacy / both fission inheritors),
+  deliberately smaller than the 92 internal `export` definitions across
+  `adaptiveHuman`, `practicalResponses`, `adaptiveEfficacy`, `problemPractice`,
+  `practicalFragments`, `materialAffordance`, `inventionChain`,
+  `practiceFeedbackReadiness` (not an `export *` barrel).
+- Migrated **all 10** production SIM consumers to import through the boundary:
+  `bandDecision.ts` (decision support / conditions / efficacy / advance),
+  `demography.ts` (both fission inheritors), the `AdaptiveDecisionSupport` type in
+  `decisionCandidateTypes.ts`, and the relief consumers `acuteRisk`,
+  `bodyCampLogistics`, `intraSeasonTrips`, `pressure`, `storageSuitability`,
+  `residentialMoveEvent`, `migrationWalk`, `publicHumanStory`, `knowledgeCarriers`.
+  **Zero** production SIM deep imports of the adaptation internals remain,
+  including sibling `./` imports (allowlist: internal subsystem modules + the
+  boundary). The read-only UI panels (`IdeasSolutions.tsx`, `Technical.tsx`) still
+  read internals directly — the allowed `ui → sim` projection direction, tracked
+  by `importBoundaryAudit`, out of scope here.
+- New `scripts/adaptationBoundaryAudit.mjs`: no unauthorized deep imports (regex
+  now catches sibling `./practicalResponses`-style imports, not only
+  `agents/`-prefixed paths — the first pass's blind spot), curated-not-barrel
+  (35 < 92, no `export *`), single effect definition, boundary effect reads ==
+  internal (no duplicate application), the lived
+  problem→experiment→response→effect→efficacy chain executes, and observer mode
+  does not change adaptation state.
+
+**Workstream C — context lifecycle 4→2 (done):**
+
+- `runSeasonalCompatibilityTick` previously built the shared context cache ~4×
+  per seasonal tick (pre-decision, post-acute-risk, post-decision, end-of-season).
+  Now **2 full rebuilds** (pre-decision + post-decision) plus **1 bounded partial
+  refresh** (end-of-season read model), verified 2.0 full builds/tick by counters.
+- Eliminated the redundant post-acute-risk rebuild: `buildTickContextCache` reads
+  only band positions/status/memory + time; `updateBandContextStates` and
+  `applyAcuteRiskContext` change none of those before the decision loop, so the
+  pre-decision cache is reused for decisions.
+- The end-of-season pass is a partial refresh (`deriveFinalReadModelContext`):
+  when the active band set is unchanged it reuses the post-decision derived data
+  (spatial index, salient memory, nearby index) with fresh ecology-dependent
+  memos; when fission/extinction changed the set it rebuilds the cheap spatial/
+  nearby data but reuses per-band salient memory for survivors. Byte-identical to
+  a full rebuild (proven via an audit-only force-full switch).
+- New `scripts/contextLifecycleAudit.mjs` (PASS across no-change / movement /
+  demographic-change / multi-band / terminal-extinction / shared-catchment):
+  `fullSharedContextBuildsPerSeasonTick <= 2`, partial refresh byte-identical to a
+  forced full rebuild (no stale reads), deterministic, observer parity, and
+  season-order physical invariance preserved.
+
+**Deferred (documented, not binding here):** hot/cold band state migration
+(measured in decomposition-1); `practiceFeedbackReadiness`/projection modules were
+not proven safely removable and are retained. Remaining candidate families
+(stay/move/explore/logistical/side-country/inferred-frontier/corridor) can be
+extracted with the established pattern.
+
+---
+
 ### CORE PIPELINE CONSOLIDATION / DECISION ORCHESTRATION DECOMPOSITION-2 — PROGRESS / FAIL → DECOMPOSITION-3 (2026-07-15)
 
 Work on `checkpoint/core-pipeline-decomposition-2`, branched from the accepted
@@ -6392,18 +6495,23 @@ UI in `src/ui/BandPanel.tsx`, audit + `--targeted-cause-event-check` in
 
 ## Recommended Next Step
 
-**Current recommendation after CORE PIPELINE CONSOLIDATION-1 (PROGRESS):** CORE
-PIPELINE CONSOLIDATION / SEASON RESOLUTION / DECISION ORCHESTRATION
-**DECOMPOSITION-2**. The correctness/safety consolidation is done and proven
-(season order-invariance, import/read-model isolation, explicit phase contract);
-the structural decomposition remains. Do **not** advance to expeditions yet.
-Start DECOMPOSITION-2 from the measured evidence: decompose `bandDecision.ts`
-(7238 lines) into a thin orchestrator over domain candidate-contributions;
-formalize the adaptation public interface (authority `band.practicalAdaptation`,
-effects `practicalResponses.ts`); layer the 4× per-tick context rebuilds;
-evaluate the ~39% cold band state. Preserve exact fingerprint parity for
-refactor-only areas. The prior-checkpoint recommendation below (originally naming
-CONSOLIDATION-1 as next) is now superseded by DECOMPOSITION-2.
+**Current recommendation after CORE PIPELINE CONSOLIDATION / DECOMPOSITION-3
+(PASS):** **EXPEDITIONARY LOGISTICAL MOBILITY / TASK CAMPS / VIEWSHED PERCEPTION /
+FIRE SIGNALS-1** (roadmap item 1). Core pipeline consolidation is now COMPLETE
+across DECOMPOSITION-1/-2/-3 — season order-invariance + read-model isolation,
+the decision-orchestrator decomposition, the adaptation public boundary
+(`src/sim/agents/adaptationBoundary.ts` is the ONE sanctioned entry; canonical
+state `band.practicalAdaptation`, effect boundary `practicalResponses.ts`), and
+the context lifecycle (2 full `buildTickContextCache` + 1 partial refresh/tick).
+Do **not** fold expedition mechanics back into consolidation. Per §13 of
+CLAUDE.md, inspect and STRENGTHEN the existing activity-party / logistical-trip
+code (`intraSeasonTrips.ts`, `dailyActions.ts`) — do not invent expeditions from
+nothing. Distinguish local daily activities from logistical trips (duration,
+staging, task/overnight camps, provisioning, transport, field processing,
+repeated retrieval, viewshed/line-of-sight, fire/smoke signals); a task camp is
+NOT automatically a settlement. Preserve anti-omniscience, determinism, bounded
+state, and physical-receipt-only food. The prior recommendation below (naming
+DECOMPOSITION-2, then -3) is now superseded.
 
 **Superseded prior recommendation (after persistence-2):** CORE PIPELINE
 CONSOLIDATION / SEASON RESOLUTION / DECISION ORCHESTRATION DECOMPOSITION-1.

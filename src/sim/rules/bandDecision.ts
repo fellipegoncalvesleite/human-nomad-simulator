@@ -57,12 +57,27 @@ import {
   advanceReportedKnowledgeAfterDecision,
   deriveReportedKnowledgeTargetBias,
 } from "../agents/reportedKnowledge";
+// CORE-PIPELINE-DECOMPOSITION-3 (Workstream B) — adaptation/invention is used only
+// through the public boundary (never the subsystem internals directly).
 import {
   advanceAdaptiveHumanState,
+  advancePracticalAdaptation,
   deriveAdaptiveDecisionSupport,
+  deriveCarryingCondition,
+  deriveEffectiveStorageCapacity,
+  deriveWaterRouteCondition,
+  deriveWaterStorageCondition,
+  evaluateCareEfficacy,
+  evaluateCarryingEfficacy,
+  evaluateEngineeringEfficacy,
+  evaluateHuntingEfficacy,
+  evaluateMeasureEfficacy,
+  evaluateShelterEfficacy,
+  evaluateWaterRouteEfficacy,
+  evaluateWaterStorageEfficacy,
   selectAdaptiveInfluenceForAction,
   type AdaptiveDecisionSupport,
-} from "../agents/adaptiveHuman";
+} from "../agents/adaptationBoundary";
 import {
   advanceCampMovementState,
   deriveCampMovementDecisionSupport,
@@ -75,23 +90,6 @@ import { deriveChronicHardship } from "../agents/chronicHardship";
 import type { ChronicHardshipSignal } from "../agents/chronicHardship";
 import { getCanonicalFoodStress } from "../agents/seasonalSurvival";
 import { deriveCrossingPracticeRelief } from "../agents/crossingPractice";
-import {
-  evaluateCareEfficacy,
-  evaluateCarryingEfficacy,
-  evaluateEngineeringEfficacy,
-  evaluateHuntingEfficacy,
-  evaluateMeasureEfficacy,
-  evaluateShelterEfficacy,
-  evaluateWaterStorageEfficacy,
-  evaluateWaterRouteEfficacy,
-} from "../agents/adaptiveEfficacy";
-import {
-  advancePracticalAdaptation,
-  deriveCarryingCondition,
-  deriveEffectiveStorageCapacity,
-  deriveWaterStorageCondition,
-  deriveWaterRouteCondition,
-} from "../agents/practicalResponses";
 import {
   advanceAnimalManagement,
   advanceAnimalPatternKnowledge,

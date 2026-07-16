@@ -93,7 +93,41 @@ export interface TickContextCache {
   readonly crowdingFieldMemo: { value?: CrowdingField };
 }
 
-export function buildTickContextCache(world: WorldState): TickContextCache {
+// CORE-PIPELINE-DECOMPOSITION-3 (Workstream C) — audit-only lifecycle counters.
+// These count full context rebuilds vs partial refreshes. They do not change the
+// returned cache or any simulation behavior; contextLifecycleAudit.mjs resets them
+// before a controlled run and reads them after. Not persisted, not read by the sim.
+let fullContextBuildCount = 0;
+let partialContextRefreshCount = 0;
+
+export function getContextLifecycleCounters(): { readonly fullBuilds: number; readonly partialRefreshes: number } {
+  return { fullBuilds: fullContextBuildCount, partialRefreshes: partialContextRefreshCount };
+}
+
+export function resetContextLifecycleCounters(): void {
+  fullContextBuildCount = 0;
+  partialContextRefreshCount = 0;
+}
+
+// CORE-PIPELINE-DECOMPOSITION-3 (Workstream C) — build options. `reuseSalientMemoryById`
+// lets a partial refresh reuse per-band salient-memory summaries for bands whose
+// memory is unchanged (the expensive shared work), recomputing only for new bands.
+// `countAsPartialRefresh` records the build as a partial refresh, not a full rebuild.
+// Both default to plain full-build behavior; the produced cache is byte-identical.
+export interface BuildTickContextCacheOptions {
+  readonly reuseSalientMemoryById?: ReadonlyMap<BandId, SalientBandMemorySummary>;
+  readonly countAsPartialRefresh?: boolean;
+}
+
+export function buildTickContextCache(
+  world: WorldState,
+  options?: BuildTickContextCacheOptions,
+): TickContextCache {
+  if (options?.countAsPartialRefresh === true) {
+    partialContextRefreshCount += 1;
+  } else {
+    fullContextBuildCount += 1;
+  }
   const allBands = Object.values(world.bands);
   const activeBandIds = allBands
     .filter(isActiveBand)
@@ -111,7 +145,8 @@ export function buildTickContextCache(world: WorldState): TickContextCache {
       continue;
     }
 
-    salientMemoryByBandId.set(band.id, buildSalientBandMemorySummary(world, band));
+    const reusedSalientMemory = options?.reuseSalientMemoryById?.get(band.id);
+    salientMemoryByBandId.set(band.id, reusedSalientMemory ?? buildSalientBandMemorySummary(world, band));
     nearbyBandsByBandId.set(
       band.id,
       getNearbyActiveBandIdsForTile(world, bandSpatialIndex, band.position, DEFAULT_NEARBY_RADIUS)
@@ -130,6 +165,74 @@ export function buildTickContextCache(world: WorldState): TickContextCache {
     nearbyBandPressureByBandTileKey: new Map(),
     salientMemoryByBandId,
     salientMemoryBandIdsByTileId: buildSalientMemoryTileIndex(salientMemoryByBandId),
+    knownOpportunityByBandId: new Map<BandId, NearbyOpportunityGradient>(),
+    rangeSaturationByBandId: new Map<BandId, RangeSaturationState>(),
+    preDecisionDryContextByBandId: new Map<BandId, DryMarginMobilityContext | undefined>(),
+    preDecisionAnchorByBandId: new Map<BandId, ResidentialAnchorContext | undefined>(),
+    preDecisionSeasonalRoundByBandId: new Map<BandId, SeasonalRoundScoringContext | undefined>(),
+    sharedCatchmentMemo: {},
+    salientPlaceMemoByBand: new WeakMap<Band, readonly PlaceMemoryRecord[]>(),
+    crowdingFieldMemo: {},
+  };
+}
+
+// CORE-PIPELINE-DECOMPOSITION-3 (Workstream C) — the sorted active band ids for a
+// world, using the exact filter buildTickContextCache uses. Cheap; lets a caller
+// decide whether a prior cache's derived band set is still valid.
+export function deriveActiveBandIds(world: WorldState): readonly BandId[] {
+  return Object.values(world.bands)
+    .filter(isActiveBand)
+    .map((band) => band.id)
+    .sort(compareBandIds);
+}
+
+// CORE-PIPELINE-DECOMPOSITION-3 (Workstream C) — the end-of-season read-model
+// context, derived as a PARTIAL REFRESH of the post-decision cache in every case,
+// so the final read-model pass never costs a full shared rebuild:
+//   - active band set unchanged (the common path): reuse all derived data (spatial
+//     index, salient memory, nearby-band index) with fresh per-decision memos;
+//   - active band set changed (fission/extinction): rebuild the cheap spatial/active/
+//     nearby data from the advanced world but reuse per-band salient memory for the
+//     surviving bands (the expensive shared work), computing it fresh only for new
+//     bands. In both cases the result is byte-identical to a full rebuild.
+export function deriveFinalReadModelContext(
+  priorCache: TickContextCache,
+  world: WorldState,
+): TickContextCache {
+  const activeBandIds = deriveActiveBandIds(world);
+  const unchanged = activeBandIds.length === priorCache.activeBandIds.length &&
+    activeBandIds.every((id, index) => id === priorCache.activeBandIds[index]);
+  if (unchanged) {
+    return cloneTickContextCacheWithFreshMemos(priorCache);
+  }
+  return buildTickContextCache(world, {
+    reuseSalientMemoryById: priorCache.salientMemoryByBandId,
+    countAsPartialRefresh: true,
+  });
+}
+
+// CORE-PIPELINE-DECOMPOSITION-3 (Workstream C) — reuse an existing cache's expensive
+// derived data (spatial index, active band ids, per-band salient-memory summaries,
+// nearby-band index) but start FRESH empty per-decision memos, so ecology-dependent
+// values (range saturation, known opportunity) recompute from the advanced world
+// while the position/memory-derived data is safely reused. Callers MUST have verified
+// the active band set is unchanged (see deriveFinalReadModelContext); counts as a
+// partial refresh.
+export function cloneTickContextCacheWithFreshMemos(cache: TickContextCache): TickContextCache {
+  partialContextRefreshCount += 1;
+  return {
+    tick: cache.tick,
+    season: cache.season,
+    bandSpatialIndex: cache.bandSpatialIndex,
+    activeBandIds: cache.activeBandIds,
+    nonDispersedBandCount: cache.nonDispersedBandCount,
+    tileBandOccupancy: cache.tileBandOccupancy,
+    nearbyBandsByBandId: cache.nearbyBandsByBandId,
+    salientMemoryByBandId: cache.salientMemoryByBandId,
+    salientMemoryBandIdsByTileId: cache.salientMemoryBandIdsByTileId,
+    // Fresh per-decision memos so ecology-dependent values are recomputed from the
+    // advanced world rather than read stale from the post-decision cache.
+    nearbyBandPressureByBandTileKey: new Map(),
     knownOpportunityByBandId: new Map<BandId, NearbyOpportunityGradient>(),
     rangeSaturationByBandId: new Map<BandId, RangeSaturationState>(),
     preDecisionDryContextByBandId: new Map<BandId, DryMarginMobilityContext | undefined>(),

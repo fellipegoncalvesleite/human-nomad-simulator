@@ -68,22 +68,29 @@ Other cited commits — all CONFIRMED present in `git log --all`:
   736214f39728767b77b4e7989dc33c7b16642239.
 
 Last updated:
-  2026-07-15 (CORE PIPELINE CONSOLIDATION-1: correctness consolidation + audit)
+  2026-07-15 (CORE PIPELINE CONSOLIDATION / DECOMPOSITION-3: adaptation public
+  boundary + context lifecycle 4→2 — PASS; core pipeline consolidation complete)
 
 Implemented checkpoint:
-  FOOD–DEMOGRAPHY SEPARATION / DEMOGRAPHIC PERSISTENCE-1 — PASS, and
-  FOOD–DEMOGRAPHY SEPARATION / DEMOGRAPHIC PERSISTENCE-2 — PASS (residual
-  death-memory food path closed). Demographic persistence is complete. §10–11
-  are the tracked canonical record. CORE PIPELINE CONSOLIDATION-1 — PROGRESS:
-  the correctness/safety half is complete and proven (season order-invariance,
-  import/read-model isolation, explicit season phase contract); the decision/
-  adaptation structural decomposition is deferred to DECOMPOSITION-2. See §24.
+  FOOD–DEMOGRAPHY SEPARATION / DEMOGRAPHIC PERSISTENCE-1 and -2 — PASS
+  (demographic persistence complete; §10–11 are the tracked canonical record).
+  CORE PIPELINE CONSOLIDATION is now COMPLETE across three decomposition passes,
+  all with byte-identical deterministic fingerprint parity to f932908:
+    - DECOMPOSITION-1 (CONSOLIDATION-1): proved season order-invariance and
+      import/read-model isolation; added SeasonOrderStrategy hook + explicit
+      season phase contract (correctness half). See §24.
+    - DECOMPOSITION-2: Workstream A decision-orchestrator decomposition —
+      extracted shared candidate contract/scoring/edge-context/constants + 3
+      candidate families from bandDecision.ts (7237→6153 lines). See §25.1.
+    - DECOMPOSITION-3: Workstream B (adaptation public boundary) + Workstream C
+      (context lifecycle 4→2 rebuilds). See §25.2.
 
 Current active checkpoint:
-  CORE PIPELINE CONSOLIDATION / SEASON RESOLUTION / DECISION ORCHESTRATION
-  DECOMPOSITION-2 (DECOMPOSITION-1 completed the correctness half; decision/
-  adaptation decomposition remains). Do not advance to expeditions until
-  decomposition is accepted.
+  EXPEDITIONARY LOGISTICAL MOBILITY / TASK CAMPS / VIEWSHED PERCEPTION / FIRE
+  SIGNALS-1 (roadmap item 1). Core pipeline consolidation is accepted; do not
+  fold expedition mechanics into consolidation work. Adaptation is reached ONLY
+  through src/sim/agents/adaptationBoundary.ts; the seasonal read-model rebuild
+  budget is 2 full buildTickContextCache + 1 partial refresh per tick.
 
 Verification provenance (do not blur these):
   - Verified by the persistence-1 implementation run: 2×2, waterfall,
@@ -1715,21 +1722,20 @@ Persistent settlement should require separate causal conditions such as repeated
 
 ## 14. Exact roadmap
 
-Demographic persistence is implemented (persistence-1 and persistence-2 both PASS). This future order is canonical:
+Demographic persistence is implemented (persistence-1 and persistence-2 both PASS), and **core pipeline consolidation is complete** (DECOMPOSITION-1/-2/-3 all accepted — season order-invariance + read-model isolation, decision-orchestrator decomposition, adaptation public boundary, and context-lifecycle 4→2). This future order is canonical:
 
-1. **CORE PIPELINE CONSOLIDATION / SEASON RESOLUTION / DECISION ORCHESTRATION DECOMPOSITION-1.** ← active next checkpoint. Consolidation comes **before** expeditions: the demographic work exposed tick/season-resolution and decision-orchestration coupling that should be decomposed before new expedition mechanics are layered on.
-2. **EXPEDITIONARY LOGISTICAL MOBILITY / TASK CAMPS / VIEWSHED PERCEPTION / FIRE SIGNALS-1.**
-3. **CROWDING / RANGE RELEASE / GENERATIONAL DEPARTURE / VIABLE FISSION-1.**
-4. **SEASONAL ROUTE MIGRATION / VARIABLE NOMADIC ROUNDS-1.**
-5. **LANGUAGE / SEMANTIC COMMUNICATION / NAMING / DIALECT EVOLUTION-1.**
-6. **BAND CULTURE / IDENTITY / VIEWS / CUSTOMS / NORMS-1.**
-7. **INTER-BAND ENCOUNTERS / RELATIONSHIP MEMORY / EXCHANGE NETWORKS-1.**
-8. **RELIGION / MYTH / RITUAL / SACRED LANDSCAPE-1.**
-9. **SMALL-SCALE CONFLICT / FEUD / RETALIATION-1**, followed later by alliances, raids, and organized war.
-10. **EMERGENT TRAILS / ROUTES / ROADS / SEDENTISM.**
-11. **Major missing human biological and social systems.**
-12. **WHOLE-SIM CAUSAL CONNECTIVITY / DECORATIVE SYSTEMS AUDIT.**
-13. **PUBLIC POLISH + MVP CLOSURE.**
+1. **EXPEDITIONARY LOGISTICAL MOBILITY / TASK CAMPS / VIEWSHED PERCEPTION / FIRE SIGNALS-1.** ← active next checkpoint. Consolidation is finished; expeditions may now be layered on the decomposed decision orchestrator and curated adaptation boundary.
+2. **CROWDING / RANGE RELEASE / GENERATIONAL DEPARTURE / VIABLE FISSION-1.**
+3. **SEASONAL ROUTE MIGRATION / VARIABLE NOMADIC ROUNDS-1.**
+4. **LANGUAGE / SEMANTIC COMMUNICATION / NAMING / DIALECT EVOLUTION-1.**
+5. **BAND CULTURE / IDENTITY / VIEWS / CUSTOMS / NORMS-1.**
+6. **INTER-BAND ENCOUNTERS / RELATIONSHIP MEMORY / EXCHANGE NETWORKS-1.**
+7. **RELIGION / MYTH / RITUAL / SACRED LANDSCAPE-1.**
+8. **SMALL-SCALE CONFLICT / FEUD / RETALIATION-1**, followed later by alliances, raids, and organized war.
+9. **EMERGENT TRAILS / ROUTES / ROADS / SEDENTISM.**
+10. **Major missing human biological and social systems.**
+11. **WHOLE-SIM CAUSAL CONNECTIVITY / DECORATIVE SYSTEMS AUDIT.**
+12. **PUBLIC POLISH + MVP CLOSURE.**
 
 Roadmap rules:
 
@@ -2362,6 +2368,7 @@ Keep this bounded to the latest 10–15 accepted architecture changes. Condense 
 
 | Checkpoint/commit | Architecture change | Remaining caveat |
 | --- | --- | --- |
+| `checkpoint: finalize core pipeline consolidation` (2026-07-15; hash in report) | DECOMPOSITION-3 completes consolidation. **Workstream B:** one curated public interface `src/sim/agents/adaptationBoundary.ts` (35 named exports vs 92 internal defs, original names, smaller-than-internals — NOT an `export *` barrel) over the adaptation subsystem; canonical state `band.practicalAdaptation`, single effect-definition site stays `practicalResponses.ts`; migrated ALL 10 SIM production consumers off deep imports (`bandDecision`/`demography`/`decisionCandidateTypes` + the relief consumers `acuteRisk`/`bodyCampLogistics`/`intraSeasonTrips`/`pressure`/`storageSuitability`/`residentialMoveEvent`/`migrationWalk`/`publicHumanStory`/`knowledgeCarriers`); added `scripts/adaptationBoundaryAudit.mjs` (catches sibling `./` imports + barrel guard) + graph node `adaptationBoundary`. UI panels remain a separate read-only projection (importBoundaryAudit). **Workstream C:** `runSeasonalCompatibilityTick` context rebuilds 4→2 full + 1 partial (`deriveFinalReadModelContext`/`cloneTickContextCacheWithFreshMemos`, redundant post-acute-risk rebuild eliminated, salient-memory reuse on set change); audit-only `setForceFullContextRebuilds` stale-read parity proof + `scripts/contextLifecycleAudit.mjs`. Byte-identical fingerprint parity to f932908; full regression green. See §25 | Consolidation complete → next is EXPEDITIONARY-1. Remaining candidate families (stay/move/explore/logistical/side-country/inferred-frontier/corridor) + tile-memo cluster still in `bandDecision.ts`; hot/cold band state split (F, ~39%) still deferred as non-blocking |
 | `checkpoint: decision decomposition progress` (2026-07-15; hash in report) | Workstream A of DECOMPOSITION-2: extracted the shared candidate contract (`rules/decisionCandidateTypes.ts`), scoring/reason/geometry kit (`rules/decisionScoring.ts`), edge/river-crossing context (`rules/decisionEdgeContext.ts`), and score-weight constants (`rules/decisionConstants.ts`) from `bandDecision.ts`, plus three candidate families (`rules/candidates/{visibleLandscape,resourceScout,pressureRelief}Candidate.ts`); `bandDecision.ts` 7237→6153 lines. Family/shared modules never import the orchestrator (no cycle); orchestrator delegates to the family builders. Added `scripts/decisionBoundaryAudit.mjs`. Exact fingerprint parity; full regression green | Workstreams B (adaptation public boundary) and C (context lifecycle 4→2) NOT done — DECOMPOSITION-3. Remaining candidate families (stay/move/explore/logistical/side-country/inferred-frontier/corridor) and the tile-memo cluster not yet extracted |
 | `checkpoint: core pipeline consolidation progress` (2026-07-15; exact hash in final report) | Proved season is physically/causally order-invariant (`seasonOrderInvarianceAudit.mjs`) and read-model isolation holds (`importBoundaryAudit.mjs`: src/sim ↛ ui/render/store/worker); added audit-only byte-identical `SeasonOrderStrategy` hook, an explicit season phase contract on `runSeasonalCompatibilityTick`, and `architectureMetricsAudit.mjs`; measured B/C/E/F debt | Correctness half only; `bandDecision.ts` (7238 lines) decomposition, adaptation public-interface formalization, context-cache layering (4 rebuilds/tick), and ~39% cold band state deferred to DECOMPOSITION-2; the decision-history archive (`recentDecisionIds`/`decisions`/`decisionArchive`) is order-sensitive by recording order but non-causal |
 | `checkpoint: close residual food-demography pathways` (2026-07-14; exact hash in final report) | Death-memory severity reads actual losses only (removed direct food/water stress terms; `deriveDeathMemorySeverityTerms` helper + `legacy_direct_food` diagnostic); R0–R5 isolation audit; 0.002 baseline on/off seam; long-run decline-cap metrics (`uncappedDemographicRate`/`declineCapBinds` + per-lineage `declineCapShare`/`maxContinuousDeclineCapYears`/`positiveRateShare`/`replacementYears`); Stage-0 ledger extended with death-memory paths; Technical death-memory attribution; documentation contradictions corrected; roadmap places consolidation before expeditions | Recent-death fertility suppression, food-shaped cohort allocation (Case C), and the 0.002 baseline are retained and documented; single net rate and reconciled age cohorts remain; default worlds still contract where same-day practical food reach is poor; consolidation is next, then expeditions |
@@ -2380,10 +2387,12 @@ Keep this bounded to the latest 10–15 accepted architecture changes. Condense 
 
 ### Next change-log entry
 
-Record the **decision/adaptation decomposition** (DECOMPOSITION-2) architecture
-when that checkpoint is explicitly begun and accepted. Record expeditionary-
-logistics architecture only when that later, separate checkpoint is begun and
-accepted. Do not fold either into demographic calibration.
+Core pipeline consolidation is complete (DECOMPOSITION-1/-2/-3 all recorded
+above). Record **expeditionary logistical mobility / task camps / viewshed /
+fire signals** architecture only when that checkpoint is explicitly begun and
+accepted — inspect and strengthen the existing activity-party/logistical-trip
+code (see §13), do not invent expeditions from nothing, and do not fold it into
+consolidation or demographic calibration.
 
 ---
 
@@ -2465,6 +2474,145 @@ terminal extinction, snapshots, and founders are untouched — this checkpoint m
 no production behavior change. The two correctness hypotheses (A order-priority,
 D read-model authority) were **rejected** by evidence; the maintainability
 hypotheses (B, C, E, F) were confirmed/measured and deferred.
+
+---
+
+## 25. Decision, adaptation, and context decomposition (DECOMPOSITION-2/-3, 2026-07-15)
+
+**Status: COMPLETE — the structural decomposition CONSOLIDATION-1 deferred is
+now done across two passes.** Every change is refactor-only: the deterministic
+benchmark fingerprint (`--scenario baseline --years 25 --deterministic`) is
+byte-identical to `f932908` (verified `firstFingerprint === secondFingerprint`
+and `=== baseline`). No coefficient, formula, ordering, or physical behavior
+changed.
+
+### 25.1 Workstream A — decision orchestrator decomposition (DECOMPOSITION-2)
+
+`src/sim/rules/bandDecision.ts` (7237 → 6153 lines) delegates to extracted,
+orchestrator-free modules:
+
+- `rules/decisionCandidateTypes.ts` — the shared candidate contract
+  (`CandidateDecision`, `CandidateEvaluationCache`, tile/edge memos, profiler,
+  pressure snapshot). Types only; no runtime behavior, so extraction is
+  byte-identical. Neither the families nor the shared kit import the
+  orchestrator (no cycle).
+- `rules/decisionScoring.ts` — scoring/reason/geometry helpers.
+- `rules/decisionEdgeContext.ts` — edge/river-crossing context assembly.
+- `rules/decisionConstants.ts` — score-weight constants.
+- `rules/candidates/{visibleLandscape,resourceScout,pressureRelief}Candidate.ts`
+  — three candidate families, each owning its own eligibility/evidence/benefit/
+  risk/contribution. The orchestrator calls the family builders and performs the
+  central comparison.
+
+Audited by `scripts/decisionBoundaryAudit.mjs`. Remaining candidate families
+(stay/move/explore/logistical/side-country/inferred-frontier/corridor) and the
+tile-memo cluster are still in `bandDecision.ts` — a documented, non-blocking
+continuation, not a defect.
+
+### 25.2 Workstream B — adaptation public boundary (DECOMPOSITION-3)
+
+**One curated public interface** now sits over the adaptation/invention
+subsystem: `src/sim/agents/adaptationBoundary.ts`. It is deliberately **smaller
+than the subsystem internals** (35 named exports vs 92 internal `export`
+definitions) — a curated interface naming only what production consumes, NOT a
+re-export-everything `export *` barrel.
+
+- **Canonical state:** `band.practicalAdaptation` (unchanged).
+- **Effect boundary:** `practicalResponses.ts` remains the single DEFINITION
+  site for every effect reader — the band-known conditions
+  (`deriveCarryingCondition`, `deriveWaterRouteCondition`,
+  `deriveWaterStorageCondition`, `deriveEffectiveStorageCapacity`) AND the
+  per-system reliefs (`deriveCareTreatmentRelief`, `deriveShelterExposureRelief`,
+  `deriveShelterPortabilityBurden`, `deriveHuntingSafetyRelief`,
+  `deriveWaterWorksRelief`, `deriveCarryingRelief`, `deriveCarriedWaterRelief`,
+  `deriveDryRouteWaterRelief`, `deriveEngineeringSafetyRelief`) — plus the
+  fission inheritors. Production reads them THROUGH the boundary, never directly.
+- **What the boundary surfaces (original names, no aliasing):** the two advance
+  writers (`advancePracticalAdaptation`, `advanceAdaptiveHumanState`); decision
+  support (`deriveAdaptiveDecisionSupport`, `selectAdaptiveInfluenceForAction`,
+  type `AdaptiveDecisionSupport`); the adaptive-human profile
+  (`deriveAdaptiveHumanProfile`); the four effect conditions plus a
+  `deriveAdaptationEffectConditions(band)` convenience; the nine per-system relief
+  readers (with types `CarriedWaterReliefResult`, `PracticalReliefResult`); the
+  eight `evaluate*Efficacy` readers; and both fission inheritors
+  (`inheritPracticalAdaptationForDaughter`, `inheritAdaptiveHumanForDaughter`).
+- **Migrated production consumers (ALL of them — 10 SIM modules):**
+  `rules/bandDecision.ts` (decision support, conditions, efficacy, advance),
+  `agents/demography.ts` (both fission inheritors),
+  `rules/decisionCandidateTypes.ts` (the `AdaptiveDecisionSupport` type), and the
+  physical agent modules that apply reliefs — `agents/acuteRisk.ts`,
+  `agents/bodyCampLogistics.ts`, `agents/intraSeasonTrips.ts`,
+  `agents/pressure.ts`, `agents/storageSuitability.ts`,
+  `agents/residentialMoveEvent.ts`, `agents/migrationWalk.ts`,
+  `agents/publicHumanStory.ts`, `agents/knowledgeCarriers.ts`. **Zero** production
+  SIM modules outside the internal cluster deep-import
+  `adaptiveHuman`/`practicalResponses`/`adaptiveEfficacy` any longer, including
+  sibling `./` imports. (The read-only UI band panels `IdeasSolutions.tsx` /
+  `Technical.tsx` still read adaptation internals directly — that is the allowed
+  `ui → sim` projection direction governed by `importBoundaryAudit`, a separate
+  concern from this simulation-side boundary.)
+- **Allowlist:** the internal adaptation modules (`adaptiveHuman`,
+  `practicalResponses`, `adaptiveEfficacy`, `problemPractice`,
+  `practicalFragments`, `materialAffordance`, `inventionChain`,
+  `practiceFeedbackReadiness`) and the boundary itself may import internals; they
+  import each other freely. Everyone else uses the boundary.
+
+Audited by `scripts/adaptationBoundaryAudit.mjs` (single authority, single
+advance path, single effect definition in `practicalResponses`, curated-not-barrel
+[< internal count, no `export *`], no duplicate/divergent application — the
+boundary reads the SAME effect as the internal path, zero unauthorized deep
+imports INCLUDING sibling `./` imports from other `agents/` modules — the earlier
+audit regex only caught `agents/`-prefixed paths and was corrected here — the full
+lived-problem → experiment → response → real-coefficient → efficacy chain executes
+through the boundary, and observer mode does not change adaptation state). Graph
+node `adaptationBoundary` added.
+
+### 25.3 Workstream C — context lifecycle 4 → 2 (DECOMPOSITION-3)
+
+`runSeasonalCompatibilityTick` (`src/sim/tick/advance.ts`) previously performed
+**4 full `buildTickContextCache` rebuilds per season tick**. It now performs
+**2 full rebuilds + 1 partial refresh**:
+
+- **Rebuild 1 — pre-decision (kept, full):** the season-start-frozen context all
+  bands read for their decisions.
+- **Old rebuild 2 — post-acute-risk (ELIMINATED):** proven redundant. The cache
+  is a pure function of band positions/status/memory + time + tiles;
+  `applyAcuteRiskContext` changes none of those before decisions, so the
+  pre-decision cache is reused directly (`acuteRiskPreDecisionCache =
+  preDecisionCache`).
+- **Rebuild 2 (was 3) — post-decision (kept, full):** rebuilt because band
+  decisions moved bands; feeds range-saturation and encounter context.
+- **Old rebuild 4 — final read-model pass (now a PARTIAL refresh):**
+  `deriveFinalReadModelContext(postDecisionCache, world)`. When the active band
+  set is unchanged (the common case) it clones the post-decision cache's
+  immutable derived fields with **fresh empty mutable memos**
+  (`cloneTickContextCacheWithFreshMemos`) — no expensive shared recomputation.
+  When the set changed (fission/extinction) it does a partial rebuild that
+  **reuses the prior salient-memory summaries** (`reuseSalientMemoryById`) and
+  only recomputes the cheap spatial/nearby index. Either path counts as a
+  partial refresh, not a full rebuild.
+
+Correctness is proven, not assumed: an audit-only, non-persisted
+`setForceFullContextRebuilds(true)` flag forces the old full-rebuild path and the
+result is byte-identical to the partial-refresh path across every invalidation
+case (no change, marginal movement, demographic change, multi-band map2,
+terminal extinction, shared catchment cluster) — i.e. **no stale reads**. When
+unset, output is byte-identical to before the change. Audit-only counters
+(`getContextLifecycleCounters` / `resetContextLifecycleCounters`) report
+`full/tick = 2`, `partial/tick = 1` for all six scenarios.
+
+Audited by `scripts/contextLifecycleAudit.mjs` (per-tick full ≤ 2, partial
+present, stale-read-free via the force-full parity proof, deterministic, observer
+parity, season-order physical invariant).
+
+### 25.4 What was NOT changed (DECOMPOSITION-2/-3)
+
+No production behavior. The context cache's *contents* and *contract* are
+unchanged — only the number of times expensive shared work is recomputed. The
+adaptation subsystem's internals, coefficients, and causal chain are untouched;
+only the import surface consumers use was narrowed. The physical-food pipeline,
+demographic formulas, ecology, anti-omniscience, terminal extinction, snapshots,
+and founders remain untouched.
 
 ---
 

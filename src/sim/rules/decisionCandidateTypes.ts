@@ -9,7 +9,7 @@ import type { getBiomeAdaptationFit } from "../agents/biomeAdaptation";
 import type { deriveReportedKnowledgeTargetBias } from "../agents/reportedKnowledge";
 import type { BandTendencyProfile } from "../agents/bandTendency";
 import type { ChronicHardshipSignal } from "../agents/chronicHardship";
-import type { AdaptiveDecisionSupport } from "../agents/adaptiveHuman";
+import type { AdaptiveDecisionSupport } from "../agents/adaptationBoundary";
 import type { CampMovementDecisionSupport } from "../agents/campMovement";
 import type { ResourceBeliefOpportunity } from "../agents/resourceKnowledge";
 import type { ResidentialAnchorContext } from "../agents/residentialAnchor";

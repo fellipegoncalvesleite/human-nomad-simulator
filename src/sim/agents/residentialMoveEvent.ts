@@ -37,7 +37,7 @@ import { isBandPassableDestination } from "../world/passability";
 import { readSeasonalEcologyHint } from "./seasonalEcologyReader";
 // INVENTION-1: practiced carrying response relieves a bounded share of the
 // dependent/elder hardship terms of a burdened residential move.
-import { deriveCarriedWaterRelief, deriveCarryingRelief } from "./practicalResponses";
+import { deriveCarriedWaterRelief, deriveCarryingRelief } from "./adaptationBoundary";
 import { deriveTemporaryWatercraftAssessmentForMove } from "./storageSuitability";
 import type {
   Band,

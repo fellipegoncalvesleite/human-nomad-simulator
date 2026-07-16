@@ -9,7 +9,7 @@ import type {
   ResourceEcologySupportBreakdown,
 } from "./resourceEcologyFoundation";
 import type { Band, ResidentialMoveStatus } from "./types";
-import { deriveEngineeringSafetyRelief } from "./practicalResponses";
+import { deriveEngineeringSafetyRelief } from "./adaptationBoundary";
 
 export type PerishabilityLevel = "low" | "medium" | "high";
 export type StorageSuitabilityLevel = "none" | "poor" | "limited" | "good" | "excellent";

@@ -2,7 +2,10 @@ import type { Band } from "../agents/types";
 import { applyBandDeepHistoryContext } from "../agents/bandHistory";
 import { updateBandsDemographyAndFission } from "../agents/demography";
 import { applyAcuteRiskContext } from "../agents/acuteRisk";
-import { buildTickContextCache } from "../agents/contextCache";
+import {
+  buildTickContextCache,
+  deriveFinalReadModelContext,
+} from "../agents/contextCache";
 import { runDailyActions } from "../agents/dailyActions";
 import { DEFAULT_DAILY_ACTIONS } from "../agents/intraSeasonTrips";
 import {
@@ -50,6 +53,16 @@ export interface SeasonalDecisionObservation {
 }
 
 export type SeasonalDecisionObserver = (observation: SeasonalDecisionObservation) => void;
+
+// CORE-PIPELINE-DECOMPOSITION-3 (Workstream C) — audit-only switch that forces the
+// end-of-season context to be a FULL rebuild instead of the partial refresh, so
+// contextLifecycleAudit.mjs can prove the partial refresh is byte-identical to a
+// full rebuild (no stale reads). Default false = production (partial refresh).
+// Never persisted; not read by any decision.
+let forceFullContextRebuilds = false;
+export function setForceFullContextRebuilds(value: boolean): void {
+  forceFullContextRebuilds = value;
+}
 
 // CORE-PIPELINE-CONSOLIDATION-1 — audit-only, non-persisted band-processing order
 // for the season-order invariance audit. Production omits it (default "ascending",
@@ -157,7 +170,15 @@ function runSeasonalCompatibilityTick(
   const preDecisionCache = buildTickContextCache(timeAdvancedWorld);
   const worldBeforeDecisions = updateBandContextStates(timeAdvancedWorld, preDecisionCache, diagnostics);
   const worldBeforeDecisionsWithAcuteRisk = applyAcuteRiskContext(worldBeforeDecisions);
-  const acuteRiskPreDecisionCache = buildTickContextCache(worldBeforeDecisionsWithAcuteRisk);
+  // CORE-PIPELINE-DECOMPOSITION-3 (Workstream C) — the pre-decision context cache
+  // is reused for the decision loop instead of rebuilt. buildTickContextCache is a
+  // pure function of band positions/status/memory + time + tiles; nothing between
+  // the pre-decision build and the decision loop moves bands or changes those
+  // cache inputs (updateBandContextStates writes carrying-capacity/range/context
+  // band fields the cache does not read; applyAcuteRiskContext writes band.acuteRisk
+  // the cache does not read). Verified byte-identical by the deterministic
+  // benchmark and scripts/contextLifecycleAudit.mjs.
+  const acuteRiskPreDecisionCache = preDecisionCache;
   const bandsById: Record<string, Band> = { ...worldBeforeDecisionsWithAcuteRisk.bands };
   let decisionsById: Readonly<Record<DecisionId, Decision>> = worldBeforeDecisionsWithAcuteRisk.decisions;
   let decisionArchive: DecisionArchiveSummary = worldBeforeDecisionsWithAcuteRisk.decisionArchive;
@@ -243,9 +264,26 @@ function runSeasonalCompatibilityTick(
   // tile context; only non-baseline pressure/recovery is stored.
   const worldAfterForests = advanceForestPatchState(worldAfterPlants, postDecisionCache);
 
+  // CORE-PIPELINE-DECOMPOSITION-3 (Workstream C) — end-of-season read-model pass.
+  // Between the post-decision cache and here, demography/viability/deep-history and
+  // ecology advance, but NOTHING moves an existing band. So the only thing that can
+  // invalidate the post-decision cache's derived band set is a change to the ACTIVE
+  // band set (fission adds a daughter, extinction removes a band). When the active
+  // set is unchanged, the expensive derived data (spatial index, per-band salient
+  // memory, nearby-band index) is still exactly valid and is reused, resetting only
+  // the ecology-dependent per-decision memos (so range saturation / known opportunity
+  // recompute from the advanced world). When the set changed, the cheap spatial/nearby
+  // data is rebuilt but per-band salient memory is still reused for survivors — so
+  // either way this pass is a PARTIAL refresh, never a third full rebuild: full shared
+  // rebuilds stay at 2/tick (pre-decision + post-decision). Byte-identical to a full
+  // rebuild in both cases (verified by scripts/contextLifecycleAudit.mjs).
+  const finalContextCache = forceFullContextRebuilds
+    ? buildTickContextCache(worldAfterForests)
+    : deriveFinalReadModelContext(postDecisionCache, worldAfterForests);
+
   return updateBandContextStates(
     worldAfterForests,
-    buildTickContextCache(worldAfterForests),
+    finalContextCache,
     diagnostics,
   );
 }

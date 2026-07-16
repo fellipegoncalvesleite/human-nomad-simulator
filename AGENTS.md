@@ -17,8 +17,8 @@
 Last verified against: branch checkpoint/core-pipeline-consolidation-1, branched from accepted tip f93290882c8788127f34baf693b6fd92714923f0 (persistence-2). main (30a87b3, tree 93be87e) does NOT contain the demographic work (tree 597c1e0); accepted linear history is 30a87b3 → ed16dfe → f932908. Final consolidation commit hash is recorded in the checkpoint report.
 Checkpoint commit message: checkpoint: core pipeline consolidation progress
 Backup branch: checkpoint/all-map-ecology-f33bebc — CONFIRMED, remote tip f33bebc23ecc21b971c98b48b31ca8bbfa9d2209 matches exactly
-Last updated: 2026-07-15 (DECOMPOSITION-2: Workstream A decision-orchestrator decomposition done; B/C remain)
-Current active checkpoint: CORE PIPELINE CONSOLIDATION / DECISION ORCHESTRATION DECOMPOSITION-3. DECOMPOSITION-2 completed Workstream A (decision orchestrator decomposition: shared candidate contract/scoring/edge-context modules + 3 candidate families extracted from bandDecision.ts with exact fingerprint parity; bandDecision 7237→6153 lines). Workstreams B (adaptation public boundary) and C (context lifecycle 4→2) remain. Do NOT advance to expeditions until decomposition is accepted. Decision-orchestration entry points: rules/bandDecision.ts (evaluate/applyBandDecision, buildDecisionCandidates); candidate families in rules/candidates/*; shared kit in rules/decisionScoring.ts, decisionEdgeContext.ts, decisionCandidateTypes.ts, decisionConstants.ts.
+Last updated: 2026-07-15 (DECOMPOSITION-3: adaptation public boundary + context lifecycle 4→2 done; core pipeline consolidation complete)
+Current active checkpoint: EXPEDITIONARY LOGISTICAL MOBILITY / TASK CAMPS / VIEWSHED PERCEPTION / FIRE SIGNALS-1. Core pipeline consolidation is COMPLETE: Workstream A (decision decomposition — shared candidate contract/scoring/edge-context + 3 candidate families in rules/candidates/*), Workstream B (adaptation public boundary: src/sim/agents/adaptationBoundary.ts is the ONE sanctioned entry — production must NOT deep-import adaptiveHuman/practicalResponses/adaptiveEfficacy; canonical state band.practicalAdaptation, effect boundary practicalResponses.ts), and Workstream C (context lifecycle: 2 full buildTickContextCache rebuilds/tick + 1 partial refresh via deriveFinalReadModelContext, down from ~4). All with exact fingerprint parity. Decision-orchestration entry: rules/bandDecision.ts (evaluate/applyBandDecision, buildDecisionCandidates).
 Current status: demographic persistence complete (persistence-1 + persistence-2 PASS). Consolidation-1 PROVED the two correctness hypotheses already sound — the season is physically/causally order-invariant (only a non-causal decision-history archive reflects processing order; seasonOrderInvarianceAudit.mjs PASS) and src/sim imports nothing from ui/render/store/worker so read models cannot inject behavior (importBoundaryAudit.mjs PASS). Added an audit-only byte-identical season-order hook + an explicit season phase contract; measured and DEFERRED the bandDecision.ts (7238 lines) decomposition, the adaptation public-interface formalization, context-cache layering (4 rebuilds/tick), and the ~39% cold band state to DECOMPOSITION-2. Zero production behavior change; deterministic benchmark fingerprint unchanged. See docs/HANDOFF.md and CLAUDE.md architecture inventory.
 Known stale or unverified sections: repository paths, production order, season phase contract, order-invariance, import boundaries, demographic formulas, and the named regression matrix were executed and verified; the DECOMPOSITION-2 targets (decision/adaptation internals) are measured but not yet restructured; deep historical claims elsewhere in CLAUDE.md §7–9/§12–15 remain a navigational map rather than a fresh line-by-line inventory
 ```
@@ -310,6 +310,8 @@ No `test` script exists — verification is entirely the audit scripts below plu
 | Import boundaries (src/sim must not import ui/render/store/worker; read-model isolation) | `importBoundaryAudit.mjs` |
 | Architecture metrics (decision fan-out, adaptation coupling, context rebuilds/tick, hot/cold band state) — informational | `architectureMetricsAudit.mjs` |
 | Decision-boundary (candidate families extracted to own modules; no family/shared-kit cycle back to orchestrator) | `decisionBoundaryAudit.mjs` |
+| Adaptation public boundary (adaptationBoundary.ts is the ONE entry; no unauthorized deep imports incl. sibling `./`; curated-not-barrel; single effect definition; boundary effect == internal; full causal chain; observer parity) | `adaptationBoundaryAudit.mjs` |
+| Context lifecycle (≤2 full buildTickContextCache rebuilds/tick + partial refresh; partial byte-identical to forced full rebuild = no stale reads; deterministic; observer + season-order invariant) | `contextLifecycleAudit.mjs` |
 
 ### `simBenchmark.mjs --targeted-*` flags — exact flag names VERIFIED CURRENT (grepped from `scripts/simBenchmark.mjs`; ~120 total, most relevant to the draft's named audits below)
 
@@ -401,19 +403,18 @@ Rules:
 
 Demographic persistence is implemented (persistence-1 and persistence-2 both PASS). Consolidation-1 completed the correctness/safety half (PROGRESS); the structural decomposition remains. The canonical future order is now:
 
-1. **CORE PIPELINE CONSOLIDATION / DECISION ORCHESTRATION DECOMPOSITION-3.** ← active next checkpoint (Workstream A decision decomposition done in DECOMPOSITION-2; adaptation public boundary + context lifecycle 4→2 remain)
-2. **EXPEDITIONARY LOGISTICAL MOBILITY / TASK CAMPS / VIEWSHED PERCEPTION / FIRE SIGNALS-1.**
-3. **CROWDING / RANGE RELEASE / GENERATIONAL DEPARTURE / VIABLE FISSION-1.**
-4. **SEASONAL ROUTE MIGRATION / VARIABLE NOMADIC ROUNDS-1.**
-5. **LANGUAGE / SEMANTIC COMMUNICATION / NAMING / DIALECT EVOLUTION-1.**
-6. **BAND CULTURE / IDENTITY / VIEWS / CUSTOMS / NORMS-1.**
-7. **INTER-BAND ENCOUNTERS / RELATIONSHIP MEMORY / EXCHANGE NETWORKS-1.**
-8. **RELIGION / MYTH / RITUAL / SACRED LANDSCAPE-1.**
-9. **SMALL-SCALE CONFLICT / FEUD / RETALIATION-1**, followed later by alliances, raids, and organized war.
-10. **EMERGENT TRAILS / ROUTES / ROADS / SEDENTISM.**
-11. **Major missing human biological and social systems.**
-12. **WHOLE-SIM CAUSAL CONNECTIVITY / DECORATIVE SYSTEMS AUDIT.**
-13. **PUBLIC POLISH + MVP CLOSURE.**
+1. **EXPEDITIONARY LOGISTICAL MOBILITY / TASK CAMPS / VIEWSHED PERCEPTION / FIRE SIGNALS-1.** ← active next checkpoint (core pipeline consolidation complete: decision decomposition + adaptation boundary + context lifecycle all done)
+2. **CROWDING / RANGE RELEASE / GENERATIONAL DEPARTURE / VIABLE FISSION-1.**
+3. **SEASONAL ROUTE MIGRATION / VARIABLE NOMADIC ROUNDS-1.**
+4. **LANGUAGE / SEMANTIC COMMUNICATION / NAMING / DIALECT EVOLUTION-1.**
+5. **BAND CULTURE / IDENTITY / VIEWS / CUSTOMS / NORMS-1.**
+6. **INTER-BAND ENCOUNTERS / RELATIONSHIP MEMORY / EXCHANGE NETWORKS-1.**
+7. **RELIGION / MYTH / RITUAL / SACRED LANDSCAPE-1.**
+8. **SMALL-SCALE CONFLICT / FEUD / RETALIATION-1**, followed later by alliances, raids, and organized war.
+9. **EMERGENT TRAILS / ROUTES / ROADS / SEDENTISM.**
+10. **Major missing human biological and social systems.**
+11. **WHOLE-SIM CAUSAL CONNECTIVITY / DECORATIVE SYSTEMS AUDIT.**
+12. **PUBLIC POLISH + MVP CLOSURE.**
 
 Consolidation comes **before** expeditions: the demographic checkpoint surfaced tick/season-resolution and decision-orchestration coupling that should be decomposed before new expedition mechanics are layered on.
 

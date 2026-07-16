@@ -31,7 +31,7 @@ import {
   deriveShelterPortabilityBurden,
   type CarriedWaterReliefResult,
   type PracticalReliefResult,
-} from "./practicalResponses";
+} from "./adaptationBoundary";
 
 /** A band's OWN observed view of one tile (never ground truth). */
 export interface MigrationWalkStepView {

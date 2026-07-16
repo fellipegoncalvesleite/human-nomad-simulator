@@ -15,7 +15,7 @@ import {
 import type { TickContextCache } from "./contextCache";
 import { deriveBandTendencies } from "./bandTendency";
 import { deriveChronicHardship } from "./chronicHardship";
-import { deriveWaterWorksRelief } from "./practicalResponses";
+import { deriveWaterWorksRelief } from "./adaptationBoundary";
 import { deriveCanonicalNutritionState } from "./seasonalSurvival";
 import { deriveForestTileEffect, getForestPatchState } from "./forestPatches";
 import type { ReasonId, TileId } from "../core/types";

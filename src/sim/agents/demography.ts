@@ -18,8 +18,10 @@ import type {
   TravelCorridorMemory,
 } from "./types";
 import { createDaughterDeepHistory } from "./bandHistory";
-import { inheritAdaptiveHumanForDaughter } from "./adaptiveHuman";
-import { inheritPracticalAdaptationForDaughter } from "./practicalResponses";
+import {
+  inheritAdaptiveHumanForDaughter,
+  inheritPracticalAdaptationForDaughter,
+} from "./adaptationBoundary";
 import { inheritAnimalPatternKnowledgeForDaughter } from "./animalLearning";
 import { inheritResourceKnowledgeForDaughter } from "./resourceKnowledge";
 import { deriveReportedKnowledgeTargetBias } from "./reportedKnowledge";

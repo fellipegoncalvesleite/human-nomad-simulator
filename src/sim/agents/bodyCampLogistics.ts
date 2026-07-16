@@ -24,7 +24,7 @@ import type {
   WeatherMemoryTrend,
 } from "./types";
 import type { ResourceStorageSuitabilityCard } from "./storageSuitability";
-import { deriveShelterExposureRelief } from "./practicalResponses";
+import { deriveShelterExposureRelief } from "./adaptationBoundary";
 
 const WEATHER_MEMORY_CAP = 5;
 const MATERIAL_WEAR_CAP = 7;

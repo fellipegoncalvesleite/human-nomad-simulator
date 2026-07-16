@@ -1,7 +1,7 @@
 import type { BandId } from "../core/types";
 import { getTile } from "../world/generate";
 import type { Tile, WorldState } from "../world/types";
-import { deriveAdaptiveHumanProfile } from "./adaptiveHuman";
+import { deriveAdaptiveHumanProfile } from "./adaptationBoundary";
 import { deriveBandChronicle } from "./bandChronicle";
 import { deriveBandIdentityProfile, type BandIdentityProfile } from "./bandIdentity";
 import { deriveCampMovementProfile } from "./campMovement";

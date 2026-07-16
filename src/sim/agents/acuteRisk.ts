@@ -1,7 +1,7 @@
 import type { ReasonId, TickNumber, TileId } from "../core/types";
 import type { WorldState } from "../world/types";
 import { enforceResourceKnowledgeCap } from "./resourceKnowledge";
-import { deriveCareTreatmentRelief } from "./practicalResponses";
+import { deriveCareTreatmentRelief } from "./adaptationBoundary";
 import type {
   AcuteRiskContext,
   AcuteRiskDurationClass,

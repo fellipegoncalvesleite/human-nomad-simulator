@@ -181,6 +181,75 @@ has a seed input — the sim layer just never consumes it. All audits/baselines 
 
 ## Current Status
 
+### EXPEDITIONARY LOGISTICAL MOBILITY-3 — dynamic mobility amendment: MANDATORY BRAINSTORM (2026-07-16)
+
+Branch `checkpoint/expeditionary-logistical-mobility-3` from `6231357`.
+**Note:** this amendment references a base "-3 prompt" that was never supplied; the
+amendment itself is treated as the binding spec. Flag if that base prompt exists.
+
+#### §2 design analysis — answered from current code, not assumption
+
+**Population representation**
+- **Sex: DOES NOT EXIST.** `grep -ciE '\b(male|female|sex)\b' demography.ts` → **0**.
+  No sex anywhere in canonical population state. Per §6 the forbidden move is exactly
+  `adultMen = adults / 2`; it must not be fabricated.
+- **Cohorts are coarse:** `BandDemography` (types.ts:1288) has only `dependents`,
+  `workingAdults`, `elders`. There is **no** mobility-relevant developmental stage
+  inside `dependents` (no juvenile/adolescent split) and no healthy-vs-limited elder
+  distinction.
+- **Conservation:** population is a SINGLE NET RATE (`growthRate` → sign-gated
+  accrual); age cohorts are *reconciled to* the net result, not drivers (documented in
+  CLAUDE.md §10.3). Deaths/births/aging/fission all flow through that one rate.
+
+**Mobility authority**
+- Pace is **split and unowned**: `expedition.ts::deriveTilesPerDay` (added in -2),
+  `migrationWalk.ts`, `residentialMoveEvent.ts`. There is no single mobility authority.
+- `fatiguePressure` (types.ts:2773) and `fatigueStress`/`fatigueDelta`/`fatigueGate`
+  ALREADY EXIST — §19.6 forbids duplicating a health system, so mobility must READ
+  these rather than invent a parallel fatigue.
+- **Scale already matches the binding requirement:** `generate.ts:2629` documents
+  "1 tile ≈ 1.5 km". No conversion layer exists yet; nothing records kilometres
+  (`grep km` finds only comments + `migrationWalk.ts:286`).
+
+**Architecture decision — §6 Option B (mobility-role cohorts), chosen deliberately**
+Option A (add conserved male/female counts) would require sex-aware aging, mortality,
+birth assignment, fission transfer, absorption, extinction, and reconciliation
+invariants — i.e. surgery on the single-net-rate demographic core that PERSISTENCE-1/2
+carefully de-stacked and proved. That destabilises the most fragile, most audited
+subsystem in the repo to serve a display metric. §6 explicitly permits Option B when
+Option A would destabilise demography.
+**Consequence, stated honestly as §6 requires:** this checkpoint does **NOT** model male
+vs female walking, and must **NOT** display sex-specific averages. The illustrative
+"Men: 6.3 km / Women: 4.7 km" report in §13 is therefore **not implementable** here and
+must not be faked. Sex hooks are future work; the correct sequencing is a demographic
+checkpoint that adds conserved sex composition FIRST.
+
+**Rejected alternatives:** individual agents (violates aggregate architecture);
+`allowedDistance = historicalAverage` (§5 forbids — history must condition gradually,
+not permit); one `walkingDistance` field (§4 forbids collapsing the four concepts).
+
+**Selected smallest causal design (four concepts kept separate, §4):**
+- *capacity* — DERIVED per party from cohort composition + nutrition + conditioning −
+  fatigue. Not stored (avoids a stale second authority).
+- *conditioning* — STORED, slow, bounded, diminishing returns, reversible.
+- *fatigue* — READ from the existing `fatiguePressure` family; short-term only.
+- *realized history* — STORED, bounded, written ONLY from completed physical movement
+  (expedition legs already produce this), in kilometres at 1.5 km/tile, separating
+  calendar-day from active-day means, loaded from unloaded.
+
+**Status: FAIL — brainstorm complete, implementation NOT done.** Per the amendment's own
+gate ("The agent stops after brainstorming without implementation" = FAIL) this does not
+pass. No mobility code was written; the -2 spine is unchanged and still green.
+
+**Exact next actions:** (1) `agents/bandMobility.ts` owning conditioning + realized
+km history, capacity derived; (2) convert expedition legs to km (×1.5) and record
+loaded/unloaded active-day history; (3) repoint `deriveTilesPerDay` at derived capacity;
+(4) residential movement must be slower than a selected party (dependents/elders);
+(5) audits 19.1/19.2/19.5/19.9/19.10/19.14/19.15 first — they are the cheapest proofs
+that the four concepts are genuinely separate.
+
+---
+
 ### EXPEDITIONARY LOGISTICAL MOBILITY-2 — production spine (2026-07-16)
 
 Work on `checkpoint/expeditionary-logistical-mobility-2`, branched from `d66946a`.

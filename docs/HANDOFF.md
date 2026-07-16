@@ -239,10 +239,39 @@ depletion, same losses), becomes **cargo**, and is capped by
 `consumedByEconomy` — the single gate the canonical `humanFoodSupport` ledger reads.
 Nothing before the return sets it.
 
-**Remaining for a PASS:** viewshed, fire/smoke signals, knowledge-latency application
-on return, acute-risk episodes, adaptation efficacy feedback, task-camp comparison
-scenario, UI/reporting, Chronicle, the remaining focused audits, controlled scenarios,
-full regression, and long runs.
+**Evidence — `scripts/expeditionLifecycleAudit.mjs` PASS (16/16), 40y map1:**
+6 parties launched naturally, 396 terminal outcomes, 40 `returned_with_cargo` /
+356 honest `target_not_found`, **39 physical returns delivering 0.987 harvest units**
+into the canonical ledger. `noTeleportPositionAlwaysOnRoute`, `noFoodBeforePhysicalReturn`,
+`laborNeverOverCommitted` all clean; `travelDaysSeen` ≥ 2; caps held
+(≤2 active/band, ≤6 outcomes, ≤24 route tiles); expedition identities identical across
+fresh processes. Duration boundary measured: 1→1d, 4→1d, 5→2d, 10→3d.
+
+**Two real bugs the audit caught (both fixed):**
+1. Target lookup keyed on `approximateTile`, but a patch spans linked tiles, so every
+   party arrived, found nothing, and returned empty. Now keyed on the recorded
+   `targetPatchId`.
+2. `EXPEDITION_PROVISION_UNITS_PER_WORKER_DAY` was 0.006 — against harvest units (a
+   per-trip draw is capped ~0.5) a party mathematically ate its whole cargo every trip,
+   so delivery was impossible. Now 0.0008: a real, non-trivial cost that can still net
+   ~zero on a long trip with a poor take, but does not forbid delivery.
+
+**FAIL — remaining binding work for EXPEDITIONARY-3.** The physical spine (A–G) is real
+and audited, but these gates are NOT met and the roadmap must NOT advance:
+- Slice H task camps exist as state and are created/expire, but have no *comparison*
+  evidence (Scenario 8) and no UI consumption.
+- Slice I viewshed: NOT implemented.
+- Slice J fire/smoke signals: NOT implemented.
+- Slice K knowledge latency: observations are carried home but are not yet APPLIED to
+  band knowledge on return.
+- Slice L adaptation: reliefs are read through the public boundary and do affect carry
+  capacity/pace, but no efficacy feedback loop and no controlled A/B proof (Scenario 12).
+- Slice M acute risk: `injuryLoad`/`riskEpisodeIds` exist but nothing writes them.
+- Task families B (verification) and C (route recon) are modelled in the lifecycle but
+  never launched (launch hardcodes `distant_plant_gathering`).
+- Missing: focused audits C–J, controlled scenarios 1–13, natural-occurrence matrix,
+  full regression, long runs, performance, UI/reporting, Chronicle, AGENTS/CLAUDE/graph
+  docs.
 
 ---
 

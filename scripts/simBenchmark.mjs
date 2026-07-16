@@ -1547,7 +1547,7 @@ async function main() {
       advanceWorldTime: (await server.ssrLoadModule("/sim/tick/time.ts")).advanceWorldTime,
       getCalendarDay: (await server.ssrLoadModule("/sim/tick/time.ts")).getCalendarDay,
       runDailyActions: (await server.ssrLoadModule("/sim/agents/dailyActions.ts")).runDailyActions,
-      DEFAULT_DAILY_ACTIONS: (await server.ssrLoadModule("/sim/agents/intraSeasonTrips.ts")).DEFAULT_DAILY_ACTIONS,
+      DEFAULT_DAILY_ACTIONS: (await server.ssrLoadModule("/sim/agents/dailyActionRegistry.ts")).DEFAULT_DAILY_ACTIONS,
       SEASON_LENGTH_DAYS: (await server.ssrLoadModule("/sim/core/types.ts")).SEASON_LENGTH_DAYS,
       buildTickContextCache: (await server.ssrLoadModule("/sim/agents/contextCache.ts")).buildTickContextCache,
       applyRangeSaturationContext: (await server.ssrLoadModule("/sim/agents/socialContext.ts")).applyRangeSaturationContext,

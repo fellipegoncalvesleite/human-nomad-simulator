@@ -951,6 +951,13 @@ export interface ExpeditionRecord {
   readonly injuryLoad: number;
   readonly riskEpisodeIds: readonly string[];
   readonly outcomeReason?: ExpeditionOutcomeReason;
+  /**
+   * The trip record resolved AT THE TARGET on the work day (its stock is already
+   * physically depleted). It is carried home as cargo and is NOT food for anyone
+   * until the return deposits it into `recentIntraSeasonTrips`. Holding the record
+   * rather than rebuilding one at return keeps a single trip-record builder.
+   */
+  readonly pendingReturnRecord?: IntraSeasonTripRecord;
   /** Information the party is physically carrying home; unavailable to the band until return. */
   readonly carriedObservations: readonly ExpeditionObservation[];
   readonly reasonIds: readonly ReasonId[];

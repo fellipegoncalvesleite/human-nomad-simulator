@@ -7,7 +7,7 @@ import {
   deriveFinalReadModelContext,
 } from "../agents/contextCache";
 import { runDailyActions } from "../agents/dailyActions";
-import { DEFAULT_DAILY_ACTIONS } from "../agents/intraSeasonTrips";
+import { DEFAULT_DAILY_ACTIONS } from "../agents/dailyActionRegistry";
 import {
   applyEncounterContext,
   applyRangeSaturationContext,

@@ -185,8 +185,9 @@ export function resolveExpeditionTargetWork(
   return resolvePhysicalFoodHarvest(world, expeditionRecord, time, faunaGeo);
 }
 
-/** The default daily-action registry advanced by `advanceWorldByDays`. */
-export const DEFAULT_DAILY_ACTIONS: readonly DailyAction[] = [intraSeasonTripDailyAction];
+// EXPEDITIONARY-2 (Slice A): the registry moved to `dailyActionRegistry.ts`. Keeping it
+// here would force this module to import the expedition module that imports it back,
+// producing a module-initialization cycle (TDZ) on a registry const.
 
 function applyTripDay(world: WorldState, day: number): WorldState {
   const time = getWorldTimeForDay(day as DayNumber);
@@ -3010,6 +3011,17 @@ function reconstructPassablePath(
   reversed.reverse();
 
   return reversed;
+}
+
+// EXPEDITIONARY-2: the expedition lifecycle is part of this same party authority and
+// must iterate bands in the identical deterministic order, so these are shared rather
+// than re-implemented there.
+export function isActiveExpeditionBand(band: Band): boolean {
+  return isActiveBand(band);
+}
+
+export function compareExpeditionBands(left: Band, right: Band): number {
+  return compareBands(left, right);
 }
 
 function isActiveBand(band: Band): boolean {

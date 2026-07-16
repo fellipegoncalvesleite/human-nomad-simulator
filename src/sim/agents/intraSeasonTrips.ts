@@ -139,6 +139,52 @@ export const intraSeasonTripDailyAction: DailyAction = {
   },
 };
 
+/**
+ * EXPEDITIONARY-1 — resolve the PHYSICAL work an away party performs at its distant
+ * target, on the day it is actually standing there. This deliberately reuses the
+ * daily-trip machinery unchanged (`buildTripRecord` → `resolvePhysicalFoodHarvest`),
+ * so a distant party draws from the SAME plant/fauna/aquatic stocks, pays the SAME
+ * transport/processing losses, and produces the SAME `PhysicalFoodHarvestRecord`
+ * shape as a near trip. The stock is depleted HERE (the party is physically present);
+ * the receipt is NOT yet food for the band — the expedition carries it home as cargo
+ * and only the return deposits it into `recentIntraSeasonTrips` (and thus the
+ * canonical ledger), exactly once.
+ *
+ * The returned record is NOT pushed anywhere by this function: the caller owns the
+ * cargo/return lifecycle.
+ */
+export function resolveExpeditionTargetWork(
+  world: WorldState,
+  band: Band,
+  memory: ResourcePatchMemory,
+  targetTileId: TileId,
+  distanceTiles: number,
+  routeTiles: readonly TileId[],
+  day: DayNumber,
+  cause: IntraSeasonTripCause,
+): { readonly world: WorldState; readonly record: IntraSeasonTripRecord } {
+  const time = getWorldTimeForDay(day);
+  const faunaGeo = deriveFaunaStockGeography(world);
+  const candidate: TripCandidate = {
+    memory,
+    targetTileId,
+    distanceTiles,
+    cause,
+    score: 0,
+    riskToleranceModifier: 0,
+    fallbackExpansionBias: 0,
+    tripAbandonmentPenalty: 0,
+    nearbyProbeBonus: 0,
+    logisticsSelectionBias: 0,
+  };
+  const baseRecord = buildTripRecord(world, band, candidate, day, time.tick, time.season, faunaGeo);
+  // Override the route with the expedition's real, already-walked physical route so
+  // `routeReached` reflects that the party is genuinely standing at the target rather
+  // than re-deriving a short daily path.
+  const expeditionRecord: IntraSeasonTripRecord = { ...baseRecord, pathTiles: routeTiles };
+  return resolvePhysicalFoodHarvest(world, expeditionRecord, time, faunaGeo);
+}
+
 /** The default daily-action registry advanced by `advanceWorldByDays`. */
 export const DEFAULT_DAILY_ACTIONS: readonly DailyAction[] = [intraSeasonTripDailyAction];
 
@@ -2808,6 +2854,7 @@ function buildOutboundPathTiles(
   world: WorldState,
   originTileId: TileId,
   targetTileId: TileId,
+  maxReachTiles: number = MAX_TRIP_DISTANCE_TILES,
 ): readonly TileId[] {
   const origin = world.tiles[originTileId];
   const target = world.tiles[targetTileId];
@@ -2824,7 +2871,30 @@ function buildOutboundPathTiles(
     return [originTileId];
   }
 
-  return findPassablePath(world, origin, aimTile) ?? [originTileId];
+  return findPassablePath(world, origin, aimTile, maxReachTiles) ?? [originTileId];
+}
+
+/**
+ * EXPEDITIONARY-1 — the physical outbound ROUTE for a multi-day expedition, built by
+ * the same deterministic passable-path machinery the daily trips use (so an
+ * expedition is the same party system reaching further, not a second pathfinder).
+ * Returns the tile-by-tile route origin→target inclusive, or undefined when no
+ * passable route exists within the expedition's bounded neighbourhood — which is
+ * exactly the physical `route_impassable` case, never a teleport.
+ */
+export function buildExpeditionRouteTiles(
+  world: WorldState,
+  originTileId: TileId,
+  targetTileId: TileId,
+  maxReachTiles: number,
+): readonly TileId[] | undefined {
+  const route = buildOutboundPathTiles(world, originTileId, targetTileId, maxReachTiles);
+
+  if (route.length <= 1) {
+    return undefined;
+  }
+
+  return route;
 }
 
 /**
@@ -2864,8 +2934,16 @@ function resolveShoreApproachTile(world: WorldState, origin: Tile, target: Tile)
  * land — a land target or a resolved shoreline). Returns undefined when no passable
  * route exists within a bounded neighbourhood.
  */
-function findPassablePath(world: WorldState, origin: Tile, aim: Tile): readonly TileId[] | undefined {
-  const maxExplored = (MAX_TRIP_DISTANCE_TILES * 2 + 4) ** 2;
+function findPassablePath(
+  world: WorldState,
+  origin: Tile,
+  aim: Tile,
+  // EXPEDITIONARY-1: expeditions reach country BEYOND the daily trip envelope, so
+  // they need a correspondingly larger (still hard-bounded) search neighbourhood.
+  // Same-day trips keep the original bound exactly — passing nothing is unchanged.
+  maxReachTiles: number = MAX_TRIP_DISTANCE_TILES,
+): readonly TileId[] | undefined {
+  const maxExplored = (maxReachTiles * 2 + 4) ** 2;
   const cameFrom = new Map<TileId, TileId>();
   const visited = new Set<TileId>([origin.id]);
   let frontier: Tile[] = [origin];

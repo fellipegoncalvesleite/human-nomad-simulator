@@ -181,6 +181,106 @@ has a seed input — the sim layer just never consumes it. All audits/baselines 
 
 ## Current Status
 
+### EXPEDITIONARY LOGISTICAL MOBILITY-1 — FAIL / PROGRESS → EXPEDITIONARY LOGISTICAL MOBILITY-2 (2026-07-16)
+
+**Verdict: FAIL (gate not met).** No production expedition behavior was implemented.
+This commit contains the completed INVESTIGATION plus type/helper foundations only —
+by the checkpoint's own rule ("partial scaffolding … is FAIL"), the checkpoint does
+NOT pass and the roadmap does NOT advance. Work on
+`checkpoint/expeditionary-logistical-mobility-1`, branched from `a3e0dd0`
+(finalize core pipeline consolidation). Nothing pushed; prior branches intact.
+
+**Deterministic parity:** the committed edits are additive and behavior-free —
+benchmark fingerprint is byte-identical to `a3e0dd0` (`matched: true`), `tsc` clean.
+
+#### Baseline (captured on this branch, from a3e0dd0)
+- `simBenchmark --scenario baseline --years 25 --deterministic`: pop 151, 5 active
+  bands, 0 fissions, deterministic `matched: true`, ~149 ms/tick.
+
+#### The pre-checkpoint logistical limitation — REPRODUCED FROM CODE (the "before" state)
+The canonical authority is `src/sim/agents/intraSeasonTrips.ts`:
+- **`MAX_TRIP_DISTANCE_TILES = 10`** (line 87). Line 425 hard-**rejects** any trip
+  candidate with `distanceTiles > 10`. A band that knows a credible food patch beyond
+  10 tiles therefore has **no activity that can physically exploit it** — its only
+  options are stay local, scout/probe (information only), or relocate the whole
+  residence. This is exactly the checkpoint's target gap.
+- **`SAME_DAY_ROUND_TRIP_TILE_BUDGET = 8`** (line 88) is used at line 714 ONLY to
+  compute `estimatedDurationDays = ceil(distance*2 / 8)` → `classifyOutcome()` →
+  `"returns_same_day" | "overnight" | "continues"`. That outcome is consumed only by
+  `deriveMovementType` (→ `"overnight_hunt_or_scout"`). **It never gates the harvest.**
+  A 10-tile "continues" (3-day) trip deposits its `physicalFoodHarvest` immediately on
+  the departure day: no travel time, no provisions, no cargo limit, no return leg, no
+  risk. Multi-day work is a LABEL, not physics.
+- `routeReached` (line 236) = last tile of `pathTiles` === target (or adjacent if
+  aquatic) → gates `activityEligible`; failure ⇒ `failed_due_to_distance`.
+
+#### Canonical authorities to EXTEND (do not duplicate)
+1. **Party/trip authority** — `intraSeasonTrips.ts`; record `IntraSeasonTripRecord`
+   (`agents/types.ts:797`); stored on `band.recentIntraSeasonTrips` (cap
+   `RECENT_TRIP_RECORD_CAP = 24`); executed by `intraSeasonTripDailyAction` →
+   `applyTripDay` (fires `dayOfSeason >= 6 && dayOfSeason % 3 === 0`; bands in
+   `compareBands` order; threads fauna depletion through the day).
+2. **Physical food receipt authority** — `humanFoodSupport.ts::deriveHumanFoodSupportLedger`
+   consumes ONLY trips where `physicalFoodHarvest !== undefined &&
+   resourceReturn.consumedByEconomy === true && isPhysicalFoodReturnKind(...)`, and only
+   from the LATEST season tick (`sourceSeasonTick`, `RECEIPT_CAP = 16`).
+   `usableSupport = harvested − transportLoss − processingLoss`;
+   `consumedByEconomy = usableSupport > 0`; `total = raw × HARVEST_TO_SUPPORT_SCALE(100)`.
+   ⇒ An expedition that RETURNS should deposit its `IntraSeasonTripRecord` at the RETURN
+   tick — this yields "no nourishment before physical return" and "receipt once" for free.
+   Nothing else in the sim can create food.
+3. **Sub-season/day-leg execution** — `dailyActions.ts::DailyAction`
+   (`firesOnDayOfSeason` + pure `apply(world, day)`), registry `DEFAULT_DAILY_ACTIONS`
+   (intraSeasonTrips.ts:143). Hard contract: pure/deterministic, **must NOT move
+   `band.position`**. Runs identically under all step modes. This is the correct place
+   to advance expedition legs day-by-day without a daily global simulation.
+4. **Decision candidates** — `rules/candidates/*Candidate.ts`, pattern
+   `buildXCandidate(world, band, decisionId, decisionCache): CandidateDecision | undefined`
+   using `getCandidateEdgeMemo(...)`; `bandDecision.ts` only collects/compares.
+   `getGridDistance` is in the shared kit `rules/decisionScoring.ts:28`.
+5. **Adaptation** — `agents/adaptationBoundary.ts` only (relief readers incl.
+   `deriveCarryingRelief`, `deriveCarriedWaterRelief`, `deriveDryRouteWaterRelief`,
+   `deriveShelterPortabilityBurden` are the likely expedition-relevant effects).
+
+#### Confirmed: task camps are NOT causal today
+`Action` union (`rules/types.ts:103`) contains `create_temporary_camp`, but **no
+candidate ever produces it and nothing applies it** — it appears only in exhaustive
+switches (`adaptiveHuman.ts:1452`, `campMovement.ts:1837`, `reportedKnowledge.ts:2852`).
+The checkpoint's suspicion is correct: temporary/task camps are inert today.
+
+#### Committed foundations (compiling, unused, zero behavior)
+- `agents/types.ts`: `ExpeditionTaskKind`, `ExpeditionPhase`, `ExpeditionOutcomeReason`,
+  `ExpeditionCargo`, `ExpeditionTaskCamp`, `ExpeditionRecord`, `ExpeditionObservation`,
+  `ExpeditionOutcomeSummary`; `band.expeditions?`, `band.recentExpeditionOutcomes?`.
+- `intraSeasonTrips.ts`: `findPassablePath`/`buildOutboundPathTiles` gained an optional
+  `maxReachTiles` bound **defaulting to the original `MAX_TRIP_DISTANCE_TILES`** (same-day
+  behavior byte-identical); new exports `buildExpeditionRouteTiles(...)` and
+  `resolveExpeditionTargetWork(...)` (reuses `buildTripRecord` → `resolvePhysicalFoodHarvest`
+  so a distant party draws the SAME stocks/losses/receipt shape as a near trip).
+
+#### Known blocker found while wiring (for -2)
+Registering an `expeditionDailyAction` into `DEFAULT_DAILY_ACTIONS` from a new
+`expedition.ts` creates an import cycle (`intraSeasonTrips → expedition →
+intraSeasonTrips`), and `DEFAULT_DAILY_ACTIONS` is a module-init const ⇒ TDZ.
+**Fix for -2:** move the registry into a new `agents/dailyActionRegistry.ts` that imports
+both daily actions, and repoint `tick/advance.ts` at it.
+
+#### Every binding workstream REMAINS for EXPEDITIONARY-2
+A (lifecycle/state machine + caps), B (domain-owned candidate + labor reconciliation),
+C (multi-day travel legs/position/no-teleport), D (provisions/cargo/receipt-on-return),
+E (causal task camps), F (viewshed), G (fire/smoke), H (knowledge latency), I (adaptation
+effect on a real outcome), J (acute risk), all 8 new audits, scenarios A–L, natural
+occurrence, regression, long runs, UI/reporting, docs.
+
+#### Design decision carried forward (proposed, not implemented)
+Keep the same-day envelope (≤10 tiles) as the accepted daily-foraging abstraction and let
+expeditions own targets BEYOND it, depositing through the SAME trip record + ledger
+(extension, not a parallel simulator). The ≤10-tile "instant multi-day label"
+discontinuity is pre-existing debt; migrating the 5–10 tile band into the expedition
+model would be a behavior change and must not be smuggled in as tuning.
+
+---
+
 ### CORE PIPELINE CONSOLIDATION / DECISION ORCHESTRATION DECOMPOSITION-3 — Adaptation boundary + Context lifecycle (2026-07-15)
 
 **Verdict: PASS.** Both binding workstreams passed their binding audits, the full
@@ -6495,9 +6595,18 @@ UI in `src/ui/BandPanel.tsx`, audit + `--targeted-cause-event-check` in
 
 ## Recommended Next Step
 
-**Current recommendation after CORE PIPELINE CONSOLIDATION / DECOMPOSITION-3
-(PASS):** **EXPEDITIONARY LOGISTICAL MOBILITY / TASK CAMPS / VIEWSHED PERCEPTION /
-FIRE SIGNALS-1** (roadmap item 1). Core pipeline consolidation is now COMPLETE
+**Current recommendation after EXPEDITIONARY LOGISTICAL MOBILITY-1 (FAIL):**
+**EXPEDITIONARY LOGISTICAL MOBILITY-2** — the same checkpoint, resumed. The
+investigation is DONE (see Current Status: exact baseline limitation, canonical
+authorities, the inert `create_temporary_camp` finding, and the
+`DEFAULT_DAILY_ACTIONS` import-cycle blocker with its fix). Start from those
+findings and implement real production behavior; do NOT re-run the investigation.
+Every binding workstream (A–J), all 8 audits, scenarios A–L, natural occurrence,
+regression, and long runs remain. The roadmap has NOT advanced.
+
+**Superseded recommendation (after DECOMPOSITION-3, PASS):** EXPEDITIONARY
+LOGISTICAL MOBILITY / TASK CAMPS / VIEWSHED PERCEPTION / FIRE SIGNALS-1
+(roadmap item 1). Core pipeline consolidation is now COMPLETE
 across DECOMPOSITION-1/-2/-3 — season order-invariance + read-model isolation,
 the decision-orchestrator decomposition, the adaptation public boundary
 (`src/sim/agents/adaptationBoundary.ts` is the ONE sanctioned entry; canonical

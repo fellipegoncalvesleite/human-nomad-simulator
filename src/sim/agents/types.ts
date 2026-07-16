@@ -848,6 +848,149 @@ export interface IntraSeasonTripRecord {
   readonly bandKnownTargetOnly: true;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// EXPEDITIONARY-LOGISTICAL-MOBILITY-1 — multi-day logistical expedition state.
+//
+// An expedition is a MORE CAPABLE LIFECYCLE of the same task-group/party system
+// that `IntraSeasonTripRecord` already records — not a parallel simulator. A
+// same-day trip (<= MAX_TRIP_DISTANCE_TILES) is resolved in one day's reducer by
+// intraSeasonTrips; an expedition reaches country BEYOND that daily envelope and
+// therefore must physically spend days walking out, working, and walking back.
+// It deposits its result through the SAME IntraSeasonTripRecord + the SAME
+// canonical food ledger (humanFoodSupport), exactly once, at RETURN.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** What the party is physically going out to do. Only tasks with a real physical outcome system. */
+export type ExpeditionTaskKind =
+  // Draw a known distant plant patch (physical plant stock).
+  | "distant_plant_gathering"
+  // Work a known distant fauna stock (physical fauna stock).
+  | "distant_hunting"
+  // Work a known distant aquatic stock (physical aquatic stock).
+  | "distant_fishing"
+  // Verify a remembered but stale/uncertain distant patch (information only).
+  | "distant_patch_verification"
+  // Read a route/crossing toward distant country (information only).
+  | "route_reconnaissance";
+
+/** Bounded physical lifecycle of a party that is away from the residential camp. */
+export type ExpeditionPhase =
+  | "prepared"    // labor committed at camp, not yet departed
+  | "outbound"    // physically walking toward the target
+  | "operating"   // at/near the target, working (from route or task camp)
+  | "returning"   // physically walking home with cargo/information
+  | "completed"   // returned and reconciled
+  | "aborted"     // gave up and returned (or is returning) without the task done
+  | "lost";       // failed to return within the bounded window
+
+/** Why an expedition ended the way it did. Every failure must name a physical reason. */
+export type ExpeditionOutcomeReason =
+  | "returned_with_cargo"
+  | "returned_information_only"
+  | "target_not_found"
+  | "physically_exhausted"
+  | "provisions_ran_out"
+  | "route_impassable"
+  | "injury_forced_return"
+  | "season_window_closed"
+  | "party_lost";
+
+/** What the party physically carries home. Information is not cargo that feeds anyone. */
+export interface ExpeditionCargo {
+  /** Physical harvest units actually drawn at the target (already depleted from the stock). */
+  readonly harvestUnits: number;
+  /** Units lost in transit (spoilage/drop/abandonment on a hard leg). */
+  readonly lostUnits: number;
+  /** Units the party ate to feed itself while away (trip-local provisioning, never a store). */
+  readonly provisionUnitsConsumed: number;
+  /** The physical receipt resolved at the target; deposited into the ledger only on return. */
+  readonly harvestReceipt?: PhysicalFoodHarvestRecord;
+  /** Hard carry ceiling this party could physically move home. */
+  readonly carryCapacityUnits: number;
+}
+
+/** A temporary operating base a party physically establishes when the route/target justifies it. */
+export interface ExpeditionTaskCamp {
+  readonly tileId: TileId;
+  readonly establishedDay: DayNumber;
+  readonly expiresOnDay: DayNumber;
+  /** Why this camp was physically justified (leg length, repeated retrieval, recovery). */
+  readonly reason: "leg_staging" | "repeated_retrieval" | "recovery" | "observation";
+  readonly usedDays: number;
+  /** Explicit non-claims: a task camp is not a settlement and holds no stores. */
+  readonly noResidentialRelocation: true;
+  readonly noStorage: true;
+  readonly noTerritoryClaim: true;
+}
+
+/** The canonical away-party record. Bounded; owned by the activity/party subsystem. */
+export interface ExpeditionRecord {
+  readonly id: string;
+  readonly bandId: BandId;
+  readonly taskKind: ExpeditionTaskKind;
+  readonly phase: ExpeditionPhase;
+  readonly originTileId: TileId;
+  readonly targetTileId: TileId;
+  /** Deterministic outbound route origin→target (inclusive). No teleporting. */
+  readonly routeTileIds: readonly TileId[];
+  /** Where the party physically is right now (an index into routeTileIds). */
+  readonly positionTileId: TileId;
+  readonly routeIndex: number;
+  readonly departedDay: DayNumber;
+  readonly departedTick: TickNumber;
+  /** Bounded window; exceeding it makes the party overdue then lost. */
+  readonly plannedReturnDay: DayNumber;
+  readonly hardDeadlineDay: DayNumber;
+  readonly travelDaysElapsed: number;
+  readonly workDaysElapsed: number;
+  /** Aggregate composition — never individual people. */
+  readonly partyWorkers: number;
+  readonly cargo: ExpeditionCargo;
+  readonly taskCamp?: ExpeditionTaskCamp;
+  /** Physical risk actually experienced, per-leg capped (no duplicate application). */
+  readonly injuryLoad: number;
+  readonly riskEpisodeIds: readonly string[];
+  readonly outcomeReason?: ExpeditionOutcomeReason;
+  /** Information the party is physically carrying home; unavailable to the band until return. */
+  readonly carriedObservations: readonly ExpeditionObservation[];
+  readonly reasonIds: readonly ReasonId[];
+  /** Explicit non-claims, mirrored from the trip contract. */
+  readonly noResidentialRelocation: true;
+  readonly bandKnownTargetOnly: true;
+}
+
+/** A bounded observation a party physically made and is carrying home (latency: not band knowledge yet). */
+export interface ExpeditionObservation {
+  readonly tileId: TileId;
+  readonly kind: "target_confirmed" | "target_absent" | "route_hazard" | "route_passable" | "distant_feature";
+  readonly confidence: number;
+  readonly observedDay: DayNumber;
+}
+
+/**
+ * Compacted terminal record of one finished expedition. This is the band's LIVED
+ * EVIDENCE about distant work: it is what makes a failed expedition change later
+ * behaviour (lower route/target confidence, revised provision estimate) without
+ * permanently blacklisting a route from a single weak failure.
+ */
+export interface ExpeditionOutcomeSummary {
+  readonly id: string;
+  readonly tick: TickNumber;
+  readonly taskKind: ExpeditionTaskKind;
+  readonly targetTileId: TileId;
+  readonly phase: Extract<ExpeditionPhase, "completed" | "aborted" | "lost">;
+  readonly outcomeReason: ExpeditionOutcomeReason;
+  readonly distanceTiles: number;
+  readonly totalDays: number;
+  readonly partyWorkers: number;
+  /** Physical units that actually reached the residential camp (0 for information-only/failed). */
+  readonly deliveredHarvestUnits: number;
+  readonly provisionUnitsConsumed: number;
+  readonly lostUnits: number;
+  readonly injuryLoad: number;
+  readonly usedTaskCamp: boolean;
+}
+
 export interface PlantPatchActivityTrace {
   readonly patchId: string;
   readonly plantClassId: PlantClassId;
@@ -5811,6 +5954,14 @@ export interface Band {
   readonly movementHistory: readonly BandMovementRecord[];
   readonly lastIntraSeasonTrip?: IntraSeasonTripRecord;
   readonly recentIntraSeasonTrips?: readonly IntraSeasonTripRecord[];
+  // EXPEDITIONARY-1: parties currently AWAY from this residential camp (bounded,
+  // cap EXPEDITION_ACTIVE_CAP). Their workers are committed exactly once and are
+  // unavailable to same-day trips until they physically return. Terminal records
+  // are compacted into `recentExpeditionOutcomes`, never accumulated here.
+  readonly expeditions?: readonly ExpeditionRecord[];
+  // EXPEDITIONARY-1: bounded terminal history (cap EXPEDITION_OUTCOME_CAP) — what
+  // came back, what failed and why. Read by the candidate family as lived evidence.
+  readonly recentExpeditionOutcomes?: readonly ExpeditionOutcomeSummary[];
   readonly activityLaborSummary?: ActivityLaborSummary;
   readonly activityOutcomeSummary?: ActivityOutcomeSummary;
   readonly activityShadowSubsistenceSummary?: ActivityShadowSubsistenceSummary;

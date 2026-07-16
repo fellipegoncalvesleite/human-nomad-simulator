@@ -1724,18 +1724,21 @@ Persistent settlement should require separate causal conditions such as repeated
 
 Demographic persistence is implemented (persistence-1 and persistence-2 both PASS), and **core pipeline consolidation is complete** (DECOMPOSITION-1/-2/-3 all accepted — season order-invariance + read-model isolation, decision-orchestrator decomposition, adaptation public boundary, and context-lifecycle 4→2). This future order is canonical:
 
-1. **EXPEDITIONARY LOGISTICAL MOBILITY / TASK CAMPS / VIEWSHED PERCEPTION / FIRE SIGNALS-1.** ← active next checkpoint. Consolidation is finished; expeditions may now be layered on the decomposed decision orchestrator and curated adaptation boundary.
-2. **CROWDING / RANGE RELEASE / GENERATIONAL DEPARTURE / VIABLE FISSION-1.**
-3. **SEASONAL ROUTE MIGRATION / VARIABLE NOMADIC ROUNDS-1.**
-4. **LANGUAGE / SEMANTIC COMMUNICATION / NAMING / DIALECT EVOLUTION-1.**
-5. **BAND CULTURE / IDENTITY / VIEWS / CUSTOMS / NORMS-1.**
-6. **INTER-BAND ENCOUNTERS / RELATIONSHIP MEMORY / EXCHANGE NETWORKS-1.**
-7. **RELIGION / MYTH / RITUAL / SACRED LANDSCAPE-1.**
-8. **SMALL-SCALE CONFLICT / FEUD / RETALIATION-1**, followed later by alliances, raids, and organized war.
-9. **EMERGENT TRAILS / ROUTES / ROADS / SEDENTISM.**
-10. **Major missing human biological and social systems.**
-11. **WHOLE-SIM CAUSAL CONNECTIVITY / DECORATIVE SYSTEMS AUDIT.**
-12. **PUBLIC POLISH + MVP CLOSURE.**
+1. **EXPEDITIONARY LOGISTICAL MOBILITY / TASK CAMPS / VIEWSHED / FIRE SIGNALS + DYNAMIC MOBILITY-1..3.** ← active. The physical expedition spine and dynamic mobility have landed; viewshed, fire/smoke, acute-risk episodes, and knowledge-latency application remain.
+2. **CLIMATE / WEATHER / SEASONAL VARIABILITY-1 — FOUNDATIONAL.** ← *promoted 2026-07-16* to sit immediately after expeditionary logistics and **before** seasonal migration.
+   **Why it is foundational, not content:** climate is an upstream *physical* driver on the canonical spine (terrain/hydrography → **climate** → ecology → knowledge → labor/return → nutrition → movement). Two concrete forcing functions already exist: (a) the expedition system reaches for weather/visibility/water inputs it cannot yet ask for — travel-leg cost, viewshed occlusion, smoke dispersal for signals, and provisioning all currently assume a static world; (b) **SEASONAL ROUTE MIGRATION is not honestly modellable before it** — without inter-annual and intra-seasonal variability, "seasonal rounds" would be an authored script rather than an emergent response to a varying world, which §3.1/§3.9 forbid. Building migration first would bake a fixed-year assumption into route memory that climate would then have to unpick.
+   **Constraints:** attach at the terrain/hydrography→ecology seam and feed the EXISTING seasonality/hydrography systems (`world/seasonal.ts`, `hydrography.ts`, plant/fauna advancement) rather than becoming a parallel content pack; must be deterministic and bounded (no wall-clock, no unseeded variation); must not become a hidden food multiplier or a generic hardship dial.
+3. **CROWDING / RANGE RELEASE / GENERATIONAL DEPARTURE / VIABLE FISSION-1.**
+4. **SEASONAL ROUTE MIGRATION / VARIABLE NOMADIC ROUNDS-1.** — now deliberately downstream of climate.
+5. **LANGUAGE / SEMANTIC COMMUNICATION / NAMING / DIALECT EVOLUTION-1.**
+6. **BAND CULTURE / IDENTITY / VIEWS / CUSTOMS / NORMS-1.**
+7. **INTER-BAND ENCOUNTERS / RELATIONSHIP MEMORY / EXCHANGE NETWORKS-1.**
+8. **RELIGION / MYTH / RITUAL / SACRED LANDSCAPE-1.**
+9. **SMALL-SCALE CONFLICT / FEUD / RETALIATION-1**, followed later by alliances, raids, and organized war.
+10. **EMERGENT TRAILS / ROUTES / ROADS / SEDENTISM.**
+11. **Major missing human biological and social systems** — now explicitly includes the **DEMOGRAPHIC SEX-COMPOSITION prerequisite**: EXPEDITIONARY-3 chose §6 Option B (mobility-role cohorts, no sex state) because canonical population state has NO sex composition and adding it means sex-aware aging/mortality/birth/fission/absorption/extinction surgery on the single-net-rate core (§10.3). Any sex-specific reporting — mobility, labor, culture, or kinship — REQUIRES that demographic checkpoint FIRST. Do not fabricate `adultMen = adults / 2` in a downstream checkpoint.
+12. **WHOLE-SIM CAUSAL CONNECTIVITY / DECORATIVE SYSTEMS AUDIT.**
+13. **PUBLIC POLISH + MVP CLOSURE.**
 
 Roadmap rules:
 

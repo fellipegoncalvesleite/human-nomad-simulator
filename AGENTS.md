@@ -403,18 +403,19 @@ Rules:
 
 Demographic persistence is implemented (persistence-1 and persistence-2 both PASS). Consolidation-1 completed the correctness/safety half (PROGRESS); the structural decomposition remains. The canonical future order is now:
 
-1. **EXPEDITIONARY LOGISTICAL MOBILITY / TASK CAMPS / VIEWSHED PERCEPTION / FIRE SIGNALS-1.** ← active next checkpoint (core pipeline consolidation complete: decision decomposition + adaptation boundary + context lifecycle all done)
-2. **CROWDING / RANGE RELEASE / GENERATIONAL DEPARTURE / VIABLE FISSION-1.**
-3. **SEASONAL ROUTE MIGRATION / VARIABLE NOMADIC ROUNDS-1.**
-4. **LANGUAGE / SEMANTIC COMMUNICATION / NAMING / DIALECT EVOLUTION-1.**
-5. **BAND CULTURE / IDENTITY / VIEWS / CUSTOMS / NORMS-1.**
-6. **INTER-BAND ENCOUNTERS / RELATIONSHIP MEMORY / EXCHANGE NETWORKS-1.**
-7. **RELIGION / MYTH / RITUAL / SACRED LANDSCAPE-1.**
-8. **SMALL-SCALE CONFLICT / FEUD / RETALIATION-1**, followed later by alliances, raids, and organized war.
-9. **EMERGENT TRAILS / ROUTES / ROADS / SEDENTISM.**
-10. **Major missing human biological and social systems.**
-11. **WHOLE-SIM CAUSAL CONNECTIVITY / DECORATIVE SYSTEMS AUDIT.**
-12. **PUBLIC POLISH + MVP CLOSURE.**
+1. **EXPEDITIONARY LOGISTICAL MOBILITY / TASK CAMPS / VIEWSHED PERCEPTION / FIRE SIGNALS + DYNAMIC MOBILITY-1..3.** ← active (spine + dynamic mobility landed; viewshed/signals/risk/knowledge-latency remain)
+2. **CLIMATE / WEATHER / SEASONAL VARIABILITY-1 — FOUNDATIONAL.** ← promoted 2026-07-16 to sit immediately after expeditionary logistics and BEFORE seasonal migration. Rationale: climate is an upstream *physical* driver, not a later content layer. Expedition feasibility already reaches for weather/visibility/water inputs (travel legs, viewshed occlusion, smoke dispersal, provisioning), and seasonal route migration is not meaningfully modellable until inter-annual and intra-seasonal variability exist — otherwise "seasonal rounds" would be scripted rather than emergent. Must attach at the terrain/hydrography→ecology seam and feed existing seasonality, not become a parallel content pack.
+3. **CROWDING / RANGE RELEASE / GENERATIONAL DEPARTURE / VIABLE FISSION-1.**
+4. **SEASONAL ROUTE MIGRATION / VARIABLE NOMADIC ROUNDS-1.** (now downstream of climate, by design)
+5. **LANGUAGE / SEMANTIC COMMUNICATION / NAMING / DIALECT EVOLUTION-1.**
+6. **BAND CULTURE / IDENTITY / VIEWS / CUSTOMS / NORMS-1.**
+7. **INTER-BAND ENCOUNTERS / RELATIONSHIP MEMORY / EXCHANGE NETWORKS-1.**
+8. **RELIGION / MYTH / RITUAL / SACRED LANDSCAPE-1.**
+9. **SMALL-SCALE CONFLICT / FEUD / RETALIATION-1**, followed later by alliances, raids, and organized war.
+10. **EMERGENT TRAILS / ROUTES / ROADS / SEDENTISM.**
+11. **Major missing human biological and social systems** — includes the DEMOGRAPHIC SEX-COMPOSITION prerequisite: mobility-3 chose Option B (no sex state), so any sex-specific reporting REQUIRES a prior demographic checkpoint adding conserved male/female counts with sex-aware aging/mortality/birth/fission/absorption/extinction. Do not fake it in a mobility or culture checkpoint.
+12. **WHOLE-SIM CAUSAL CONNECTIVITY / DECORATIVE SYSTEMS AUDIT.**
+13. **PUBLIC POLISH + MVP CLOSURE.**
 
 Consolidation comes **before** expeditions: the demographic checkpoint surfaced tick/season-resolution and decision-orchestration coupling that should be decomposed before new expedition mechanics are layered on.
 

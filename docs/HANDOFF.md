@@ -237,16 +237,55 @@ not permit); one `walkingDistance` field (§4 forbids collapsing the four concep
   (expedition legs already produce this), in kilometres at 1.5 km/tile, separating
   calendar-day from active-day means, loaded from unloaded.
 
-**Status: FAIL — brainstorm complete, implementation NOT done.** Per the amendment's own
-gate ("The agent stops after brainstorming without implementation" = FAIL) this does not
-pass. No mobility code was written; the -2 spine is unchanged and still green.
+#### IMPLEMENTED (Option B) — `agents/bandMobility.ts` + wiring
 
-**Exact next actions:** (1) `agents/bandMobility.ts` owning conditioning + realized
-km history, capacity derived; (2) convert expedition legs to km (×1.5) and record
-loaded/unloaded active-day history; (3) repoint `deriveTilesPerDay` at derived capacity;
-(4) residential movement must be slower than a selected party (dependents/elders);
-(5) audits 19.1/19.2/19.5/19.9/19.10/19.14/19.15 first — they are the cheapest proofs
-that the four concepts are genuinely separate.
+**`scripts/mobilityCapacityAudit.mjs` PASS (17/17).** The four concepts are separate:
+- **capacity — DERIVED**, never stored (no stale second authority):
+  `routineKmPerActiveDay` / `currentKmPerActiveDay` / `loadedKmPerActiveDay` /
+  `overreachKmPerActiveDay`. Measured: calm 7.0 km; hungry 5.25; tired 4.9;
+  conditioning 0→1 moves routine 6→11; fully loaded 4.76 vs unloaded 7.0.
+- **conditioning — STORED**, slow/bounded/reversible: 60 active days 0.2→0.379 (not an
+  elite walker); 60 idle days decay back to 0.333; bounded [0,1] with diminishing
+  returns via headroom, so no runaway loop.
+- **fatigue — NOT duplicated**: read from the EXISTING `band.pressureState.fatiguePressure`
+  (§19.6); nutrition read from `band.demography.foodPerPersonStress`.
+- **realized history — STORED, bounded (24 days), written ONLY from completed physical
+  movement** (`recordWalkingDay` is the sole writer, called from expedition legs).
+  Controlled history (rest/3/7.5/24 km): calendar-day mean 8.625 vs **active-day mean
+  11.5** — genuinely different (§19.2); the mean lies strictly between min 3 and max 24
+  (§19.1); the 24 km day exceeds the 7 km routine, so an average is not a maximum.
+
+**History conditions, it never permits (§5).** `deriveMobilityCapacity` does not read the
+history means at all — proven by `historyDoesNotGateNextDay_19_1`: identical conditioning
++ conditions ⇒ identical capacity regardless of the recorded averages. There is no
+`allowedDistance = historicalAverage` anywhere.
+
+**Need raises willingness, not stamina (§19.4).** Urgency is a per-decision circumstance
+(the expedition passes it from `foodStress`), scaling *today's real capacity*
+(overreach 11.2 km vs routine 7.0), so a desperate weak party still cannot outwalk a fed
+conditioned one.
+
+**Wiring:** `expedition.ts::deriveTilesPerDay` now derives pace from km capacity at the
+map's documented 1.5 km/tile instead of a flat tile constant, applies the loaded penalty
+on return legs, and keeps practiced technique (adaptation boundary reliefs) distinct from
+bodily conditioning. Legs report walked/loaded km; `applyExpeditionDay` writes one
+history day per band per day (rest days included — which is what creates the
+calendar/active-day gap). Production: 3 bands with realized walking over 30y, history
+capped at 24 days, deterministic across fresh processes.
+
+**Roadmap: CLIMATE promoted** to item 2 — immediately after expeditionary logistics and
+BEFORE seasonal migration (AGENTS.md §11, CLAUDE.md §14), with the rationale that climate
+is an upstream physical driver on the causal spine and that seasonal rounds cannot be
+emergent without inter-annual/intra-seasonal variability. The sex-composition
+prerequisite is recorded against "Major missing human biological and social systems".
+
+**Still FAIL for the full expeditionary gate** (unchanged from -2): viewshed, fire/smoke,
+acute-risk episodes, knowledge-latency application, adaptation efficacy A/B, task-camp
+comparison, task families B/C, scenarios, full regression, long runs, UI.
+**Mobility gaps specifically:** residential movement does not yet use mobility (must be
+slower than a selected party — dependents/elders); no within-band capacity spread
+(§9 party selection / non-reusable high-capacity pool); no juvenile/elder mobility
+distinction (§8, blocked on cohort granularity); no 100 km controlled journey (§19.10).
 
 ---
 

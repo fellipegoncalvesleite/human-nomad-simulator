@@ -25,6 +25,12 @@ import type { WorldState } from "../world/types";
 import type { DailyAction } from "./dailyActions";
 import { deriveCarriedWaterRelief, deriveCarryingRelief } from "./adaptationBoundary";
 import {
+  KM_PER_TILE,
+  deriveMobilityCapacity,
+  recordExpeditionDistance,
+  recordWalkingDay,
+} from "./bandMobility";
+import {
   buildExpeditionRouteTiles,
   compareExpeditionBands,
   deriveTripDurationDays,
@@ -142,16 +148,27 @@ function deriveTilesPerDay(band: Band, expedition: ExpeditionRecord, currentTick
   const carried = expedition.cargo.harvestUnits;
   const capacity = Math.max(0.0001, expedition.cargo.carryCapacityUnits);
   const loadRatio = Math.max(0, Math.min(1, carried / capacity));
+  // EXPEDITIONARY-3 — pace is no longer a flat constant. It comes from this band's
+  // DERIVED mobility capacity (composition + nutrition + conditioning − fatigue), in km,
+  // converted at the map's documented scale. Two bands in identical terrain therefore
+  // walk differently, and the same band walks differently when hungry, tired, or better
+  // conditioned. Urgency raises willingness (food stress is the need signal); it scales
+  // real capacity and so cannot manufacture stamina.
+  const urgency = Math.max(0, Math.min(1, band.pressureState?.foodStress ?? 0));
+  const mobility = deriveMobilityCapacity(band, { loadRatio, urgency });
+  // A loaded return party is genuinely slower than the same party walking out.
+  const kmToday = loadRatio > 0 ? mobility.loadedKmPerActiveDay : mobility.currentKmPerActiveDay;
+  // Practiced carrying/water handling (public adaptation boundary only) recovers part of
+  // the load cost — learned technique, kept distinct from bodily conditioning.
   const carryingRelief = deriveCarryingRelief(band, currentTick);
   const waterRelief = deriveCarriedWaterRelief(band, currentTick);
   const reliefFactor =
     1 +
     Math.max(0, Math.min(0.2, carryingRelief.relief ?? 0)) +
     Math.max(0, Math.min(0.1, waterRelief.relief ?? 0));
-  const loadPenalty = 1 - loadRatio * 0.3;
   const injuryPenalty = Math.max(0.4, 1 - expedition.injuryLoad);
-  const raw = EXPEDITION_BASE_TILES_PER_DAY * loadPenalty * injuryPenalty * reliefFactor;
-  return Math.max(1, Math.floor(raw));
+  const tiles = (kmToday * reliefFactor * injuryPenalty) / KM_PER_TILE;
+  return Math.max(1, Math.floor(tiles));
 }
 
 /**
@@ -332,6 +349,14 @@ interface AdvanceResult {
   readonly expedition: ExpeditionRecord;
   /** Set only on the day the party physically reaches home with something to deposit. */
   readonly depositRecord?: IntraSeasonTripRecord;
+  /**
+   * EXPEDITIONARY-3 — kilometres the party PHYSICALLY covered today, and whether any of
+   * it was under load. Realized history is written from this and nothing else, which is
+   * why the reported walking average can never drift from what actually happened.
+   */
+  readonly walkedKm?: number;
+  readonly walkedLoadedKm?: number;
+  readonly walkSource?: "expedition_outbound" | "expedition_return" | "expedition_operating";
 }
 
 /** Advance ONE expedition by ONE physical day. Pure; the caller threads the world. */
@@ -386,7 +411,14 @@ function advanceExpeditionOneDay(
       travelDaysElapsed: withProvisions.travelDaysElapsed + 1,
       phase: arrived ? "operating" : "outbound",
     };
-    return { world, expedition: arrived ? { ...moved, taskCamp: deriveTaskCampForOperating(moved, day) } : moved };
+    const outboundKm = (nextIndex - withProvisions.routeIndex) * KM_PER_TILE;
+    return {
+      world,
+      expedition: arrived ? { ...moved, taskCamp: deriveTaskCampForOperating(moved, day) } : moved,
+      walkedKm: outboundKm,
+      walkedLoadedKm: 0,
+      walkSource: "expedition_outbound",
+    };
   }
 
   if (withProvisions.phase === "operating") {
@@ -470,12 +502,28 @@ function advanceExpeditionOneDay(
     phase: home ? "completed" : "returning",
   };
 
+  const returnKm = (withProvisions.routeIndex - nextIndex) * KM_PER_TILE;
+  const loadedKm = withProvisions.cargo.harvestUnits > 0 ? returnKm : 0;
+
   if (!home) {
-    return { world, expedition: moved };
+    return {
+      world,
+      expedition: moved,
+      walkedKm: returnKm,
+      walkedLoadedKm: loadedKm,
+      walkSource: "expedition_return",
+    };
   }
 
   const depositRecord = buildReturnedRecord(moved, day);
-  return { world, expedition: moved, depositRecord };
+  return {
+    world,
+    expedition: moved,
+    depositRecord,
+    walkedKm: returnKm,
+    walkedLoadedKm: loadedKm,
+    walkSource: "expedition_return",
+  };
 }
 
 /**
@@ -592,13 +640,26 @@ function applyExpeditionDay(world: WorldState, day: DayNumber): WorldState {
     }
 
     const currentBand = launched;
+    let mobility = currentBand.mobility;
     const nextExpeditions: ExpeditionRecord[] = [];
     const deposits: IntraSeasonTripRecord[] = [];
     let outcomes = [...(currentBand.recentExpeditionOutcomes ?? [])];
+    // EXPEDITIONARY-3 — realized walking for THIS band on THIS day, accumulated across its
+    // parties and written once below. Days with no movement are recorded as rest days,
+    // which is precisely what makes the calendar-day mean differ from the active-day mean.
+    let dayKm = 0;
+    let dayLoadedKm = 0;
+    let daySource: "expedition_outbound" | "expedition_return" | "expedition_operating" = "expedition_operating";
 
     for (const expedition of [...(currentBand.expeditions ?? [])].sort((a, b) => a.id.localeCompare(b.id))) {
       const result = advanceExpeditionOneDay(currentWorld, currentBand, expedition, day);
       currentWorld = result.world;
+
+      if ((result.walkedKm ?? 0) > 0) {
+        dayKm += result.walkedKm ?? 0;
+        dayLoadedKm += result.walkedLoadedKm ?? 0;
+        daySource = result.walkSource ?? daySource;
+      }
 
       if (result.depositRecord !== undefined) {
         deposits.push(result.depositRecord);
@@ -606,6 +667,11 @@ function applyExpeditionDay(world: WorldState, day: DayNumber): WorldState {
 
       if (isTerminalPhase(result.expedition.phase)) {
         const delivered = result.depositRecord?.physicalFoodHarvest?.usableSupport ?? 0;
+        // Observation only: how far this whole journey actually walked, out and back.
+        mobility = recordExpeditionDistance(
+          mobility,
+          (result.expedition.routeTileIds.length - 1) * 2 * KM_PER_TILE,
+        );
         outcomes = [
           summarizeOutcome(
             result.expedition,
@@ -623,8 +689,22 @@ function applyExpeditionDay(world: WorldState, day: DayNumber): WorldState {
       nextExpeditions.push(result.expedition);
     }
 
+    // The ONE writer of realized walking history: completed physical movement.
+    mobility = recordWalkingDay(mobility, {
+      day,
+      km: round4(dayKm),
+      loadedKm: round4(dayLoadedKm),
+      activeTravel: dayKm > 0,
+      source: daySource,
+    });
+
     if (deposits.length === 0 && nextExpeditions.length === (currentBand.expeditions ?? []).length) {
-      bandsById[band.id] = { ...currentBand, expeditions: nextExpeditions, recentExpeditionOutcomes: outcomes };
+      bandsById[band.id] = {
+        ...currentBand,
+        expeditions: nextExpeditions,
+        recentExpeditionOutcomes: outcomes,
+        mobility,
+      };
       changed = true;
       continue;
     }
@@ -633,6 +713,7 @@ function applyExpeditionDay(world: WorldState, day: DayNumber): WorldState {
       ...currentBand,
       expeditions: nextExpeditions,
       recentExpeditionOutcomes: outcomes,
+      mobility,
       ...(deposits.length === 0
         ? {}
         : {

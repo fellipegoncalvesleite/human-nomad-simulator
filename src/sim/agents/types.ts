@@ -21,6 +21,7 @@ import type {
   ResourceClassPressureEffect,
 } from "./resourceClasses";
 import type { ResourceKnowledgeState, ResourceKnowledgeStateKind } from "./resourceKnowledge";
+import type { BandMobilityState } from "./bandMobility";
 import type { ResourceEcologyBandState, ResourceEcologyClassId } from "./resourceEcologyFoundation";
 import type { TemporaryWatercraftAssessment } from "./storageSuitability";
 import type { VisibleNatureState } from "./visibleNature";
@@ -5972,6 +5973,11 @@ export interface Band {
   // unavailable to same-day trips until they physically return. Terminal records
   // are compacted into `recentExpeditionOutcomes`, never accumulated here.
   readonly expeditions?: readonly ExpeditionRecord[];
+  // EXPEDITIONARY-3: stored mobility — slow reversible conditioning + bounded REALIZED
+  // walking history (km). Capacity is NOT stored here: it is derived per party per day
+  // from composition + nutrition + conditioning − fatigue, so it can never go stale or
+  // become a second movement authority. History conditions; it never permits.
+  readonly mobility?: BandMobilityState;
   // EXPEDITIONARY-1: bounded terminal history (cap EXPEDITION_OUTCOME_CAP) — what
   // came back, what failed and why. Read by the candidate family as lived evidence.
   readonly recentExpeditionOutcomes?: readonly ExpeditionOutcomeSummary[];

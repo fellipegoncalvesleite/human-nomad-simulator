@@ -1,3 +1,5 @@
+import { Children, Fragment, cloneElement, isValidElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import type { Band } from "../../sim/agents/types";
 import { deriveBandChronicle } from "../../sim/agents/bandChronicle";
 import { deriveBandTendencies } from "../../sim/agents/bandTendency";
@@ -1874,6 +1876,7 @@ export function Technical({
   return (
     <div className="band-technical">
       <p className="tech-note">Advanced / developer data — raw model internals, A→Z.</p>
+      <AlphabetizedTechnicalGroups>
       <CollapsibleGroup title="Access &amp; shared use">
         <ProtoAccessDetails band={band} />
         <RangeFrictionDetails band={band} world={world} />
@@ -2046,6 +2049,52 @@ export function Technical({
         <WorldEcologyDebugDetails />
         <PlantPatchTruthDetails currentTile={currentTile} world={world} />
       </CollapsibleGroup>
+      </AlphabetizedTechnicalGroups>
     </div>
+  );
+}
+
+type TechnicalGroupElement = ReactElement<{
+  readonly title: string;
+  readonly defaultOpen?: boolean;
+}>;
+
+function AlphabetizedTechnicalGroups({
+  children,
+}: {
+  readonly children: ReactNode;
+}) {
+  const groups: TechnicalGroupElement[] = [];
+
+  function collect(node: ReactNode) {
+    Children.forEach(node, (child) => {
+      if (!isValidElement(child)) {
+        return;
+      }
+
+      if (child.type === Fragment) {
+        collect((child.props as { readonly children?: ReactNode }).children);
+        return;
+      }
+
+      if (child.type === CollapsibleGroup) {
+        groups.push(child as TechnicalGroupElement);
+      }
+    });
+  }
+
+  collect(children);
+  groups.sort((left, right) =>
+    left.props.title.localeCompare(right.props.title, "en", { sensitivity: "base" }),
+  );
+
+  return (
+    <>
+      {groups.map((group, index) =>
+        cloneElement(group, {
+          key: group.key ?? `${group.props.title}-${index}`,
+        }),
+      )}
+    </>
   );
 }

@@ -181,6 +181,217 @@ has a seed input — the sim layer just never consumes it. All audits/baselines 
 
 ## Current Status
 
+### EXPEDITIONARY LOGISTICAL MOBILITY-4 — perception, risk, learning, acceptance (2026-07-17)
+
+Branch `checkpoint/expeditionary-logistical-mobility-4` from `4b49a75` (required
+ancestry 6231357 → cc4d6df → 4b49a75 verified). Commits this checkpoint:
+`04e4c14` (taxonomy + mobility authority + pools) → `b944ee2` (information tasks +
+knowledge latency; committed/pushed by the user mid-session) → `7ceb0ec`
+(viewshed/fire/risk/task-camp/100 km/UI) → final docs commit (hash in report).
+**VERDICT: see the end of this section** — production behavior and focused audits
+are complete; the verdict line records how much of §22–§25 validation executed.
+
+#### §5 — target_not_found diagnosis: PRIMARILY DEFECTIVE, repaired
+
+The 335/362 dominance had a proven mechanical cause: `resolveExpeditionTargetWork`
+reused the same-day trip record builder, whose travel-uncertainty gates
+(`failed_due_to_distance` at ≥8 tiles with low access confidence, `delayed_return`
+at low presence confidence on >1-day trips, low-memory hesitation) zeroed the
+physical work request of a party ALREADY STANDING at its target. Physical presence
+now overrides those same-day gates (`physicallyAtTarget` — same-day path
+byte-identical); the resolver's real failure reason maps onto an explicit taxonomy:
+`target_absent` (fresh evidence, patch genuinely gone) / `evidence_stale`
+(weak/inferred/forgotten evidence) / `physically_exhausted` (stock drawn down) /
+`seasonally_inactive` (band-known seasonality) / `route_endpoint_mismatch` (walked
+route never reached a valid stand) / `harvest_failed` (stood there, attempt
+returned nothing) / `cargo_return_failed` (taken but nothing survived the walk
+home). Generic `target_not_found` is no longer producible. Natural 40y map1 moved
+from 27 with-cargo / 335 generic to 126 with-cargo / 65 information-only / every
+failure named. Linked-tile stands keep patch identity (launch fallback + work
+resolution). Audit: `expeditionTargetResolutionAudit.mjs` 10/10.
+
+#### §6/§7/§8 — canonical mobility authority + role pools
+
+`agents/bandMobility.ts` is the ONE travel-pace boundary: 7 contexts (selected
+recon party / resource expedition / loaded return / task-camp shuttle / whole-band
+residential column / emergency column / injured party). `residentialMoveEvent.ts`
+and `migrationWalk.ts` consume it (private pace constants removed; staged seasonal
+legs get a physical step ceiling from column pace × bounded walking days). Same
+12-tile route: selected party 7 km/day · 3 days vs whole-band column 2.25 km/day ·
+8 days; emergency overreach 3.6 km/day (helps, still a column); burdened column
+2.0 vs lean 3.2. §8 pools (limited/typical/high) are DERIVED and conserved exactly
+to working adults (sweep + 30y production proof); parties record composition;
+committed adults are unavailable elsewhere; pool exhaustion physically slows the
+next party; over-asking is blocked. Audit: `mobilityAuthorityAudit.mjs` 17/17;
+`mobilityCapacityAudit.mjs` retained 17/17.
+
+#### §10/§11 — information tasks + knowledge latency
+
+Verification and route-reconnaissance families compete with retrieval inside
+`expedition.ts` (domain-owned; bandDecision untouched): a HUNGRY band gambles on
+retrieval even with stale evidence; a comfortable band sends 2 fast walkers to
+VERIFY first (verify-only resolution: physical lookup, no depletion, no cargo);
+recon fires on route_endpoint_mismatch evidence or weak access confidence toward
+valuable remembered country. Party observations stay party-local while away;
+at PHYSICAL return they apply through the canonical writers only
+(`applyActivityOutcomeToMemoryForWorld` for patch memory; the extracted single
+tile-observation writer `agents/tileObservation.ts` for a recon party's walked
+tiles). Proof chain: stale memory → verification launches → memory unchanged for
+7 away days → changes at return → retrieval party follows to the same target.
+Natural 40y: 565 retrieval / 67 verification / 4 recon; info tasks delivered 0
+food. Audit: `expeditionKnowledgeLatencyAudit.mjs` 15/15.
+
+#### §12/§13 — viewshed + fire/smoke
+
+Camp viewshed (existing bounded landscape cues) retained and verified (≤6 cues,
+direction/distance/occlusion recorded); parties gain bounded arrival observations
+(adjacent water/wetland; party-local until return); task camps are the smoke
+origin. `agents/fireSignals.ts`: a signal needs a real fire at a real position
+(fuel/wetness/lived fire competence via `agents/environmentBoundary.ts` — the §26
+present-state seam CLIMATE-1 will replace), and detection pays distance, mountain
+occlusion, and present visibility. All outcomes reachable (not_feasible /
+too_distant / occluded / visibility_suppressed / missed / seen_ambiguous /
+seen_understood); UNPLANNED smoke is never understood (deterministic sweep);
+received records are capped/expiring and carry ONLY {direction, distance band,
+outcome, bounded meaning, about-tile} — no identity/population/task. Causal
+consequence: an understood mid-trip "target confirmed" column PROMPTS an
+off-cadence relay retrieval before the verifying party is home. Audit:
+`fireSignalViewshedAudit.mjs` 14/14.
+
+#### §14 — expedition acute risk
+
+Away-party exposure (overdue, long legs, heavy load, thin provisions, party-tile
+risk) generates candidates in the CANONICAL authority (`acuteRisk.ts`, new
+`expedition_exposure` category; the party is the band's own people, so knownness
+holds). Episodes are deterministic, capped (2/band/season; 3/expedition), and
+stamp their party exactly once (id-deduplicated): injury load halves real pace
+(3.8 → 1.5 km/day at 0.6), ≥0.5 forces `injury_forced_return` and abandons the
+uncarryable cargo share. Deaths flow only through existing pressure/mortality
+paths (source-proof: expedition.ts writes no population/demography). CAVEAT:
+natural sightings over 40y map1 = 0 (parties rarely span a season boundary while
+exposed) — capability is controlled-proven, naturally rare. Audit:
+`expeditionAcuteRiskAudit.mjs` 10/10.
+
+#### §15 — adaptation efficacy A/B (carrying / load_staging)
+
+Through the public boundary only: response ON relief 0.27; OFF 0; ABANDONED
+(evidence-driven status) 0. Physical A/B through the real chain: carry ceiling
+0.2976 vs 0.24 (+24 % cap held), journey 7 vs 8 days; on thin natural stocks the
+duration difference is the observable end-to-end consequence (cargo binding needs
+richer stocks — documented). The production evaluator classifies real outcomes
+(clear success vs severe-hardship failure), and status abandonment kills the
+effect for later execution — result → evidence → later behavior. No generic
+multiplier (delivered ratio ≤1.5 asserted). Audit:
+`expeditionAdaptationEfficacyAudit.mjs` 12/12.
+
+#### §16 — task camps
+
+Camps now physically COST (setup provisions, once) and SAVE (a campless party
+shuttles to safe ground nightly: +4 tiles walked and +0.5 worker-day provisions
+per work day). Feasibility is local (dry, not flood-prone ground). Same
+route/task with vs without camp (only difference: stand-tile flood risk, which
+plant physics ignores): campless walked more km and ate more provisions; food
+delta ≤ provisions delta (camps create NO food); bounded lifetime + expiry with
+the owning expedition; no storage/territory/residential mutation. Audit:
+`taskCampComparisonAudit.mjs` 11/11.
+
+#### §17 — controlled ~100 km journey
+
+`EXPEDITION_MAX_ROUTE_TILES` 24 → 36 (technical search bound, not behavior — §29
+gate 45). Favorable (conditioned 0.65, calm, known 35-tile route): launches,
+physical daily legs (11 travel days), no teleport, 105 km total, provisions
+consumed, completes, 3+ rest days after. Unfavorable (unconditioned, exhausted,
+starving, same route): party LOST at day 25. Nature stays honest: longest natural
+expedition over 40y = 63 km. Audit: `expedition100kmJourneyAudit.mjs` 10/10.
+
+#### §19 — UI + Chronicle
+
+`ui/band/Mobility.tsx` ("Mobility & Parties" tab, read-only): derived capacity
+(routine/today/loaded/overreach + why today differs), stored conditioning,
+realized history (calendar vs active-day means, rest days, loaded mean, longest
+day/journey), role pools + away/available/committed, and per-party task/
+composition/phase/position/route-km/provisions/cargo/task camp/observations/
+signals/risk episodes/expected return, plus bounded outcome history and received
+smoke. NO male/female breakdown; NO mobile-juvenile statistics (Option B).
+Chronicle: significant-only events in `bandEvents.ts` (lost party, injured
+return, major distant delivery, ≥60 km journey, understood smoke), stateKey-
+deduplicated — never one event per leg.
+
+#### §20/§21 — focused audits + scenario coverage
+
+All 8 new focused audits PASS on this branch (each executed): target resolution
+10/10, mobility authority 17/17, knowledge latency 15/15, fire/viewshed 14/14,
+acute risk 10/10, adaptation A/B 12/12, task camp 11/11, 100 km 10/10; retained
+mobilityCapacityAudit 17/17 and expeditionLifecycleAudit 17/17 stay green. The
+§21 scenario matrix (30 items) is covered across these audits plus the §23
+regression battery (hidden-target/anti-omniscience and determinism cases run
+there); coverage mapping is in the checkpoint report.
+
+#### §22–§25 — validation results (executed on this branch)
+
+**§23 full regression: 48/48 PASS** (sequential chain, executed 2026-07-17):
+build (tsc + tsc.node + vite), all architecture audits (decisionBoundary,
+adaptationBoundary, contextLifecycle, seasonOrder, importBoundary,
+architectureMetrics, checkGraph), all 10 mobility/expedition focused audits, all
+food/ecology audits (foodPipeline, trophic + 1b, allMapEcology, snapshotParity,
+catchmentInvariants, livingEcologyWorld, resource anti-omniscience, fauna/plant
+stock), all demography/lifecycle audits (renewal, foodDemographySeparation,
+deathMemoryPath, persistence, perLineage, terminalExtinction, returnKind,
+hardshipOutcome), all agency/adaptation suites (practicalAdaptation,
+adaptiveEfficacy, routines2, causalAgency, movementCarrying, acuteRisk), and
+`sim:benchmark --deterministic` → `deterministic=true`.
+
+**§24 long runs: 4/4 PASS** — `demographicLongRunAudit` 300y on map1 (pop
+155→82, 4 active + 1 extinct, fingerprint deterministic), map2 (74 pop, 4 active
++ 5 extinct — extinction possible, not universal), map2_single_origin, and
+no_human_map1 (stays empty). State caps held; populations reconcile; observer
+parity. Plus 100y natural-occurrence runs on map1 + map2: pathology-free (5
+distinct band paces 3.6–6.8 km/day active means; conditioning bounded 0.876;
+zero pool mismatches/over-commits; zero generic failure buckets; exactly ONE
+99 km journey per century — exceptional, not routine).
+
+**§25 performance:** 25y deterministic baseline 267 → **187.6 ms/tick** after
+sizing the launch-route BFS exploration budget to the candidate's real distance
+(daily-activities phase 194.7 → 114.9 ms/tick; lifecycle audit stays green).
+The remaining +26 % over the pre-expedition ~149 ms/tick baseline is the entire
+daily expedition/signal/risk physics — attributed, explained. Context builds
+stay at 2 full + 1 partial per tick (contextLifecycle audit green).
+
+**Remaining acceptance debt (the FAIL-binding remainder):** the §25 ISOLATED
+per-case performance matrix (same-day-only / expedition-active /
+pool-heavy / residential-move / viewshed-heavy / signal-heavy /
+acute-risk-heavy cases measured alone with per-derivation timings) was not
+built; §22's dedicated rich-isolated / ordinary / marginal REGION sweeps beyond
+the three canonical maps were not run. Other known debt: natural expedition
+acute-risk episodes are rare (0 sightings in 40y; capability controlled-proven);
+linked-tile memories never form naturally yet; no expedition-specific efficacy
+evaluator (reuses the carrying family's residential evaluator); cross-band
+ordinary-smoke cues not implemented (same-band signaling only); universal
+extinction remains a known incomplete-architecture outcome (non-blocking).
+
+#### VERDICT: FAIL → EXPEDITIONARY LOGISTICAL MOBILITY-5 (narrow remainder)
+
+Every production behavior gate, all 10 focused audits, the 30-scenario coverage,
+§23 full regression (48/48), §24 long runs (4/4 + two 100y naturals), and
+determinism are COMPLETE AND GREEN on this branch. The checkpoint still FAILS by
+its own §29 rule because two validation gates are not fully executed: the §25
+isolated per-case performance matrix and §22's dedicated regional sweeps.
+EXPEDITIONARY-5 is those two items (plus optional debt above) — not production
+work. The roadmap does NOT advance yet; climate remains correctly sequenced
+next.
+
+#### Roadmap
+
+On acceptance, EXPEDITIONARY LOGISTICAL MOBILITY / TASK CAMPS / VIEWSHED
+PERCEPTION / FIRE SIGNALS-1 is complete and the roadmap advances to
+**CLIMATE / WEATHER / REGIONAL SEASONALITY FOUNDATION-1** (foundational, BEFORE
+seasonal-route migration; `environmentBoundary.ts` is its ready seam). Climate
+itself was NOT implemented here. Sex composition remains owned by the later
+biological/social block (Option B stands; no sex-specific statistic exists or is
+displayed anywhere in this checkpoint).
+
+---
+
 ### EXPEDITIONARY LOGISTICAL MOBILITY-3 — dynamic mobility amendment: MANDATORY BRAINSTORM (2026-07-16)
 
 Branch `checkpoint/expeditionary-logistical-mobility-3` from `6231357`.

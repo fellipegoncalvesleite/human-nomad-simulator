@@ -40,6 +40,7 @@ try {
   let poolMismatch = 0;
   let overCommit = 0;
   let conditioningMax = 0;
+  let nearHundredKmJourneys = 0;
   const paceSamples = new Set();
   const perBandActiveMeans = [];
   let longestDay = 0;
@@ -66,6 +67,7 @@ try {
       for (const outcome of band.recentExpeditionOutcomes ?? []) {
         if (seenOutcomes.has(outcome.id)) continue;
         seenOutcomes.add(outcome.id);
+        if (outcome.distanceTiles * 2 * 1.5 >= 90) nearHundredKmJourneys += 1;
         outcomeReasons[outcome.outcomeReason] = (outcomeReasons[outcome.outcomeReason] ?? 0) + 1;
         taskKinds[outcome.taskKind] = (taskKinds[outcome.taskKind] ?? 0) + 1;
         if (outcome.usedTaskCamp) taskCampsUsed += 1;
@@ -98,7 +100,11 @@ try {
     genericFailureBucket: (outcomeReasons["target_not_found"] ?? 0) > 0,
     infoTasksCreateFood: infoTaskFoodViolations > 0,
     longExpeditionsNeverOccur: totalOutcomes > 0 && longestExpedition < 15,
-    longExpeditionsRoutine: longestExpedition >= 99,
+    // "Routine" means MANY near-100 km journeys, not the existence of one: a single
+    // exceptional journey per century is exactly the intended possible-but-rare §17
+    // behavior (and §29 gate 45 forbids an arbitrary cap that would prevent it).
+    longExpeditionsRoutine:
+      totalOutcomes > 0 && nearHundredKmJourneys > 3 && nearHundredKmJourneys / totalOutcomes > 0.02,
   };
   const pathologyFree = Object.values(pathologies).every((value) => value === false);
   out = {

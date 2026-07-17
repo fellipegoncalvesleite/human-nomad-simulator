@@ -1158,11 +1158,22 @@ function maybeLaunchExpedition(world: WorldState, band: Band, day: DayNumber): B
   // §5.2 (multi-tile patch) — aim at the remembered anchor tile first; when the anchor
   // itself is unreachable, any of the patch's linked tiles is an equally valid physical
   // stand (deterministic order), and reaching one does not lose the patch identity.
-  let route = buildExpeditionRouteTiles(world, band.position, chosen.targetTileId, EXPEDITION_MAX_ROUTE_TILES);
+  //
+  // §25 — the BFS exploration budget is sized to the CANDIDATE's real distance (plus
+  // detour slack), not always the global route cap: a target 8 tiles out does not need
+  // a 5776-tile search neighbourhood. The path-length cap below is unchanged; a target
+  // needing a detour beyond its distance+slack neighbourhood is honestly unreachable.
+  const searchBound = (targetTileId: TileId): number => {
+    const distance = tileGridDistance(world, band.position, targetTileId);
+    return distance === undefined
+      ? EXPEDITION_MAX_ROUTE_TILES
+      : Math.min(EXPEDITION_MAX_ROUTE_TILES, distance + 8);
+  };
+  let route = buildExpeditionRouteTiles(world, band.position, chosen.targetTileId, searchBound(chosen.targetTileId));
 
   if (route === undefined) {
     for (const linkedTileId of [...chosen.linkedTiles].sort((a, b) => String(a).localeCompare(String(b)))) {
-      route = buildExpeditionRouteTiles(world, band.position, linkedTileId, EXPEDITION_MAX_ROUTE_TILES);
+      route = buildExpeditionRouteTiles(world, band.position, linkedTileId, searchBound(linkedTileId));
 
       if (route !== undefined) {
         break;

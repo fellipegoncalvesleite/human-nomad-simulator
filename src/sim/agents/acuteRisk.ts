@@ -2,6 +2,12 @@ import type { ReasonId, TickNumber, TileId } from "../core/types";
 import type { WorldState } from "../world/types";
 import { enforceResourceKnowledgeCap } from "./resourceKnowledge";
 import { deriveCareTreatmentRelief } from "./adaptationBoundary";
+// EXPEDITIONARY-4 §14 — the provisioning scale an away party's exposure is judged
+// against (single definition site; no duplicated constants).
+import {
+  EXPEDITION_MAX_DURATION_DAYS,
+  EXPEDITION_PROVISION_UNITS_PER_WORKER_DAY,
+} from "./expedition";
 import type {
   AcuteRiskContext,
   AcuteRiskDurationClass,
@@ -117,10 +123,67 @@ export function applyAcuteRiskToBand(world: WorldState, band: Band): Band {
     acuteRisk: state,
     pressureState: applyAcuteEffectToPressureState(band.pressureState, state),
   };
+  // §14 — an expedition-exposure episode physically marks ITS party: injury load
+  // slows the party's real legs and can force an early return. Stamped exactly once
+  // per episode id (the id is the dedup key), with a bounded per-expedition cap.
+  const withExpeditionConsequences = stampExpeditionEpisodes(withRisk, generated);
 
   return generated.length === 0
-    ? withRisk
-    : applyAcuteRiskMemoryUpdates(withRisk, generated, world.time.tick);
+    ? withExpeditionConsequences
+    : applyAcuteRiskMemoryUpdates(withExpeditionConsequences, generated, world.time.tick);
+}
+
+/** Per-expedition bounded record of episodes that already marked it (dedup + cap). */
+const EXPEDITION_RISK_EPISODE_CAP = 3;
+
+function injuryLoadForSeverity(severity: AcuteRiskSeverity): number {
+  switch (severity) {
+    case "minor":
+      return 0.08;
+    case "moderate":
+      return 0.16;
+    case "severe":
+      return 0.28;
+    case "critical":
+      return 0.4;
+  }
+}
+
+function stampExpeditionEpisodes(band: Band, generated: readonly AcuteRiskEpisode[]): Band {
+  const expeditionEpisodes = generated.filter(
+    (episode) => episode.context.sourceCategory === "expedition_exposure" && episode.context.sourceTraceId !== undefined,
+  );
+
+  if (expeditionEpisodes.length === 0 || (band.expeditions ?? []).length === 0) {
+    return band;
+  }
+
+  let changed = false;
+  const expeditions = (band.expeditions ?? []).map((expedition) => {
+    const mine = expeditionEpisodes.filter(
+      (episode) =>
+        episode.context.sourceTraceId === expedition.id &&
+        !expedition.riskEpisodeIds.includes(episode.id) &&
+        expedition.riskEpisodeIds.length < EXPEDITION_RISK_EPISODE_CAP,
+    );
+
+    if (mine.length === 0) {
+      return expedition;
+    }
+
+    changed = true;
+    const addedInjury = mine.reduce((total, episode) => total + injuryLoadForSeverity(episode.severity), 0);
+    return {
+      ...expedition,
+      injuryLoad: round3(Math.min(0.8, expedition.injuryLoad + addedInjury)),
+      riskEpisodeIds: [...expedition.riskEpisodeIds, ...mine.map((episode) => episode.id)].slice(
+        0,
+        EXPEDITION_RISK_EPISODE_CAP,
+      ),
+    };
+  });
+
+  return changed ? { ...band, expeditions } : band;
 }
 
 function applyAcuteEffectToPressureState(
@@ -374,6 +437,76 @@ function deriveAcuteRiskCandidates(world: WorldState, band: Band): readonly Acut
         ...(crossing === undefined ? [] : [`crossingLoad=${round2(crossingLoad)}`, `materialConfidence=${round2(crossing.materialConfidence)}`]),
       ],
       reasonIds: uniqueReasonIds([...(move?.reasonIds ?? []), ...(crossing?.reasonIds ?? []), ...(longTrip?.reasonIds ?? [])]),
+    });
+  }
+
+  // EXPEDITIONARY-4 §14 — away parties' REAL physical exposure. Judged from the
+  // party's own state (it is the band's own people physically out there): long legs
+  // accumulate fatigue, an overdue party is in trouble by definition, a party that
+  // has eaten most of its provision budget is walking on thin margins, and a heavy
+  // load makes every step riskier. Bounded: ≤ EXPEDITION_ACTIVE_CAP parties.
+  for (const expedition of band.expeditions ?? []) {
+    if (
+      expedition.phase !== "outbound" &&
+      expedition.phase !== "operating" &&
+      expedition.phase !== "returning"
+    ) {
+      continue;
+    }
+
+    const daysOut = expedition.travelDaysElapsed + expedition.workDaysElapsed;
+    const plannedDays = Math.max(1, Number(expedition.plannedReturnDay) - Number(expedition.departedDay));
+    const overdue = daysOut > plannedDays;
+    const loadRatio = clamp01(
+      expedition.cargo.harvestUnits / Math.max(0.0001, expedition.cargo.carryCapacityUnits),
+    );
+    const provisionBudget =
+      expedition.partyWorkers * EXPEDITION_PROVISION_UNITS_PER_WORKER_DAY * EXPEDITION_MAX_DURATION_DAYS;
+    const provisionShare = clamp01(expedition.cargo.provisionUnitsConsumed / Math.max(0.0001, provisionBudget));
+    const partyTile = world.tiles[expedition.positionTileId];
+    const exposureRisk = partyTile === undefined
+      ? 0
+      : clamp01(partyTile.riskProfile.floodRisk * 0.3 + partyTile.riskProfile.droughtRisk * 0.3 + (partyTile.movementCost - 1) * 0.2);
+
+    // Ordinary short trips are not episodes; only genuine physical exposure scores.
+    if (daysOut < 4 && !overdue && loadRatio < 0.85) {
+      continue;
+    }
+
+    const score = clamp01(
+      (overdue ? 0.3 : 0) +
+        (loadRatio >= 0.85 ? 0.18 : 0) +
+        clamp01(daysOut / 12) * 0.28 +
+        provisionShare * 0.16 +
+        exposureRisk * 0.18 +
+        fatiguePressure * 0.1,
+    );
+    pushCandidate(candidates, {
+      kind: overdue || loadRatio >= 0.85
+        ? "travel_accident"
+        : season === "winter"
+          ? "exposure_or_cold_snap"
+          : season === "summer"
+            ? "heat_or_drought_exhaustion"
+            : "travel_accident",
+      sourceCategory: "expedition_exposure",
+      sourceTileId: expedition.positionTileId,
+      sourceTraceId: expedition.id,
+      sourceLabel: `${expedition.taskKind} party ${expedition.phase}, day ${daysOut}`,
+      score,
+      reliability: 0.74,
+      confidence: 0.74,
+      groundedReasons: [
+        overdue ? "party overdue past its planned return" : "long physical legs away from camp",
+        loadRatio >= 0.85 ? "carrying near the physical ceiling" : `provisions ${round2(provisionShare)} of budget consumed`,
+      ],
+      contributingFactors: [
+        `daysOut=${daysOut}`,
+        `loadRatio=${round2(loadRatio)}`,
+        `provisionShare=${round2(provisionShare)}`,
+        `exposureRisk=${round2(exposureRisk)}`,
+      ],
+      reasonIds: uniqueReasonIds(expedition.reasonIds),
     });
   }
 
@@ -724,6 +857,12 @@ function memoryUpdateLabels(kind: AcuteRiskKind, candidate: AcuteRiskCandidate):
 }
 
 function isCandidateBandKnown(band: Band, candidate: AcuteRiskCandidate): boolean {
+  // §14 — an away party IS the band's own people: what happens to it physically
+  // happens to them, whether or not the residential camp has observed that tile.
+  if (candidate.sourceCategory === "expedition_exposure") {
+    return true;
+  }
+
   const tileId = candidate.sourceTileId;
   if (tileId === undefined) {
     return true;

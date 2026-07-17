@@ -66,28 +66,32 @@ Technology, exact package versions, current directory structure, and public setu
 
 ```text
 Last verified against:
-  FOOD–DEMOGRAPHY checkpoint tree on checkpoint/food-demography-persistence-1
-  parent 30a87b3aab96dc9b6276a5e148458ad9772770e0
-  final hash is recorded in the checkpoint report
+  branch checkpoint/expeditionary-logistical-mobility-4, branched from 4b49a75
+  (dynamic mobility, Option B). Accepted expeditionary ancestry:
+  6231357 (spine evidence) → cc4d6df (mobility brainstorm) → 4b49a75 →
+  04e4c14 (taxonomy + mobility authority + pools) → b944ee2 (information
+  tasks + knowledge latency + fire-signal scaffolding). Final EXPEDITIONARY-4
+  hash is recorded in the checkpoint report.
 
 Backup checkpoint supplied:
   branch: checkpoint/all-map-ecology-f33bebc
   expected tip: f33bebc23ecc21b971c98b48b31ca8bbfa9d2209
 
 Implemented checkpoint:
-  FOOD–DEMOGRAPHY SEPARATION / DEMOGRAPHIC PERSISTENCE-1 — PASS
-  FOOD–DEMOGRAPHY SEPARATION / DEMOGRAPHIC PERSISTENCE-2 — PASS
-  (residual death-memory food path closed; demographic persistence complete)
+  FOOD–DEMOGRAPHY SEPARATION / DEMOGRAPHIC PERSISTENCE-1 and -2 — PASS
+  CORE PIPELINE CONSOLIDATION / DECOMPOSITION-1..3 — PASS
+  EXPEDITIONARY LOGISTICAL MOBILITY-1..3 — progress accepted (spine + dynamic
+  mobility); EXPEDITIONARY-4 status is in docs/HANDOFF.md Current Status.
 
 Current blocker:
-  Default bands often cannot turn physical world support into usable receipts
-  within local same-day activity range; no conversion, loss, eligibility, or
-  ledger defect was found. This belongs to expeditionary logistics, which now
-  follows the consolidation checkpoint rather than coming next.
+  See docs/HANDOFF.md Current Status for the live EXPEDITIONARY-4 verdict and
+  the remaining validation state.
 
 Current active roadmap item:
-  CORE PIPELINE CONSOLIDATION / SEASON RESOLUTION /
-  DECISION ORCHESTRATION DECOMPOSITION-1
+  EXPEDITIONARY LOGISTICAL MOBILITY / TASK CAMPS / VIEWSHED / FIRE SIGNALS
+  (item 1); on its acceptance the roadmap advances to
+  CLIMATE / WEATHER / REGIONAL SEASONALITY FOUNDATION-1 (item 2 — foundational,
+  before seasonal-route migration; do NOT begin climate inside this checkpoint).
 ```
 
 Before any implementation, resolve and report:
@@ -312,6 +316,17 @@ No `test` script exists — verification is entirely the audit scripts below plu
 | Decision-boundary (candidate families extracted to own modules; no family/shared-kit cycle back to orchestrator) | `decisionBoundaryAudit.mjs` |
 | Adaptation public boundary (adaptationBoundary.ts is the ONE entry; no unauthorized deep imports incl. sibling `./`; curated-not-barrel; single effect definition; boundary effect == internal; full causal chain; observer parity) | `adaptationBoundaryAudit.mjs` |
 | Context lifecycle (≤2 full buildTickContextCache rebuilds/tick + partial refresh; partial byte-identical to forced full rebuild = no stale reads; deterministic; observer + season-order invariant) | `contextLifecycleAudit.mjs` |
+| Dynamic mobility (capacity derived / conditioning stored / fatigue read / history describes-not-permits; 17 gates) | `mobilityCapacityAudit.mjs` |
+| Canonical mobility authority + role pools (EXPEDITIONARY-4 §6/§7/§8: one travel-pace boundary consumed by expedition/residential/migration; column slower than selected party; pool conservation + non-reuse) | `mobilityAuthorityAudit.mjs` |
+| Expedition lifecycle spine (physical legs, return-only receipts, labor once, caps, determinism) | `expeditionLifecycleAudit.mjs` |
+| Target resolution + failure taxonomy (§5: stable/multi-tile/depleted/seasonal/stale/endpoint cases; no generic target_not_found) | `expeditionTargetResolutionAudit.mjs` |
+| Information tasks + knowledge latency (§10/§11: verification/recon launch, party-local while away, canonical application at return, behavior change) | `expeditionKnowledgeLatencyAudit.mjs` |
+| Viewshed + fire/smoke (§12/§13: all detection outcomes, ordinary smoke ambiguous, bounded meaning, off-cadence relay, camp/party viewshed) | `fireSignalViewshedAudit.mjs` |
+| Expedition acute risk (§14: canonical episodes from away-party exposure, dedup, party stamping, injury slows/forces return/abandons cargo) | `expeditionAcuteRiskAudit.mjs` |
+| Adaptation efficacy A/B (§15: carrying response on/off through the real chain; evidence-driven status kills the effect; bounded caps) | `expeditionAdaptationEfficacyAudit.mjs` |
+| Task-camp comparison (§16: same route with/without camp; shuttle km + provisions saved; no food/storage/territory/residential mutation) | `taskCampComparisonAudit.mjs` |
+| Controlled ~100 km journey (§17: favorable completes ≥100 km with recovery; unfavorable lost/slower; not routine in nature) | `expedition100kmJourneyAudit.mjs` |
+| Natural occurrence + pathology screens (§22: per-map expedition/mobility distributions; `--map map1\|map2\|map2_single_origin --years N`) | `expeditionNaturalOccurrenceAudit.mjs` |
 
 ### `simBenchmark.mjs --targeted-*` flags — exact flag names VERIFIED CURRENT (grepped from `scripts/simBenchmark.mjs`; ~120 total, most relevant to the draft's named audits below)
 

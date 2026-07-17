@@ -1245,7 +1245,10 @@ export type AcuteRiskSourceCategory =
   | "travel_route"
   | "water_context"
   | "seasonal_stress"
-  | "current_place";
+  | "current_place"
+  // EXPEDITIONARY-4 §14 — an away party's real physical exposure (long legs, heavy
+  // load, overdue return, thin provisions). sourceTraceId carries the expedition id.
+  | "expedition_exposure";
 
 export interface AcuteRiskContext {
   readonly sourceCategory: AcuteRiskSourceCategory;

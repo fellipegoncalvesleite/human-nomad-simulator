@@ -2080,7 +2080,89 @@ function deriveBandEventCandidates(world: WorldState, band: Band): readonly Band
     ...deriveResourceEcologyEvents(band),
     ...deriveVisibleNatureEvents(world, band),
     ...deriveAcuteRiskEvents(world, band),
+    ...deriveExpeditionEvents(world, band),
   ];
+}
+
+// EXPEDITIONARY-4 §19 — Chronicle records only SIGNIFICANT causal expedition events:
+// a lost party, an injury-forced return, a major distant delivery, an exceptionally
+// long journey, or an understood smoke signal. Never one event per daily leg; every
+// event is deduplicated by the underlying record's deterministic id.
+function deriveExpeditionEvents(world: WorldState, band: Band): readonly BandReadableEventCandidate[] {
+  const events: BandReadableEventCandidate[] = [];
+  const kmPerTile = 1.5;
+
+  for (const outcome of (band.recentExpeditionOutcomes ?? []).slice(0, 3)) {
+    if (Number(world.time.tick) - Number(outcome.tick) > 4) {
+      continue;
+    }
+
+    const totalKm = outcome.distanceTiles * 2 * kmPerTile;
+    const lost = outcome.phase === "lost";
+    const hurt = outcome.outcomeReason === "injury_forced_return";
+    const majorReturn = outcome.deliveredHarvestUnits > 0 && outcome.distanceTiles >= 12;
+    const exceptionalJourney = totalKm >= 60;
+    const criticalConfirmation =
+      outcome.taskKind !== "distant_plant_gathering" &&
+      (outcome.observations ?? []).length > 0 &&
+      outcome.distanceTiles >= 10;
+
+    if (!lost && !hurt && !majorReturn && !exceptionalJourney && !criticalConfirmation) {
+      continue;
+    }
+
+    events.push({
+      category: "activity" as const,
+      salience: lost || hurt || exceptionalJourney ? ("high" as const) : ("medium" as const),
+      title: lost
+        ? "A party never came home"
+        : hurt
+          ? "An injured party turned back"
+          : exceptionalJourney
+            ? "An exceptionally long journey"
+            : majorReturn
+              ? "A party returned from far country with food"
+              : "Scouts brought back word of distant country",
+      description: lost
+        ? `${outcome.partyWorkers} adults left for ${String(outcome.targetTileId)} and were never seen again.`
+        : hurt
+          ? `A hurt party abandoned part of its load and limped home from ${String(outcome.targetTileId)}.`
+          : exceptionalJourney
+            ? `A party walked roughly ${Math.round(totalKm)} km out and back over ${outcome.totalDays} days.`
+            : majorReturn
+              ? `${outcome.partyWorkers} adults carried ${outcome.deliveredHarvestUnits} units home from ${outcome.distanceTiles} tiles away.`
+              : `A small party confirmed what the band remembered about ${String(outcome.targetTileId)}.`,
+      detail: `task ${outcome.taskKind}; outcome ${outcome.outcomeReason}; ${outcome.distanceTiles} tiles; ${outcome.totalDays} days; ${outcome.partyWorkers} adults; delivered ${outcome.deliveredHarvestUnits}; provisions ${outcome.provisionUnitsConsumed}; task camp ${outcome.usedTaskCamp}`,
+      stateKey: `expedition:${outcome.id}`,
+      rawSource: "Band.recentExpeditionOutcomes",
+      rawReason: `${outcome.taskKind}; ${outcome.outcomeReason}; distanceTiles=${outcome.distanceTiles}; deliveredUnits=${outcome.deliveredHarvestUnits}`,
+      sourceReasonIds: [],
+      relatedTileId: outcome.targetTileId,
+      repeatWindowTicks: 9999,
+    });
+  }
+
+  for (const signal of (band.receivedSmokeSignals ?? []).slice(0, 2)) {
+    if (signal.meaning === undefined || Number(world.time.tick) - Number(signal.tick) > 2) {
+      continue;
+    }
+
+    events.push({
+      category: "activity" as const,
+      salience: "medium" as const,
+      title: "Smoke on the horizon meant something",
+      description: `A ${signal.distanceBand} column to the ${signal.direction} carried the planned sign: ${signal.meaning.replace(/_/g, " ")}.`,
+      detail: `signal ${signal.id}; outcome ${signal.outcome}; meaning ${signal.meaning}; about ${String(signal.aboutTileId ?? "-")}`,
+      stateKey: `smoke:${signal.id}`,
+      rawSource: "Band.receivedSmokeSignals",
+      rawReason: `understood smoke signal ${signal.meaning}`,
+      sourceReasonIds: [],
+      relatedTileId: signal.aboutTileId,
+      repeatWindowTicks: 9999,
+    });
+  }
+
+  return events;
 }
 
 function deriveForagingAdaptationEvents(band: Band): readonly BandReadableEventCandidate[] {

@@ -20,6 +20,7 @@ import { Nature } from "./band/Nature";
 import { Place } from "./band/Place";
 import { CampFootholds } from "./band/CampFootholds";
 import { CampMovement } from "./band/CampMovement";
+import { Mobility } from "./band/Mobility";
 import { People } from "./band/People";
 import { Affordances } from "./band/Affordances";
 import { ProblemsAndTrials } from "./band/ProblemsAndTrials";
@@ -42,6 +43,7 @@ type BandDetailView =
   | "place"
   | "camp"
   | "movementCamp"
+  | "mobility"
   | "people"
   | "affordances"
   | "problems"
@@ -69,6 +71,7 @@ const BAND_DETAIL_VIEWS: readonly {
   { id: "place", label: "Place" },
   { id: "camp", label: "Camp & Footholds" },
   { id: "movementCamp", label: "Movement & Camp" },
+  { id: "mobility", label: "Mobility & Parties" },
   { id: "people", label: "People" },
   { id: "affordances", label: "Affordances" },
   { id: "problems", label: "Problems & Trials" },
@@ -325,6 +328,7 @@ function BandDetails({
         ) : null}
         {detailView === "camp" ? <CampFootholds band={band} world={world} /> : null}
         {detailView === "movementCamp" ? <CampMovement band={band} world={world} /> : null}
+        {detailView === "mobility" ? <Mobility band={band} world={world} /> : null}
         {detailView === "people" ? <People band={band} world={world} onOpenChronicle={openChroniclePage} /> : null}
         {detailView === "affordances" ? <Affordances band={band} world={world} /> : null}
         {detailView === "problems" ? <ProblemsAndTrials band={band} world={world} /> : null}

@@ -45,6 +45,12 @@ import {
 } from "./intraSeasonTrips";
 import { effectiveResourceConfidence, type ResourcePatchMemory } from "./resourceKnowledge";
 import { observeTileAndNearby } from "./tileObservation";
+import {
+  SIGNAL_ATTEMPT_CAP,
+  appendReceivedSignal,
+  findUnderstoodSignal,
+  resolveSmokeSignal,
+} from "./fireSignals";
 import type {
   Band,
   ExpeditionCargo,
@@ -57,14 +63,22 @@ import type {
   ExpeditionTaskCamp,
   ExpeditionTaskKind,
   IntraSeasonTripRecord,
+  ReceivedSmokeSignal,
 } from "./types";
 
 // ── Bounds. Every one of these is a hard cap on state or search, never a tuning dial. ──
 
 /** A party covers this many route tiles in one unburdened travel day. */
 export const EXPEDITION_BASE_TILES_PER_DAY = 4;
-/** Ceiling on how far out an expedition may plan; derived reach is normally far lower. */
-export const EXPEDITION_MAX_ROUTE_TILES = 24;
+/**
+ * Ceiling on how far out an expedition may plan; derived reach is normally far lower.
+ * §17 — this is a TECHNICAL search bound, not a behavioral range: at 36 tiles (54 km)
+ * a well-found party can physically walk ~100+ km out-and-back inside the duration
+ * window, while provisions, pace, fatigue, and candidate selection keep ordinary
+ * expeditions far shorter. An arbitrary small cap here must never be what blocks a
+ * long journey — the physical budgets are.
+ */
+export const EXPEDITION_MAX_ROUTE_TILES = 36;
 /** A party may not stay out longer than this; exceeding it makes it overdue, then lost. */
 export const EXPEDITION_MAX_DURATION_DAYS = 24;
 /** Concurrent away parties per band. */
@@ -189,14 +203,28 @@ function deriveTilesPerDay(band: Band, expedition: ExpeditionRecord, currentTick
 
 /**
  * A party establishes a temporary operating base only when the physical route/target
- * justifies it: the walk home is longer than a day, so working from the target and
- * sleeping there beats backtracking. It is not a settlement, holds nothing, and expires.
+ * justifies it (the walk home is longer than a day) AND the ground can host one
+ * (§16 local feasibility: dry, not flood-prone). It is not a settlement, holds
+ * nothing, and expires. Establishment costs real labor/provisions (charged by the
+ * caller, once); its benefit is equally physical — the party sleeps at its work
+ * instead of shuttling to safe ground every evening.
  */
-function deriveTaskCampForOperating(expedition: ExpeditionRecord, day: DayNumber): ExpeditionTaskCamp | undefined {
+function deriveTaskCampForOperating(
+  world: WorldState,
+  expedition: ExpeditionRecord,
+  day: DayNumber,
+): ExpeditionTaskCamp | undefined {
   const homeLegDays = Math.ceil(expedition.routeTileIds.length / EXPEDITION_BASE_TILES_PER_DAY);
 
   if (homeLegDays < 1 || expedition.taskCamp !== undefined) {
     return expedition.taskCamp;
+  }
+
+  const standTile = world.tiles[expedition.positionTileId];
+
+  // §16 — no dry, tolerable ground: no camp. The party pays the nightly shuttle instead.
+  if (standTile === undefined || standTile.isAquatic === true || standTile.riskProfile.floodRisk > 0.75) {
+    return undefined;
   }
 
   return {
@@ -210,6 +238,13 @@ function deriveTaskCampForOperating(expedition: ExpeditionRecord, day: DayNumber
     noTerritoryClaim: true,
   };
 }
+
+/** §16 — one-off physical establishment cost: setup labor eats a real provision share. */
+const TASK_CAMP_SETUP_PROVISION_WORKER_DAYS = 0.5;
+/** §16 — a campless party shuttles to safe ground nightly: real tiles walked per work day. */
+const CAMPLESS_BACKTRACK_TILES_PER_WORK_DAY = 4;
+/** §16 — the nightly shuttle also costs extra provisions (in worker-day equivalents). */
+const CAMPLESS_EXTRA_PROVISION_WORKER_DAYS = 0.5;
 
 /** Provisions the party eats today. Consumed from what it carries — never from a band store. */
 function consumeProvisions(expedition: ExpeditionRecord): ExpeditionCargo {
@@ -379,6 +414,11 @@ interface AdvanceResult {
   readonly walkedKm?: number;
   readonly walkedLoadedKm?: number;
   readonly walkSource?: "expedition_outbound" | "expedition_return" | "expedition_operating";
+  /**
+   * §13 — a smoke signal the RESIDENTIAL camp physically received today from this
+   * party. The only pre-return information channel; bounded meaning only.
+   */
+  readonly receivedSignal?: ReceivedSmokeSignal;
 }
 
 /** Advance ONE expedition by ONE physical day. Pure; the caller threads the world. */
@@ -413,6 +453,28 @@ function advanceExpeditionOneDay(
     };
   }
 
+  // §14 — a badly hurt party stops working and turns for home. It abandons the part
+  // of its cargo its injured people can no longer physically carry (the injury factor
+  // already slows its legs; this is the carrying consequence, applied once here).
+  if (withProvisions.injuryLoad >= 0.5 && withProvisions.phase !== "returning") {
+    const carryFactor = Math.max(0.35, 1 - withProvisions.injuryLoad);
+    const carried = round4(withProvisions.cargo.harvestUnits * carryFactor);
+    const abandoned = round4(Math.max(0, withProvisions.cargo.harvestUnits - carried));
+    return {
+      world,
+      expedition: {
+        ...withProvisions,
+        phase: "returning",
+        outcomeReason: "injury_forced_return",
+        cargo: {
+          ...withProvisions.cargo,
+          harvestUnits: carried,
+          lostUnits: round4(withProvisions.cargo.lostUnits + abandoned),
+        },
+      },
+    };
+  }
+
   const tilesPerDay = deriveTilesPerDay(band, withProvisions, Number(getWorldTimeForDay(day).tick));
   const lastIndex = withProvisions.routeTileIds.length - 1;
 
@@ -434,9 +496,41 @@ function advanceExpeditionOneDay(
       phase: arrived ? "operating" : "outbound",
     };
     const outboundKm = (nextIndex - withProvisions.routeIndex) * KM_PER_TILE;
+    // §12 — the arriving party's bounded viewshed from its stand (and task camp, when
+    // one is set up): a broad water/wetland feature on an adjacent tile is the kind of
+    // physically grounded cue a person standing there cannot miss. It stays PARTY-LOCAL
+    // until return (§11); no exact quantity, stock, or hidden band state is exposed.
+    const arrivalObservation = arrived ? deriveArrivalViewshedObservation(world, moved, day) : undefined;
+    // §16 — establishing the camp is real work: setup labor eats a provision share, once.
+    const establishedCamp = arrived ? deriveTaskCampForOperating(world, moved, day) : undefined;
+    const setupCost =
+      arrived && establishedCamp !== undefined && moved.taskCamp === undefined
+        ? round4(moved.partyWorkers * EXPEDITION_PROVISION_UNITS_PER_WORKER_DAY * TASK_CAMP_SETUP_PROVISION_WORKER_DAYS)
+        : 0;
     return {
       world,
-      expedition: arrived ? { ...moved, taskCamp: deriveTaskCampForOperating(moved, day) } : moved,
+      expedition: arrived
+        ? {
+            ...moved,
+            taskCamp: establishedCamp,
+            ...(setupCost <= 0
+              ? {}
+              : {
+                  cargo: {
+                    ...moved.cargo,
+                    provisionUnitsConsumed: round4(moved.cargo.provisionUnitsConsumed + setupCost),
+                  },
+                }),
+            ...(arrivalObservation === undefined
+              ? {}
+              : {
+                  carriedObservations: [...moved.carriedObservations, arrivalObservation].slice(
+                    0,
+                    EXPEDITION_OBSERVATION_CAP,
+                  ),
+                }),
+          }
+        : moved,
       walkedKm: outboundKm,
       walkedLoadedKm: 0,
       walkSource: "expedition_outbound",
@@ -505,6 +599,25 @@ function advanceExpeditionOneDay(
         confidence: 0.85,
         observedDay: day,
       };
+      // §13 — a verification party that finds the target good attempts the PLANNED
+      // "target confirmed" smoke convention (it left with exactly this arrangement).
+      // The attempt is physical: fuel, wetness, distance, occlusion, and today's air
+      // decide whether the camp actually sees and reads it. It costs this party its
+      // work moment either way.
+      const signal =
+        observation.kind === "target_confirmed" &&
+        (withProvisions.signalAttempts ?? []).length < SIGNAL_ATTEMPT_CAP
+          ? resolveSmokeSignal({
+              world,
+              band,
+              expeditionId: withProvisions.id,
+              sourceTileId: withProvisions.positionTileId,
+              meaning: "target_confirmed",
+              planned: true,
+              aboutTileId: withProvisions.targetTileId,
+              day,
+            })
+          : undefined;
       return {
         // verifyOnly never mutates world state; thread the same world through.
         world: verification.world,
@@ -515,7 +628,11 @@ function advanceExpeditionOneDay(
           outcomeReason: "returned_information_only",
           pendingKnowledgeRecord: verification.record,
           carriedObservations: [...withProvisions.carriedObservations, observation].slice(0, EXPEDITION_OBSERVATION_CAP),
+          ...(signal === undefined
+            ? {}
+            : { signalAttempts: [...(withProvisions.signalAttempts ?? []), signal.attempt].slice(0, SIGNAL_ATTEMPT_CAP) }),
         },
+        ...(signal?.received === undefined ? {} : { receivedSignal: signal.received }),
       };
     }
 
@@ -552,7 +669,14 @@ function advanceExpeditionOneDay(
     const lost = round4(Math.max(0, totalTaken - carried));
     const workDays = withProvisions.workDaysElapsed + 1;
     const doneWorking = workDays >= EXPEDITION_MAX_WORK_DAYS || carried >= capacity || taken <= 0;
-    const camp = deriveTaskCampForOperating(withProvisions, day);
+    const camp = deriveTaskCampForOperating(world, withProvisions, day);
+    // §16 — a party with NO feasible camp shuttles to safe ground every evening: real
+    // tiles walked, real extra provisions. A camped party sleeps at its work.
+    const campless = camp === undefined;
+    const backtrackKm = campless ? CAMPLESS_BACKTRACK_TILES_PER_WORK_DAY * KM_PER_TILE : 0;
+    const backtrackProvisions = campless
+      ? round4(withProvisions.partyWorkers * EXPEDITION_PROVISION_UNITS_PER_WORKER_DAY * CAMPLESS_EXTRA_PROVISION_WORKER_DAYS)
+      : 0;
     return {
       world: work.world,
       expedition: {
@@ -565,9 +689,13 @@ function advanceExpeditionOneDay(
           ...withProvisions.cargo,
           harvestUnits: round4(carried),
           lostUnits: round4(withProvisions.cargo.lostUnits + lost),
+          ...(backtrackProvisions <= 0
+            ? {}
+            : { provisionUnitsConsumed: round4(withProvisions.cargo.provisionUnitsConsumed + backtrackProvisions) }),
         },
         ...(camp === undefined ? {} : { taskCamp: { ...camp, usedDays: camp.usedDays + 1 } }),
       },
+      ...(backtrackKm <= 0 ? {} : { walkedKm: backtrackKm, walkedLoadedKm: 0, walkSource: "expedition_operating" as const }),
     };
   }
 
@@ -662,6 +790,43 @@ export function classifyTargetWorkOutcome(
 
 function findTargetMemory(band: Band, targetPatchId: string): ResourcePatchMemory | undefined {
   return band.resourceKnowledgeState?.patchMemories?.find((memory) => String(memory.patchId) === targetPatchId);
+}
+
+/**
+ * §12 — the smallest honest party viewshed: from the tile the party physically stands
+ * on, an adjacent broad water/wetland feature is visible and worth remembering.
+ * Deterministic (sorted neighbor ids), bounded (one observation per arrival), and
+ * broad-cue-only (no stock, no yield, no other band's state).
+ */
+function deriveArrivalViewshedObservation(
+  world: WorldState,
+  expedition: ExpeditionRecord,
+  day: DayNumber,
+): ExpeditionObservation | undefined {
+  const standTile = world.tiles[expedition.positionTileId];
+
+  if (standTile === undefined) {
+    return undefined;
+  }
+
+  for (const neighborId of [...standTile.neighbors].sort((a, b) => String(a).localeCompare(String(b)))) {
+    const neighbor = world.tiles[neighborId];
+
+    if (neighbor === undefined) {
+      continue;
+    }
+
+    if (neighbor.isAquatic === true || neighbor.terrainKind === "wetlands" || neighbor.isRiver === true) {
+      return {
+        tileId: neighborId,
+        kind: "distant_feature",
+        confidence: 0.7,
+        observedDay: day,
+      };
+    }
+  }
+
+  return undefined;
 }
 
 /**
@@ -864,7 +1029,17 @@ function selectReconnaissanceCandidate(
 function maybeLaunchExpedition(world: WorldState, band: Band, day: DayNumber): Band {
   const active = (band.expeditions ?? []).filter((expedition) => isExpeditionAway(expedition.phase));
 
-  if (active.length >= EXPEDITION_ACTIVE_CAP || Number(day) % EXPEDITION_LAUNCH_CADENCE_DAYS !== 0) {
+  // §13 — smoke on the horizon is a PROMPT: a camp that just read its own party's
+  // planned "target confirmed" column does not wait for the ordinary launch rhythm.
+  // This is the physical point of the signal — acting days before the party is home.
+  const signalPrompt = (band.receivedSmokeSignals ?? []).some(
+    (signal) =>
+      signal.meaning === "target_confirmed" &&
+      Number(signal.expiresOnDay) >= Number(day) &&
+      Number(day) - Number(signal.day) <= 2,
+  );
+
+  if (active.length >= EXPEDITION_ACTIVE_CAP || (Number(day) % EXPEDITION_LAUNCH_CADENCE_DAYS !== 0 && !signalPrompt)) {
     return band;
   }
 
@@ -889,8 +1064,17 @@ function maybeLaunchExpedition(world: WorldState, band: Band, day: DayNumber): B
   const retrievalEvidence =
     retrieval === undefined ? undefined : effectiveResourceConfidence(retrieval.memory, currentTick);
   const foodStress = Math.max(0, Math.min(1, band.pressureState?.foodStress ?? 0));
+  // §13 — an UNDERSTOOD "target confirmed" smoke signal from the band's own away party
+  // stands in for fresh evidence: the camp saw the planned convention on the horizon,
+  // so the retrieval party can leave before the scouts are even home. This is the
+  // physical relay value of the signal — bounded meaning changing one real decision.
+  const signalConfirmedTarget =
+    retrieval !== undefined &&
+    findUnderstoodSignal(band, "target_confirmed", retrieval.targetTileId, day) !== undefined;
   const retrievalEvidenceDegraded =
-    retrievalEvidence !== undefined && (retrievalEvidence.isStale || retrievalEvidence.isDormant);
+    retrievalEvidence !== undefined &&
+    (retrievalEvidence.isStale || retrievalEvidence.isDormant) &&
+    !signalConfirmedTarget;
   const verifyBeforeRetrieving =
     retrieval !== undefined &&
     retrievalEvidenceDegraded &&
@@ -945,7 +1129,20 @@ function maybeLaunchExpedition(world: WorldState, band: Band, day: DayNumber): B
               }
             : undefined;
 
-  if (chosen === undefined || active.some((expedition) => expedition.targetTileId === chosen.targetTileId)) {
+  // One party per target — EXCEPT the §13 relay case: a retrieval party may leave for
+  // a target the away VERIFICATION party just confirmed by smoke, before it returns.
+  const sameTargetActive = active.some((expedition) => expedition.targetTileId === chosen?.targetTileId);
+  const relayException =
+    chosen !== undefined &&
+    chosen.taskKind === "distant_plant_gathering" &&
+    signalConfirmedTarget &&
+    active.every(
+      (expedition) =>
+        expedition.targetTileId !== chosen.targetTileId ||
+        expedition.taskKind === "distant_patch_verification",
+    );
+
+  if (chosen === undefined || (sameTargetActive && !relayException)) {
     return band;
   }
 
@@ -1028,6 +1225,8 @@ function applyExpeditionDay(world: WorldState, day: DayNumber): WorldState {
     // apply nothing: their observations never came home.
     const returnedKnowledgeRecords: { readonly record: IntraSeasonTripRecord; readonly targetPatchId: string }[] = [];
     const returnedReconRouteTiles: TileId[] = [];
+    // §13 — smoke the residential camp physically received today (bounded meaning only).
+    const receivedSignalsToday: ReceivedSmokeSignal[] = [];
     let outcomes = [...(currentBand.recentExpeditionOutcomes ?? [])];
     // EXPEDITIONARY-3 — realized walking for THIS band on THIS day, accumulated across its
     // parties and written once below. Days with no movement are recorded as rest days,
@@ -1036,9 +1235,44 @@ function applyExpeditionDay(world: WorldState, day: DayNumber): WorldState {
     let dayLoadedKm = 0;
     let daySource: "expedition_outbound" | "expedition_return" | "expedition_operating" = "expedition_operating";
 
-    for (const expedition of [...(currentBand.expeditions ?? [])].sort((a, b) => a.id.localeCompare(b.id))) {
+    for (const rawExpedition of [...(currentBand.expeditions ?? [])].sort((a, b) => a.id.localeCompare(b.id))) {
+      // §13 — an overdue party raises the PLANNED "delayed" smoke convention exactly
+      // once (parties leave with "smoke if late"). Physical: fuel, occlusion, distance,
+      // and today's air decide whether the camp actually sees it.
+      let expedition = rawExpedition;
+
+      if (
+        !isTerminalPhase(expedition.phase) &&
+        Number(day) > Number(expedition.plannedReturnDay) &&
+        (expedition.signalAttempts ?? []).length < SIGNAL_ATTEMPT_CAP &&
+        !(expedition.signalAttempts ?? []).some((attempt) => attempt.meaning === "delayed")
+      ) {
+        const delayed = resolveSmokeSignal({
+          world: currentWorld,
+          band: currentBand,
+          expeditionId: expedition.id,
+          sourceTileId: expedition.positionTileId,
+          meaning: "delayed",
+          planned: true,
+          aboutTileId: expedition.targetTileId,
+          day,
+        });
+        expedition = {
+          ...expedition,
+          signalAttempts: [...(expedition.signalAttempts ?? []), delayed.attempt].slice(0, SIGNAL_ATTEMPT_CAP),
+        };
+
+        if (delayed.received !== undefined) {
+          receivedSignalsToday.push(delayed.received);
+        }
+      }
+
       const result = advanceExpeditionOneDay(currentWorld, currentBand, expedition, day);
       currentWorld = result.world;
+
+      if (result.receivedSignal !== undefined) {
+        receivedSignalsToday.push(result.receivedSignal);
+      }
 
       if ((result.walkedKm ?? 0) > 0) {
         dayKm += result.walkedKm ?? 0;
@@ -1145,6 +1379,17 @@ function applyExpeditionDay(world: WorldState, day: DayNumber): WorldState {
               .map((tile) => ({ tile, distance: 0 })),
           );
 
+    // §13 — smoke the camp saw today enters the band's bounded, expiring record.
+    let receivedSmokeSignals = currentBand.receivedSmokeSignals;
+
+    for (const received of receivedSignalsToday) {
+      receivedSmokeSignals = appendReceivedSignal(
+        { ...currentBand, receivedSmokeSignals },
+        received,
+        day,
+      );
+    }
+
     if (deposits.length === 0 && nextExpeditions.length === (currentBand.expeditions ?? []).length) {
       bandsById[band.id] = {
         ...currentBand,
@@ -1153,6 +1398,7 @@ function applyExpeditionDay(world: WorldState, day: DayNumber): WorldState {
         mobility,
         resourceKnowledgeState,
         knowledge,
+        receivedSmokeSignals,
       };
       changed = true;
       continue;
@@ -1165,6 +1411,7 @@ function applyExpeditionDay(world: WorldState, day: DayNumber): WorldState {
       mobility,
       resourceKnowledgeState,
       knowledge,
+      receivedSmokeSignals,
       ...(deposits.length === 0
         ? {}
         : {

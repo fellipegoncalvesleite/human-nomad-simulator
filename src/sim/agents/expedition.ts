@@ -34,14 +34,17 @@ import {
   type TravelContext,
 } from "./bandMobility";
 import {
+  applyActivityOutcomeToMemoryForWorld,
   buildExpeditionRouteTiles,
   compareExpeditionBands,
   deriveTripDurationDays,
   isActiveExpeditionBand,
+  isFoodClass,
   resolveExpeditionTargetWork,
   selectExpeditionTripCandidate,
 } from "./intraSeasonTrips";
-import type { ResourcePatchMemory } from "./resourceKnowledge";
+import { effectiveResourceConfidence, type ResourcePatchMemory } from "./resourceKnowledge";
+import { observeTileAndNearby } from "./tileObservation";
 import type {
   Band,
   ExpeditionCargo,
@@ -296,6 +299,10 @@ function summarizeOutcome(
     lostUnits: expedition.cargo.lostUnits,
     injuryLoad: expedition.injuryLoad,
     usedTaskCamp: expedition.taskCamp !== undefined,
+    // §11 — what the party physically brought home (only meaningful when it returned).
+    ...(phase === "completed" && expedition.carriedObservations.length > 0
+      ? { observations: expedition.carriedObservations }
+      : {}),
   };
 }
 
@@ -437,12 +444,16 @@ function advanceExpeditionOneDay(
   }
 
   if (withProvisions.phase === "operating") {
-    // Information-only tasks never touch a stock; they carry an observation home.
-    if (withProvisions.taskKind === "distant_patch_verification" || withProvisions.taskKind === "route_reconnaissance") {
+    // §10 — information-only tasks never touch a stock; they carry observations home.
+    // The observations are PHYSICAL: the party is standing there and looks.
+    if (withProvisions.taskKind === "route_reconnaissance") {
+      // The party physically walked this route; what it carries home is the lived
+      // answer "this route is walkable to here" plus what it saw along the way. The
+      // tiles themselves become band knowledge only at return (§11 latency).
       const observation: ExpeditionObservation = {
-        tileId: withProvisions.targetTileId,
-        kind: withProvisions.taskKind === "route_reconnaissance" ? "route_passable" : "target_confirmed",
-        confidence: 0.62,
+        tileId: withProvisions.positionTileId,
+        kind: "route_passable",
+        confidence: 0.8,
         observedDay: day,
       };
       return {
@@ -452,6 +463,57 @@ function advanceExpeditionOneDay(
           phase: "returning",
           workDaysElapsed: withProvisions.workDaysElapsed + 1,
           outcomeReason: "returned_information_only",
+          carriedObservations: [...withProvisions.carriedObservations, observation].slice(0, EXPEDITION_OBSERVATION_CAP),
+        },
+      };
+    }
+
+    if (withProvisions.taskKind === "distant_patch_verification") {
+      const verifyMemory = findTargetMemory(band, withProvisions.targetPatchId);
+
+      if (verifyMemory === undefined) {
+        return {
+          world,
+          expedition: { ...withProvisions, phase: "returning", outcomeReason: "evidence_stale" },
+        };
+      }
+
+      // Look WITHOUT taking: the physical lookup runs (found? depleted?) but no stock
+      // is touched and no cargo can exist. The record itself is carried home and is
+      // applied to canonical patch memory only on physical return.
+      const verification = resolveExpeditionTargetWork(
+        world,
+        band,
+        verifyMemory,
+        withProvisions.targetTileId,
+        Math.max(0, withProvisions.routeTileIds.length - 1),
+        withProvisions.routeTileIds,
+        day,
+        "food_resource_check",
+        { verifyOnly: true },
+      );
+      const harvest = verification.record.physicalFoodHarvest;
+      const observation: ExpeditionObservation = {
+        tileId: withProvisions.targetTileId,
+        kind:
+          harvest === undefined || harvest.physicalSourceFound !== true
+            ? "target_absent"
+            : harvest.physicalAvailability <= 0.001
+              ? "target_depleted"
+              : "target_confirmed",
+        // Physical presence beats remembered belief — but one visit is still one visit.
+        confidence: 0.85,
+        observedDay: day,
+      };
+      return {
+        // verifyOnly never mutates world state; thread the same world through.
+        world: verification.world,
+        expedition: {
+          ...withProvisions,
+          phase: "returning",
+          workDaysElapsed: withProvisions.workDaysElapsed + 1,
+          outcomeReason: "returned_information_only",
+          pendingKnowledgeRecord: verification.record,
           carriedObservations: [...withProvisions.carriedObservations, observation].slice(0, EXPEDITION_OBSERVATION_CAP),
         },
       };
@@ -632,12 +694,172 @@ function deriveDepartableWorkers(band: Band): number {
   return Math.max(0, Math.min(available - 2, maxShare));
 }
 
+/** Ticks within which a target already tried (any outcome) is not re-targeted by info tasks. */
+const INFORMATION_TASK_SUPPRESSION_TICKS = 8;
+/** Remembered value below which verification walking is not worth the labor (§10 EV gate). */
+const VERIFICATION_MIN_REMEMBERED_VALUE = 0.3;
+
+function wasTargetRecentlyConcluded(band: Band, targetTileId: TileId, currentTick: number): boolean {
+  return (band.recentExpeditionOutcomes ?? []).some(
+    (outcome) =>
+      outcome.targetTileId === targetTileId &&
+      currentTick - Number(outcome.tick) <= INFORMATION_TASK_SUPPRESSION_TICKS,
+  );
+}
+
+function tileGridDistance(world: WorldState, fromTileId: TileId, toTileId: TileId): number | undefined {
+  const from = world.tiles[fromTileId];
+  const to = world.tiles[toTileId];
+
+  if (from === undefined || to === undefined) {
+    return undefined;
+  }
+
+  return Math.abs(from.coord.x - to.coord.x) + Math.abs(from.coord.y - to.coord.y);
+}
+
+/**
+ * §10 — resource/place VERIFICATION candidate: a remembered food patch whose evidence
+ * has gone stale/dormant while its remembered value stays high enough to justify
+ * walking there to look. Uncertainty alone never launches (the EV gate and the
+ * per-target suppression are what keep verification from running continuously).
+ */
+function selectVerificationCandidate(
+  world: WorldState,
+  band: Band,
+  currentTick: number,
+): { readonly memory: ResourcePatchMemory; readonly targetTileId: TileId } | undefined {
+  let best: { readonly memory: ResourcePatchMemory; readonly targetTileId: TileId; readonly score: number } | undefined;
+
+  for (const memory of band.resourceKnowledgeState?.patchMemories ?? []) {
+    if (!isFoodClass(memory.resourceClassId)) {
+      continue;
+    }
+
+    const distance = tileGridDistance(world, band.position, memory.approximateTile);
+
+    if (distance === undefined || deriveTripDurationDays(distance) <= 1 || distance > EXPEDITION_MAX_ROUTE_TILES) {
+      continue;
+    }
+
+    const effective = effectiveResourceConfidence(memory, currentTick);
+
+    // Verification exists FOR degraded evidence: fresh memory needs no verifying.
+    if (!effective.isStale && !effective.isDormant) {
+      continue;
+    }
+
+    // The remembered value must justify the walk (never a generic curiosity walk).
+    const rememberedValue = Math.max(memory.confidence.yieldConfidence, memory.useHistory.lastYieldEstimate);
+
+    if (rememberedValue < VERIFICATION_MIN_REMEMBERED_VALUE) {
+      continue;
+    }
+
+    if (wasTargetRecentlyConcluded(band, memory.approximateTile, currentTick)) {
+      continue;
+    }
+
+    const score = rememberedValue + (effective.isDormant ? 0.2 : 0.1);
+
+    if (
+      best === undefined ||
+      score > best.score ||
+      (score === best.score && String(memory.patchId) < String(best.memory.patchId))
+    ) {
+      best = { memory, targetTileId: memory.approximateTile, score };
+    }
+  }
+
+  return best === undefined ? undefined : { memory: best.memory, targetTileId: best.targetTileId };
+}
+
+/**
+ * §10 — route/crossing RECONNAISSANCE candidate. Two physical triggers:
+ *  (a) a recent expedition physically failed to reach its target
+ *      (`route_endpoint_mismatch`) — the route itself needs a bounded re-read;
+ *  (b) a valuable remembered patch beyond same-day reach whose ACCESS evidence is
+ *      weak — the band knows the place but not the way.
+ */
+function selectReconnaissanceCandidate(
+  world: WorldState,
+  band: Band,
+  currentTick: number,
+): { readonly targetTileId: TileId; readonly targetPatchId: string } | undefined {
+  for (const outcome of band.recentExpeditionOutcomes ?? []) {
+    if (
+      outcome.outcomeReason !== "route_endpoint_mismatch" ||
+      currentTick - Number(outcome.tick) > INFORMATION_TASK_SUPPRESSION_TICKS
+    ) {
+      continue;
+    }
+
+    // One bounded re-read per failure: once a reconnaissance has concluded for this
+    // tile since the failure, the question is answered until new evidence arrives.
+    const reconDoneSince = (band.recentExpeditionOutcomes ?? []).some(
+      (other) =>
+        other.targetTileId === outcome.targetTileId &&
+        other.outcomeReason === "returned_information_only" &&
+        Number(other.tick) >= Number(outcome.tick),
+    );
+
+    if (!reconDoneSince) {
+      return { targetTileId: outcome.targetTileId, targetPatchId: `route:${outcome.targetTileId}` };
+    }
+  }
+
+  let best: { readonly targetTileId: TileId; readonly patchId: string; readonly score: number } | undefined;
+
+  for (const memory of band.resourceKnowledgeState?.patchMemories ?? []) {
+    if (!isFoodClass(memory.resourceClassId)) {
+      continue;
+    }
+
+    const distance = tileGridDistance(world, band.position, memory.approximateTile);
+
+    if (distance === undefined || deriveTripDurationDays(distance) <= 1 || distance > EXPEDITION_MAX_ROUTE_TILES) {
+      continue;
+    }
+
+    const effective = effectiveResourceConfidence(memory, currentTick);
+    const rememberedValue = Math.max(memory.confidence.yieldConfidence, memory.useHistory.lastYieldEstimate);
+
+    if (
+      effective.effectiveAccessConfidence >= 0.35 ||
+      effective.effectivePresenceConfidence < 0.4 ||
+      rememberedValue < VERIFICATION_MIN_REMEMBERED_VALUE ||
+      wasTargetRecentlyConcluded(band, memory.approximateTile, currentTick)
+    ) {
+      continue;
+    }
+
+    const score = rememberedValue + (0.35 - effective.effectiveAccessConfidence);
+
+    if (
+      best === undefined ||
+      score > best.score ||
+      (score === best.score && String(memory.patchId) < String(best.patchId))
+    ) {
+      best = { targetTileId: memory.approximateTile, patchId: String(memory.patchId), score };
+    }
+  }
+
+  return best === undefined ? undefined : { targetTileId: best.targetTileId, targetPatchId: best.patchId };
+}
+
 /**
  * EXPEDITIONARY-2 §1/Slice C — consider sending a party to band-known country that the
  * same-day path can no longer reach. The target comes from the trip authority's own
  * bounded patch-memory selection, so an expedition can never aim at hidden country.
  * Every rejection below is a physical constraint, not a score: no capacity, no spare
  * adults, no remembered distant target, no passable route.
+ *
+ * EXPEDITIONARY-4 §10 — three candidate families now COMPETE here, deterministically:
+ * physical retrieval (food) wins when a credible distant food target exists; otherwise
+ * a stale-but-valuable memory may justify a verification party; otherwise weak route
+ * evidence toward valuable country may justify reconnaissance. Information tasks use a
+ * small fast party. Camp labor, care, and same-day work already constrain all three
+ * through the same departable-worker rule.
  */
 function maybeLaunchExpedition(world: WorldState, band: Band, day: DayNumber): Band {
   const active = (band.expeditions ?? []).filter((expedition) => isExpeditionAway(expedition.phase));
@@ -652,30 +874,97 @@ function maybeLaunchExpedition(world: WorldState, band: Band, day: DayNumber): B
     return band;
   }
 
-  // §8 — the party is drawn from the AVAILABLE mobility-role pools (present adults
-  // only; adults already away are committed elsewhere and cannot be drawn twice). An
-  // ordinary gathering party fills from typical walkers first, touching the scarce
-  // high-capacity pool only when it must.
-  const availablePools = deriveAvailableMobilityPools(band);
-  const partyComposition = selectPartyComposition(availablePools, partyWorkers, "balanced");
+  const currentTick = Number(getWorldTimeForDay(day).tick);
 
-  if (partyComposition === undefined) {
+  // §10 — the three candidate families compete deterministically.
+  //  - A HUNGRY band gambles: physical retrieval goes even on stale evidence.
+  //  - A comfortable band does NOT commit a full party to stale/dormant evidence — it
+  //    sends two fast walkers to VERIFY first. A confirming return freshens the memory
+  //    and the retrieval party goes next (returned knowledge changing later behavior);
+  //    a contradicting return kills the wasted trip before it was ever walked.
+  //  - With no retrieval target at all, stale-but-valuable memory justifies
+  //    verification, and weak route evidence toward valuable country justifies
+  //    reconnaissance. No candidate, no launch.
+  const retrieval = selectExpeditionTripCandidate(world, band, Number(day), EXPEDITION_MAX_ROUTE_TILES);
+  const retrievalEvidence =
+    retrieval === undefined ? undefined : effectiveResourceConfidence(retrieval.memory, currentTick);
+  const foodStress = Math.max(0, Math.min(1, band.pressureState?.foodStress ?? 0));
+  const retrievalEvidenceDegraded =
+    retrievalEvidence !== undefined && (retrievalEvidence.isStale || retrievalEvidence.isDormant);
+  const verifyBeforeRetrieving =
+    retrieval !== undefined &&
+    retrievalEvidenceDegraded &&
+    foodStress < 0.35 &&
+    !wasTargetRecentlyConcluded(band, retrieval.targetTileId, currentTick);
+  const verification =
+    retrieval === undefined ? selectVerificationCandidate(world, band, currentTick) : undefined;
+  const reconnaissance =
+    retrieval === undefined && verification === undefined
+      ? selectReconnaissanceCandidate(world, band, currentTick)
+      : undefined;
+
+  const chosen =
+    retrieval !== undefined && !verifyBeforeRetrieving && !(retrievalEvidenceDegraded && foodStress < 0.35)
+      ? {
+          taskKind: "distant_plant_gathering" as ExpeditionTaskKind,
+          targetTileId: retrieval.targetTileId,
+          targetPatchId: String(retrieval.memory.patchId),
+          linkedTiles: retrieval.memory.linkedTiles,
+          // An ordinary gathering party fills from typical walkers first, touching
+          // the scarce high-capacity pool only when it must.
+          preference: "balanced" as const,
+          workers: partyWorkers,
+        }
+      : verifyBeforeRetrieving && retrieval !== undefined
+        ? {
+            taskKind: "distant_patch_verification" as ExpeditionTaskKind,
+            targetTileId: retrieval.targetTileId,
+            targetPatchId: String(retrieval.memory.patchId),
+            linkedTiles: retrieval.memory.linkedTiles,
+            // Information wants speed, not hands: a small fast party.
+            preference: "fast" as const,
+            workers: 2,
+          }
+        : verification !== undefined
+          ? {
+              taskKind: "distant_patch_verification" as ExpeditionTaskKind,
+              targetTileId: verification.targetTileId,
+              targetPatchId: String(verification.memory.patchId),
+              linkedTiles: verification.memory.linkedTiles,
+              preference: "fast" as const,
+              workers: 2,
+            }
+          : reconnaissance !== undefined
+            ? {
+                taskKind: "route_reconnaissance" as ExpeditionTaskKind,
+                targetTileId: reconnaissance.targetTileId,
+                targetPatchId: reconnaissance.targetPatchId,
+                linkedTiles: [] as readonly TileId[],
+                preference: "fast" as const,
+                workers: 2,
+              }
+            : undefined;
+
+  if (chosen === undefined || active.some((expedition) => expedition.targetTileId === chosen.targetTileId)) {
     return band;
   }
 
-  const candidate = selectExpeditionTripCandidate(world, band, Number(day), EXPEDITION_MAX_ROUTE_TILES);
+  // §8 — the party is drawn from the AVAILABLE mobility-role pools (present adults
+  // only; adults already away are committed elsewhere and cannot be drawn twice).
+  const availablePools = deriveAvailableMobilityPools(band);
+  const partyComposition = selectPartyComposition(availablePools, chosen.workers, chosen.preference);
 
-  if (candidate === undefined || active.some((expedition) => expedition.targetTileId === candidate.targetTileId)) {
+  if (partyComposition === undefined) {
     return band;
   }
 
   // §5.2 (multi-tile patch) — aim at the remembered anchor tile first; when the anchor
   // itself is unreachable, any of the patch's linked tiles is an equally valid physical
   // stand (deterministic order), and reaching one does not lose the patch identity.
-  let route = buildExpeditionRouteTiles(world, band.position, candidate.targetTileId, EXPEDITION_MAX_ROUTE_TILES);
+  let route = buildExpeditionRouteTiles(world, band.position, chosen.targetTileId, EXPEDITION_MAX_ROUTE_TILES);
 
   if (route === undefined) {
-    for (const linkedTileId of [...candidate.memory.linkedTiles].sort((a, b) => String(a).localeCompare(String(b)))) {
+    for (const linkedTileId of [...chosen.linkedTiles].sort((a, b) => String(a).localeCompare(String(b)))) {
       route = buildExpeditionRouteTiles(world, band.position, linkedTileId, EXPEDITION_MAX_ROUTE_TILES);
 
       if (route !== undefined) {
@@ -698,11 +987,11 @@ function maybeLaunchExpedition(world: WorldState, band: Band, day: DayNumber): B
 
   const expedition = createPreparedExpedition({
     band,
-    taskKind: "distant_plant_gathering",
-    targetTileId: candidate.targetTileId,
-    targetPatchId: String(candidate.memory.patchId),
+    taskKind: chosen.taskKind,
+    targetTileId: chosen.targetTileId,
+    targetPatchId: chosen.targetPatchId,
     routeTileIds: route,
-    partyWorkers,
+    partyWorkers: chosen.workers,
     partyComposition,
     day,
   });
@@ -734,6 +1023,11 @@ function applyExpeditionDay(world: WorldState, day: DayNumber): WorldState {
     let mobility = currentBand.mobility;
     const nextExpeditions: ExpeditionRecord[] = [];
     const deposits: IntraSeasonTripRecord[] = [];
+    // §11 — knowledge PHYSICALLY carried home by parties that completed their return
+    // today. It is applied below, once, through the canonical writers. Lost parties
+    // apply nothing: their observations never came home.
+    const returnedKnowledgeRecords: { readonly record: IntraSeasonTripRecord; readonly targetPatchId: string }[] = [];
+    const returnedReconRouteTiles: TileId[] = [];
     let outcomes = [...(currentBand.recentExpeditionOutcomes ?? [])];
     // EXPEDITIONARY-3 — realized walking for THIS band on THIS day, accumulated across its
     // parties and written once below. Days with no movement are recorded as rest days,
@@ -781,6 +1075,22 @@ function applyExpeditionDay(world: WorldState, day: DayNumber): WorldState {
           ),
           ...outcomes,
         ].slice(0, EXPEDITION_OUTCOME_CAP);
+
+        // §11 — ONLY a party that physically completed its return transfers knowledge.
+        if (result.expedition.phase === "completed") {
+          const knowledgeRecord = result.expedition.pendingReturnRecord ?? result.expedition.pendingKnowledgeRecord;
+
+          if (knowledgeRecord !== undefined) {
+            returnedKnowledgeRecords.push({
+              record: knowledgeRecord,
+              targetPatchId: result.expedition.targetPatchId,
+            });
+          }
+
+          if (result.expedition.taskKind === "route_reconnaissance") {
+            returnedReconRouteTiles.push(...result.expedition.routeTileIds);
+          }
+        }
         // Terminal parties are compacted into bounded history and dropped from the
         // active list — their workers become available again exactly here.
         continue;
@@ -798,12 +1108,51 @@ function applyExpeditionDay(world: WorldState, day: DayNumber): WorldState {
       source: daySource,
     });
 
+    // §11 — apply the knowledge that PHYSICALLY arrived today, exactly once, through
+    // the canonical writers. Patch evidence goes through the SAME activity-memory
+    // application the daily path uses; a reconnaissance party's walked tiles go
+    // through the SAME single tile-observation writer the decision path uses.
+    // While the party was away none of this touched residential knowledge.
+    let resourceKnowledgeState = currentBand.resourceKnowledgeState;
+
+    for (const returned of returnedKnowledgeRecords) {
+      const targetMemory = resourceKnowledgeState?.patchMemories.find(
+        (memory) => String(memory.patchId) === returned.targetPatchId,
+      );
+
+      if (targetMemory === undefined) {
+        continue;
+      }
+
+      const application = applyActivityOutcomeToMemoryForWorld(
+        currentWorld,
+        { ...currentBand, resourceKnowledgeState },
+        returned.record,
+        targetMemory,
+      );
+      resourceKnowledgeState = application.resourceKnowledgeState;
+    }
+
+    const knowledge =
+      returnedReconRouteTiles.length === 0
+        ? currentBand.knowledge
+        : observeTileAndNearby(
+            currentWorld,
+            currentBand.knowledge,
+            [...new Set(returnedReconRouteTiles)]
+              .map((tileId) => currentWorld.tiles[tileId])
+              .filter((tile): tile is NonNullable<typeof tile> => tile !== undefined)
+              .map((tile) => ({ tile, distance: 0 })),
+          );
+
     if (deposits.length === 0 && nextExpeditions.length === (currentBand.expeditions ?? []).length) {
       bandsById[band.id] = {
         ...currentBand,
         expeditions: nextExpeditions,
         recentExpeditionOutcomes: outcomes,
         mobility,
+        resourceKnowledgeState,
+        knowledge,
       };
       changed = true;
       continue;
@@ -814,6 +1163,8 @@ function applyExpeditionDay(world: WorldState, day: DayNumber): WorldState {
       expeditions: nextExpeditions,
       recentExpeditionOutcomes: outcomes,
       mobility,
+      resourceKnowledgeState,
+      knowledge,
       ...(deposits.length === 0
         ? {}
         : {

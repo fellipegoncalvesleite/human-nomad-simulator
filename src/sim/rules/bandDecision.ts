@@ -168,6 +168,9 @@ import type {
 } from "../core/types";
 import { MOVEMENT_TIEBREAK_EPSILON, seededTieBreakJitter } from "../core/seededVariation";
 import type { KnownTileRecord, KnowledgeState, TileObservation } from "../knowledge/types";
+// EXPEDITIONARY-4 §11 — the single known-tile observation writer (also used by returned
+// expedition parties, so walked observations enter knowledge through one pipeline).
+import { observeTileAndNearby } from "../agents/tileObservation";
 import { getNeighborTiles, getTile } from "../world/generate";
 import {
   getRiverCrossingForMovement,
@@ -195,7 +198,7 @@ import type {
 } from "./types";
 import { RECENT_BAND_DECISION_HISTORY_LIMIT } from "./decisionArchive";
 
-const RECENT_TILE_OBSERVATION_HISTORY_LIMIT = 180;
+// (tile-observation history limit moved with the writer to agents/tileObservation.ts)
 
 // PERF-4: movement candidate topology is static for a generated map. Cache
 // sorted neighbor rings by tile/topology so each band/tick does not rebuild the
@@ -5334,78 +5337,9 @@ function getRejectionReason(
   });
 }
 
-function observeTileAndNearby(
-  world: WorldState,
-  knowledge: KnowledgeState,
-  targets: readonly ObservationTarget[],
-): KnowledgeState {
-  const observedTiles: Record<string, KnownTileRecord> = {
-    ...knowledge.observedTiles,
-  };
-  const tileObservationHistory: TileObservation[] = [
-    ...knowledge.tileObservationHistory.slice(-RECENT_TILE_OBSERVATION_HISTORY_LIMIT),
-  ];
-
-  for (const target of targets) {
-    observeTile(world, observedTiles, tileObservationHistory, knowledge.selfBandId, target);
-  }
-
-  return {
-    ...knowledge,
-    observedTiles: observedTiles as Readonly<Record<TileId, KnownTileRecord>>,
-    tileObservationHistory: tileObservationHistory.slice(-RECENT_TILE_OBSERVATION_HISTORY_LIMIT),
-  };
-}
-
-function observeTile(
-  world: WorldState,
-  observedTiles: Record<string, KnownTileRecord>,
-  tileObservationHistory: TileObservation[],
-  observerBandId: BandId,
-  target: ObservationTarget,
-): void {
-  const existingRecord = observedTiles[target.tile.id];
-  const confidence = target.distance === 0 ? 1 : target.distance === 1 ? 0.68 : 0.34;
-  const existingSeasons = existingRecord?.seasonsObserved ?? [];
-  const seasonsObserved = existingSeasons.includes(world.time.season)
-    ? existingSeasons
-    : [...existingSeasons, world.time.season];
-  const visits = (existingRecord?.visits ?? 0) + (target.distance === 0 ? 1 : 0);
-  const observedRisk = getObservedRisk(target.tile);
-  const record: KnownTileRecord = {
-    tileId: target.tile.id,
-    firstObservedAt: existingRecord?.firstObservedAt ?? world.time,
-    lastObservedAt: world.time,
-    seasonsObserved,
-    visits,
-    observedRichness: getDepletionAdjustedRichness(world, target.tile),
-    observedWaterAccess: target.tile.resourceProfile.waterAccess,
-    observedAquaticPotential: target.tile.resourceProfile.aquaticPotential,
-    observedMovementCost: target.tile.movementCost,
-    observedRisk,
-    observedStorageSuitability: target.tile.resourceProfile.storageSuitability,
-    observedSeasonalPattern: {
-      peakSeasons: target.tile.seasonalProfile.peakSeasons,
-      leanSeasons: target.tile.seasonalProfile.leanSeasons,
-      reliability: target.tile.seasonalProfile.reliability,
-      confidence: Math.max(existingRecord?.observedSeasonalPattern?.confidence ?? 0, confidence),
-    },
-    confidence: Math.max(existingRecord?.confidence ?? 0, confidence),
-    knowledgeSource: "personally_observed",
-  };
-
-  tileObservationHistory.push({
-    tileId: target.tile.id,
-    observedAt: world.time,
-    season: world.time.season,
-    observedRichness: getDepletionAdjustedRichness(world, target.tile),
-    observedAquaticPotential: target.tile.resourceProfile.aquaticPotential,
-    observedRisk,
-    observerBandId,
-  });
-
-  observedTiles[target.tile.id] = record;
-}
+// EXPEDITIONARY-4 §11 — observeTileAndNearby/observeTile moved to the domain module
+// `agents/tileObservation.ts` so a returned expedition applies its physically-walked
+// observations through the SAME single writer this orchestrator uses. Byte-identical.
 
 // SPIKE (2026-06-15) — cause-gated migration walk helpers (see applyBandDecision).
 const MIGRATION_SETTLE_RICHNESS_FLOOR = 0.5;

@@ -40,13 +40,9 @@ export function isBandPassableDestination(tile: Tile): boolean {
   return !tile.isAquatic;
 }
 
-export function getObservedRisk(tile: Tile): number {
-  return clamp01(
-    tile.riskProfile.floodRisk * 0.34 +
-      tile.riskProfile.droughtRisk * 0.34 +
-      tile.riskProfile.diseaseRisk * 0.32,
-  );
-}
+// EXPEDITIONARY-4 §11 — canonical home is the domain observation module; re-exported
+// here so every existing rules-side consumer keeps its import path. Same formula.
+export { getObservedRisk } from "../agents/tileObservation";
 
 export function scoreDecision(scoreBreakdown: ScoreBreakdown): number {
   return round2(

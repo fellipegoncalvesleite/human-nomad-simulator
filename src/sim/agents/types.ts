@@ -1003,8 +1003,16 @@ export interface ExpeditionRecord {
    * rather than rebuilding one at return keeps a single trip-record builder.
    */
   readonly pendingReturnRecord?: IntraSeasonTripRecord;
+  /**
+   * §10/§11 — the NON-DEPLETING verification record resolved at the target (physical
+   * presence evidence, no stock touched, never a food deposit). Applied to canonical
+   * patch memory only when the party physically returns.
+   */
+  readonly pendingKnowledgeRecord?: IntraSeasonTripRecord;
   /** Information the party is physically carrying home; unavailable to the band until return. */
   readonly carriedObservations: readonly ExpeditionObservation[];
+  /** §13 — deliberate smoke-signal attempts this party made (bounded; may fail). */
+  readonly signalAttempts?: readonly ExpeditionSignalAttempt[];
   readonly reasonIds: readonly ReasonId[];
   /** Explicit non-claims, mirrored from the trip contract. */
   readonly noResidentialRelocation: true;
@@ -1014,9 +1022,75 @@ export interface ExpeditionRecord {
 /** A bounded observation a party physically made and is carrying home (latency: not band knowledge yet). */
 export interface ExpeditionObservation {
   readonly tileId: TileId;
-  readonly kind: "target_confirmed" | "target_absent" | "route_hazard" | "route_passable" | "distant_feature";
+  readonly kind:
+    | "target_confirmed"
+    | "target_absent"
+    // §10 — the patch exists but its stock is physically drawn down (verification evidence).
+    | "target_depleted"
+    | "route_hazard"
+    | "route_passable"
+    | "distant_feature";
   readonly confidence: number;
   readonly observedDay: DayNumber;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EXPEDITIONARY-4 §13 — fire/smoke signaling. A physical smoke source at a real
+// position, raised with real labor and present fuel/visibility conditions, that a
+// same-band receiver may see, misread, or miss entirely. Signals transfer only a
+// BOUNDED meaning — never the party's observation ledger, and never another band's
+// hidden identity/population/task state.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The small bounded set of meanings a same-band deliberate signal can carry. */
+export type SmokeSignalMeaning =
+  | "party_present"
+  | "target_confirmed"
+  | "delayed"
+  | "help_needed"
+  | "danger_abort";
+
+/** Every physically possible detection outcome. Only the first carries the meaning. */
+export type SmokeSignalOutcome =
+  | "seen_understood"
+  | "seen_ambiguous"
+  | "missed"
+  | "occluded"
+  | "too_distant"
+  | "visibility_suppressed"
+  | "not_feasible";
+
+/** A deliberate signal attempt by an away party (bounded per expedition). */
+export interface ExpeditionSignalAttempt {
+  readonly id: string;
+  readonly day: DayNumber;
+  readonly tileId: TileId;
+  readonly meaning: SmokeSignalMeaning;
+  /** True only when the signal convention was planned before departure (§13.2). */
+  readonly planned: boolean;
+  /** Physical smoke strength actually achieved (fuel/competence/wetness). */
+  readonly strength: number;
+  readonly outcome: SmokeSignalOutcome;
+}
+
+/**
+ * What the RESIDENTIAL camp physically received. Bounded meaning only; expires.
+ * This is §11 transfer channel 2 — the only way party information reaches home
+ * before the party does.
+ */
+export interface ReceivedSmokeSignal {
+  readonly id: string;
+  readonly day: DayNumber;
+  readonly tick: TickNumber;
+  /** Approximate direction/distance only — smoke is a column on the horizon, not a report. */
+  readonly direction: LandscapeVisibilityDirection;
+  readonly distanceBand: "near" | "middle" | "far";
+  readonly outcome: SmokeSignalOutcome;
+  /** Present ONLY when seen_understood (a planned same-band convention). */
+  readonly meaning?: SmokeSignalMeaning;
+  /** The target the meaning refers to, when the convention carries one (bounded meaning). */
+  readonly aboutTileId?: TileId;
+  readonly expiresOnDay: DayNumber;
 }
 
 /**
@@ -1041,6 +1115,8 @@ export interface ExpeditionOutcomeSummary {
   readonly lostUnits: number;
   readonly injuryLoad: number;
   readonly usedTaskCamp: boolean;
+  /** §11 — the observations the party physically brought home (bounded; applied at return). */
+  readonly observations?: readonly ExpeditionObservation[];
 }
 
 export interface PlantPatchActivityTrace {
@@ -6019,6 +6095,9 @@ export interface Band {
   // EXPEDITIONARY-1: bounded terminal history (cap EXPEDITION_OUTCOME_CAP) — what
   // came back, what failed and why. Read by the candidate family as lived evidence.
   readonly recentExpeditionOutcomes?: readonly ExpeditionOutcomeSummary[];
+  // EXPEDITIONARY-4 §13: smoke signals the RESIDENTIAL camp physically received
+  // (bounded, capped, expiring). The only pre-return channel from an away party.
+  readonly receivedSmokeSignals?: readonly ReceivedSmokeSignal[];
   readonly activityLaborSummary?: ActivityLaborSummary;
   readonly activityOutcomeSummary?: ActivityOutcomeSummary;
   readonly activityShadowSubsistenceSummary?: ActivityShadowSubsistenceSummary;

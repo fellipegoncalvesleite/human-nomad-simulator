@@ -162,6 +162,11 @@ export function resolveExpeditionTargetWork(
   routeTiles: readonly TileId[],
   day: DayNumber,
   cause: IntraSeasonTripCause,
+  // §10 — verification parties look WITHOUT taking: the physical lookup runs (source
+  // found? availability? depletion?) but the harvest is forced ineligible, so no stock
+  // is depleted and no cargo/food can exist. The record still carries the physical
+  // presence evidence the party will walk home.
+  options?: { readonly verifyOnly?: boolean },
 ): { readonly world: WorldState; readonly record: IntraSeasonTripRecord } {
   const time = getWorldTimeForDay(day);
   const faunaGeo = deriveFaunaStockGeography(world);
@@ -197,7 +202,7 @@ export function resolveExpeditionTargetWork(
   // `routeReached` reflects where the party is genuinely standing rather than
   // re-deriving a short daily path.
   const expeditionRecord: IntraSeasonTripRecord = { ...baseRecord, pathTiles: routeTiles };
-  return resolvePhysicalFoodHarvest(world, expeditionRecord, time, faunaGeo);
+  return resolvePhysicalFoodHarvest(world, expeditionRecord, time, faunaGeo, options?.verifyOnly === true);
 }
 
 // EXPEDITIONARY-2 (Slice A): the registry moved to `dailyActionRegistry.ts`. Keeping it
@@ -298,6 +303,8 @@ function resolvePhysicalFoodHarvest(
   record: IntraSeasonTripRecord,
   time: ReturnType<typeof getWorldTimeForDay>,
   faunaGeo: FaunaStockGeography,
+  // §10 verification: run the physical lookup but never the take (no depletion, no cargo).
+  verifyOnly: boolean = false,
 ): { readonly world: WorldState; readonly record: IntraSeasonTripRecord } {
   const faunaClass = faunaClassForTrip(record.taskGroupType, record.resourceClassId);
   const plantTrip = faunaClass === undefined && isPlantGatherTrip(record.taskGroupType, record.resourceClassId);
@@ -310,7 +317,7 @@ function resolvePhysicalFoodHarvest(
   const targetTile = world.tiles[record.targetTileId];
   const routeReached = standTileId === record.targetTileId ||
     (targetTile?.isAquatic === true && world.tiles[standTileId]?.neighbors.includes(record.targetTileId) === true);
-  const activityEligible = routeReached && isPhysicalFoodReturnKind(record.resourceReturn.returnedResourceKind) &&
+  const activityEligible = !verifyOnly && routeReached && isPhysicalFoodReturnKind(record.resourceReturn.returnedResourceKind) &&
     record.resourceReturn.estimatedReturnValue > 0;
   const requestedAmount = record.resourceReturn.estimatedReturnValue;
   const transportLossRate = Math.min(0.25, record.roundTripTiles * 0.012);
@@ -1782,7 +1789,10 @@ function applyActivityOutcomeToMemory(
   };
 }
 
-function applyActivityOutcomeToMemoryForWorld(
+// EXPEDITIONARY-4 §11 — exported so a RETURNED expedition applies its work/verification
+// record to canonical patch memory through the SAME single application the daily path
+// uses. Nothing else may write patch memory from expedition state.
+export function applyActivityOutcomeToMemoryForWorld(
   world: WorldState,
   band: Band,
   record: IntraSeasonTripRecord,
@@ -3133,7 +3143,7 @@ function isActiveBand(band: Band): boolean {
   );
 }
 
-function isFoodClass(classId: ResourceClassId): boolean {
+export function isFoodClass(classId: ResourceClassId): boolean {
   return classId === "generic_plant_food" || classId === "aquatic_food" || classId === "animal_food" || classId === "fallback_food";
 }
 

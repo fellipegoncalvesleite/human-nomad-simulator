@@ -181,6 +181,111 @@ has a seed input — the sim layer just never consumes it. All audits/baselines 
 
 ## Current Status
 
+### EXPEDITIONARY LOGISTICAL MOBILITY-5 — validation closure: PASS (2026-07-17)
+
+Branch `checkpoint/expeditionary-logistical-mobility-5` from `16abffe`.
+**PRODUCTION CODE UNCHANGED** — this checkpoint added only validation scripts
+(`expeditionPerformanceMatrixAudit.mjs`, `expeditionHabitatCasesAudit.mjs`) and
+documentation. The two remaining EXPEDITIONARY-4 gates both PASS, so the whole
+EXPEDITIONARY LOGISTICAL MOBILITY / TASK CAMPS / VIEWSHED PERCEPTION / FIRE
+SIGNALS-1 block is COMPLETE and the roadmap advances to
+**CLIMATE / WEATHER / REGIONAL SEASONALITY FOUNDATION-1** (climate itself still
+unimplemented; `environmentBoundary.ts` is its seam).
+
+#### Gate A — isolated performance matrix (12 runs, each alone; node v26.3.1,
+Linux 7.0.12-arch1, 12 cores; fresh process per case; 5 timing batches per unit,
+median/min/max reported; 20-tick sim windows after 8-season warm-in)
+
+- **P1 same-day control**: 267 ms/tick median (window ticks 9–28); active
+  expeditions 0 throughout; with no distant memory the launch path exits at
+  candidate selection (14.9 µs) — **no route BFS runs when no expedition is
+  relevant**. Units: mobility derivation 0.15 µs, signal detection 0.04 µs,
+  acute sweep 144 µs/band, viewshed scan 770 µs/observer.
+- **P2 expedition-active**: 300 ms/tick median in the matched window (expedition
+  delta ≈ +33 ms/tick over P1, i.e. ~12% — the bounded cost of the whole
+  physical expedition layer). Route BFS grows with candidate distance (187 µs @
+  8 tiles, 628 @ 16, 1921 @ 30 — area-bounded, and the launch path caps the
+  budget at distance+8, so **no BFS much larger than its candidate distance**);
+  target resolution 216 µs; candidate selection 37 µs.
+- **P3 pool contention**: pools conserved and high pool exhausted under two
+  committed parties; pool derivation/committed/available/selection all ≤0.2 µs.
+- **P4 residential movement**: 62 residential moves in the window; column pace
+  0.26 µs, emergency 0.28 µs, full seasonal travel plan 16 µs; context builds
+  stay 2 full + 1 partial (contextLifecycleAudit in the smoke set).
+- **P5 viewshed-heavy**: real scan (refresh-path) cost 780 µs/observer map1 vs
+  1351 µs map2 (1.9× larger map, <3× cost — difference is local cue density;
+  the neighborhood is a fixed 441-coordinate bound → **no full-map visibility
+  scan**); 5 observers cost 2.86× one (**sublinear, no quadratic**); cue cap 6
+  held.
+- **P6 signal-heavy**: 1.8 µs/signal resolution (map-size independent; one
+  source vs one camp, occlusion line ≤ route length — **no all-band ×
+  all-source × all-tile product**); 40 attempts leave exactly
+  RECEIVED_SIGNAL_CAP=6 records.
+- **P7 acute-risk-heavy**: 174 µs/band sweep with 2 exposed parties; episodes
+  ≤2/season; same-tick re-apply is a byte-identical no-op (**dedup proven**).
+- **P8 ~100 km journey**: 33 legs / 11 travel days / 8 task-camp days simulated
+  in 38 ms total (0.2 ms median per sim-day); peak band state 1.29 MB (inside
+  the known ~1.75 MB envelope).
+- **P9 map1 100y (alone, 2 reps)**: 189.4 / 188.7 ms/tick — 0.3% spread;
+  `deterministic=true` both.
+- **P10 map2 100y (alone, 2 reps)**: 264.7 / 265.2 ms/tick — 0.2% spread;
+  `deterministic=true` both (map2: 1.9× tiles, 9 founders).
+- **Attribution**: the base decision/context simulation dominates ms/tick; the
+  expedition layer's matched-window delta is ~12%; per-subsystem unit costs are
+  micro-scale and bounded. No unexplained outlier, no unbounded scaling, no
+  global scan, caps hold, fingerprints deterministic. Timing values never touch
+  simulation state.
+
+#### Gate B — dedicated habitat cases (map2, isolated 22-person canonical
+founder via removeInitialBands + spawnCustomBands, "default" knowledge, 100y
+production runs, physically scored regions; fresh-process repeat byte-identical
+fingerprints for all three cases)
+
+- **Rich** (reachable live stock 35.9, mean water 0.80 — tile:192:96): pop
+  22→23 (fragile, SURVIVES); 3,772 same-day physical receipts / 132.8 units;
+  42 expeditions (30 retrieval → 18 returned_with_cargo + 12 honest
+  physically_exhausted; 4 verification; 8 reconnaissance); 15 task camps; 28
+  returned observations; loaded walking real (0.75 km loaded mean); longest
+  journey 24 km (long-distance possible, not constant); conditioning 0.647.
+- **Ordinary** (stock 7.5, water 0.26 — tile:24:120): 240 receipts / 5.1 units;
+  info tasks dominate (50 verifications, no profitable retrieval); extinct
+  before year 100 — honest hardship, no rescue.
+- **Marginal** (stock 2.1, water 0.10 — tile:66:114): 46 receipts / 0.68 units;
+  146 expeditions, mostly failed (86 harvest_failed, 29 target_absent — poor
+  targets stay poor, every failure named); one desperate 108 km overreach;
+  conditioning 0.876 (they walked hard and starved anyway); extinct.
+- **§4.5 comparison**: the three differ for causal physical reasons (stock
+  ratios >1.3× between adjacent cases; behavior/fingerprints all distinct);
+  zero generic buckets, zero info-task food, zero cap violations; extinction
+  remains possible (2 of 3) while the rich case survives — habitat-causal, not
+  scripted. Universal extinction did NOT occur.
+- Counting caveat: the audit's `signalAttempts`/`signalsUnderstood` counters
+  sample per-season snapshots (attempts resolving between samples under-count;
+  persisting received records over-count) — presentation-only, not sim state.
+
+#### Verdict basis
+
+Gate A: all 12 runs executed alone, exit 0, methodology recorded
+(environment.txt). Gate B: PASS twice with identical fresh-process
+fingerprints. Production unchanged ⇒ per the checkpoint's own §6 rule the
+critical acceptance smoke set (build + types + mobilityCapacity +
+expeditionLifecycle + contextLifecycle + adaptationBoundary + decisionBoundary
++ checkGraph + knowledgeLatency + fireSignalViewshed + expeditionAcuteRisk +
+taskCampComparison + journey100km + mobilityAuthority + deterministic
+benchmark) closes acceptance on top of the full 48/48 regression and 4× 300y
+long runs already recorded at `16abffe`.
+
+#### Remaining soft debt (unchanged, non-blocking)
+
+Natural expedition acute-risk episodes are rare; linked-tile memories never
+form naturally; no expedition-specific efficacy evaluator; cross-band
+ordinary-smoke cues unimplemented; ordinary/marginal single-founder cases go
+extinct within 100y (the known upstream-reach limitation — the next physical
+lever is CLIMATE-1's variability, not expedition tuning); sex composition
+remains owned by the later biological/social block (Option B).
+
+---
+
 ### EXPEDITIONARY LOGISTICAL MOBILITY-4 — perception, risk, learning, acceptance (2026-07-17)
 
 Branch `checkpoint/expeditionary-logistical-mobility-4` from `4b49a75` (required

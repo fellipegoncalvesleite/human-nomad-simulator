@@ -80,18 +80,23 @@ Backup checkpoint supplied:
 Implemented checkpoint:
   FOOD–DEMOGRAPHY SEPARATION / DEMOGRAPHIC PERSISTENCE-1 and -2 — PASS
   CORE PIPELINE CONSOLIDATION / DECOMPOSITION-1..3 — PASS
-  EXPEDITIONARY LOGISTICAL MOBILITY-1..3 — progress accepted (spine + dynamic
-  mobility); EXPEDITIONARY-4 status is in docs/HANDOFF.md Current Status.
+  EXPEDITIONARY LOGISTICAL MOBILITY / TASK CAMPS / VIEWSHED / FIRE SIGNALS-1
+  — COMPLETE (MOBILITY-1..4 implementation + MOBILITY-5 validation closure:
+  isolated performance matrix P1–P10 and dedicated rich/ordinary/marginal
+  habitat cases both PASS; see docs/HANDOFF.md Current Status).
 
 Current blocker:
-  See docs/HANDOFF.md Current Status for the live EXPEDITIONARY-4 verdict and
-  the remaining validation state.
+  None expedition-side. The standing upstream limitation (single founders on
+  ordinary/marginal ground can still starve out within 100y) is the known
+  reach/variability problem the CLIMATE checkpoint addresses next — do not
+  respond to it with expedition or food tuning.
 
 Current active roadmap item:
-  EXPEDITIONARY LOGISTICAL MOBILITY / TASK CAMPS / VIEWSHED / FIRE SIGNALS
-  (item 1); on its acceptance the roadmap advances to
-  CLIMATE / WEATHER / REGIONAL SEASONALITY FOUNDATION-1 (item 2 — foundational,
-  before seasonal-route migration; do NOT begin climate inside this checkpoint).
+  CLIMATE / WEATHER / REGIONAL SEASONALITY FOUNDATION-1 — foundational,
+  BEFORE seasonal-route migration. Attach at the terrain/hydrography→ecology
+  seam; `src/sim/agents/environmentBoundary.ts` is the ready expedition-side
+  seam its authority replaces/extends. Deterministic, bounded, never a hidden
+  food multiplier.
 ```
 
 Before any implementation, resolve and report:
@@ -327,6 +332,8 @@ No `test` script exists — verification is entirely the audit scripts below plu
 | Task-camp comparison (§16: same route with/without camp; shuttle km + provisions saved; no food/storage/territory/residential mutation) | `taskCampComparisonAudit.mjs` |
 | Controlled ~100 km journey (§17: favorable completes ≥100 km with recovery; unfavorable lost/slower; not routine in nature) | `expedition100kmJourneyAudit.mjs` |
 | Natural occurrence + pathology screens (§22: per-map expedition/mobility distributions; `--map map1\|map2\|map2_single_origin --years N`) | `expeditionNaturalOccurrenceAudit.mjs` |
+| Isolated performance matrix (MOBILITY-5 Gate A: cases `--case P1..P8` run alone; P9/P10 via `sim:benchmark --scenario ... --years 100 --deterministic`; unit attribution + scaling probes) | `expeditionPerformanceMatrixAudit.mjs` |
+| Dedicated habitat cases (MOBILITY-5 Gate B: `--case rich\|ordinary\|marginal\|all --years N`; physically scored map2 regions, isolated canonical founder, §4.5 comparative checks, fresh-process fingerprints) | `expeditionHabitatCasesAudit.mjs` |
 
 ### `simBenchmark.mjs --targeted-*` flags — exact flag names VERIFIED CURRENT (grepped from `scripts/simBenchmark.mjs`; ~120 total, most relevant to the draft's named audits below)
 

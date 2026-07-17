@@ -145,6 +145,7 @@ function parseArgs(argv) {
     targetedDeepTimeChronicleUiAudit: false,
     targetedEventSystemUiAudit: false,
     targetedBandIdentityUiAudit: false,
+    targetedKnowledgeEcologyActivityPartiesAudit: false,
     targetedBandChronicleFoundationAudit: false,
     targetedSpecificMemoryReferentsAudit: false,
     targetedResourceEcologyFoundationAudit: false,
@@ -341,6 +342,8 @@ function parseArgs(argv) {
       options.targetedEventSystemUiAudit = true;
     } else if (arg === "--targeted-band-identity-ui-audit") {
       options.targetedBandIdentityUiAudit = true;
+    } else if (arg === "--targeted-knowledge-ecology-activity-parties-audit") {
+      options.targetedKnowledgeEcologyActivityPartiesAudit = true;
     } else if (arg === "--targeted-band-chronicle-foundation-audit") {
       options.targetedBandChronicleFoundationAudit = true;
     } else if (arg === "--targeted-specific-memory-referents-audit") {
@@ -757,6 +760,12 @@ Options:
                           identity profiles, six compact dimensions, inherited-vs-lived
                           separation, activity/event/deep-history provenance, UI/source guards,
                           payload bounds, determinism, and observe-only behavior guard.
+  --targeted-knowledge-ecology-activity-parties-audit
+                          Run LEARNING / TRANSMISSION / KNOWLEDGE ECOLOGY /
+                          ACTIVITY-PARTIES-1 audit: selected-band knowledge profiles,
+                          existing activity-party evidence, provenance, inherited-vs-lived
+                          and practical-vs-story distinctions, fading/uncertain items,
+                          UI/Technical caps, determinism, and observe-only behavior guard.
   --targeted-band-chronicle-foundation-audit
                           Run BAND-CHRONICLE-FOUNDATION-1 audit: deterministic selected-band
                           chronicle projection, yearly summaries, multi-year arcs, relevance
@@ -1487,6 +1496,7 @@ async function main() {
       bandEvents: await server.ssrLoadModule("/sim/agents/bandEvents.ts"),
       eventSystem: await server.ssrLoadModule("/sim/agents/eventSystem.ts"),
       bandIdentity: await server.ssrLoadModule("/sim/agents/bandIdentity.ts"),
+      knowledgeEcology: await server.ssrLoadModule("/sim/agents/knowledgeEcology.ts"),
       bandChronicle: await server.ssrLoadModule("/sim/agents/bandChronicle.ts"),
       memoryReferents: await server.ssrLoadModule("/sim/agents/memoryReferents.ts"),
       seasonalVisuals: await server.ssrLoadModule("/render/seasonalVisuals.ts"),
@@ -2171,6 +2181,15 @@ async function main() {
 
     if (options.targetedBandIdentityUiAudit) {
       const result = runTargetedBandIdentityUiAudit(modules, options);
+      if (options.writeBaseline !== undefined) {
+        writeBaselineArtifact(options.writeBaseline, result);
+      }
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+
+    if (options.targetedKnowledgeEcologyActivityPartiesAudit) {
+      const result = runTargetedKnowledgeEcologyActivityPartiesAudit(modules, options);
       if (options.writeBaseline !== undefined) {
         writeBaselineArtifact(options.writeBaseline, result);
       }
@@ -11451,6 +11470,7 @@ function runDeepHistoryStaticGuards() {
     join(simRoot, "agents/bandChronicle.ts"),
     join(simRoot, "agents/eventSystem.ts"),
     join(simRoot, "agents/bandIdentity.ts"),
+    join(simRoot, "agents/knowledgeEcology.ts"),
     join(simRoot, "agents/spawn.ts"),
     join(simRoot, "agents/demography.ts"),
     join(simRoot, "tick/advance.ts"),
@@ -12685,9 +12705,9 @@ function eventSystemUiSourceChecks() {
       bandPanel.includes("<Events") &&
       eventsUi.includes("canonical-event-list"),
     eventsUiMeaningFirst:
-      eventsUi.includes("This is the band's event record") &&
+      eventsUi.includes("A compact timeline of things that actually changed") &&
       eventsUi.includes("Talk can mention this; the event record is the proof") &&
-      eventsUi.includes("Quieter recent records") &&
+      eventsUi.includes("Smaller recent changes") &&
       eventsUi.includes("Open in Chronicle"),
     eventsUiNoRawDump:
       !eventsUi.includes("JSON.stringify") &&
@@ -13308,14 +13328,14 @@ function bandIdentityUiSourceChecks() {
       bandPanel.includes('label: "Identity"') &&
       bandPanel.includes("<Identity"),
     identityCardsCompact:
-      identityUi.includes("Who they are becoming") &&
+      identityUi.includes("Historian's reading") &&
       identityUi.includes("identity-card-grid") &&
       identityUi.includes("<details") &&
       css.includes("identity-card-grid") &&
       css.includes("identity-evidence-chip"),
     eventLinkButtonsExist:
-      identityUi.includes("View supporting events") &&
-      identityUi.includes("Open Chronicle support"),
+      identityUi.includes("See events behind this") &&
+      identityUi.includes("Open Chronicle passage"),
     identityUiNoRawDump:
       !identityUi.includes("JSON.stringify") &&
       !identityUi.includes("Object.entries(card)") &&
@@ -13359,6 +13379,876 @@ function runBandIdentityStaticGuards() {
     ...storageGuards,
     bandIdentityRefsInDecisionPaths: bandIdentityRefsInDecisionPathFiles.length,
     bandIdentityRefsInDecisionPathFiles,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// LEARNING / TRANSMISSION / KNOWLEDGE ECOLOGY / ACTIVITY-PARTIES-1 targeted audit.
+// Verifies the selected-band knowledge ecology projection: structured items,
+// activity-party evidence, provenance, inherited-vs-lived separation,
+// practical-vs-story/heard distinction, fading/uncertain signals, UI/Technical
+// split, deterministic output, payload bounds, and observe-only guard.
+// ---------------------------------------------------------------------------
+
+function runTargetedKnowledgeEcologyActivityPartiesAudit(modules, options) {
+  const years = 100;
+  const command = "node scripts/simBenchmark.mjs --targeted-knowledge-ecology-activity-parties-audit --json";
+  const runOptions = {
+    ...options,
+    reportBand: false,
+    probeAudit: false,
+    returnWorld: true,
+    fast: true,
+    deterministic: false,
+  };
+  const baseRun = runBenchmark(
+    modules,
+    { scenario: "baseline", years, ticks: undefined },
+    runOptions,
+  );
+  const repeatRun = runBenchmark(
+    modules,
+    { scenario: "baseline", years, ticks: undefined },
+    runOptions,
+  );
+  const projectedWorld = projectPerformancePlayabilityWorld(modules, baseRun.world);
+  const repeatProjectedWorld = projectPerformancePlayabilityWorld(modules, repeatRun.world);
+  const activeBands = Object.values(projectedWorld.bands).filter(isActiveBand).sort(compareBands);
+  const selectedBands = selectKnowledgeEcologyBands(activeBands);
+  const preDerivationSnapshot = JSON.stringify(selectedBands);
+  const liveEntries = selectedBands.map((band) => ({
+    kind: "live",
+    band,
+    profile: modules.knowledgeEcology.deriveKnowledgeEcologyProfile(projectedWorld, band),
+    events: modules.eventSystem.deriveCanonicalEvents(projectedWorld, band),
+    chronicle: modules.bandChronicle.deriveBandChronicle(projectedWorld, band),
+  }));
+  const projectionMutatedBands = preDerivationSnapshot !== JSON.stringify(selectedBands);
+  const repeatEntries = selectedBands
+    .map((band) => repeatProjectedWorld.bands[band.id])
+    .filter((band) => band !== undefined)
+    .map((band) => ({
+      kind: "repeat",
+      band,
+      profile: modules.knowledgeEcology.deriveKnowledgeEcologyProfile(repeatProjectedWorld, band),
+      events: modules.eventSystem.deriveCanonicalEvents(repeatProjectedWorld, band),
+      chronicle: modules.bandChronicle.deriveBandChronicle(repeatProjectedWorld, band),
+    }));
+  const fixtures = buildKnowledgeEcologyFixtures(modules, projectedWorld, selectedBands[0]);
+  const allEntries = [...liveEntries, ...fixtures];
+  const items = allEntries.flatMap((entry) => entry.profile.items.map((item) => ({ entry, item })));
+  const evidenceRows = items.flatMap(({ entry, item }) =>
+    item.evidence.map((evidence) => ({ entry, item, evidence })));
+  const normalTextSamples = allEntries.flatMap((entry) => collectKnowledgeEcologyNormalText(entry.profile));
+  const codeLikeHits = [];
+  scanReadabilityStrings(normalTextSamples, codeLikeHits, "knowledgeEcology.normal");
+  const rawDebugHits = findKnowledgeEcologyRawDebugHits(normalTextSamples);
+  const fakeCultureHits = normalTextSamples.filter((sample) => WIKI_FORBIDDEN_CONTENT.test(sample)).slice(0, 8);
+  const earlySystemHits = normalTextSamples.filter((sample) => /\b(?:skill tree|tech tree|practice unlocked|problem framing|taboo|myth|religion|worldview|agriculture|domestication|territory|war)\b/i.test(sample)).slice(0, 8);
+  const legacySkillHits = normalTextSamples.filter((sample) => /\b(?:basketry|wild grain|plant tending|basic foraging)\b/i.test(sample)).slice(0, 8);
+  const duplicateProse = findKnowledgeEcologyDuplicateProse(allEntries);
+  const linkAudit = auditKnowledgeEcologyLinks(allEntries);
+  const sourceChecks = knowledgeEcologySourceChecks();
+  const staticGuards = runKnowledgeEcologyStaticGuards();
+  const regressionAuditFlagsPresent = sourceChecks.regressionAuditFlagsPresent;
+  const maxPayloadBytes = Math.max(0, ...allEntries.map((entry) => entry.profile.technicalProof.payloadBytesEstimate));
+  const maxItemPayloadBytes = Math.max(0, ...allEntries.map((entry) => entry.profile.technicalProof.maxItemPayloadBytes));
+  const maxItemsPerProfile = Math.max(0, ...allEntries.map((entry) => entry.profile.items.length));
+  const maxEvidencePerItem = Math.max(0, ...items.map(({ item }) => item.evidence.length));
+  const domainsSeen = [...new Set(items.map(({ item }) => item.domain))].sort();
+  const carrierCategories = [...new Set(items.map(({ item }) => item.carrier))].sort();
+  const livedItems = items.filter(({ item }) => item.livedStatus === "personally_lived");
+  const inheritedItems = items.filter(({ item }) => item.livedStatus === "inherited_not_personally_lived");
+  const practicalItems = items.filter(({ item }) => item.practicalStatus === "practical");
+  const storyOrHeardItems = items.filter(({ item }) =>
+    item.practicalStatus === "story_only" ||
+    item.practicalStatus === "heard_about" ||
+    item.practicalStatus === "inherited_not_practiced");
+  const fadingItems = items.filter(({ item }) => item.fading || item.practicalStatus === "fading_uncertain");
+  const daughterEntries = allEntries.filter((entry) =>
+    entry.band.deepHistory?.founding?.kind === "fission_daughter" || entry.band.parentBandId !== undefined);
+  const activityEvidenceRows = evidenceRows.filter(({ evidence }) =>
+    evidence.kind === "activity_trip" || evidence.kind === "activity_summary");
+  const eventEvidenceRows = evidenceRows.filter(({ evidence }) => evidence.kind === "canonical_event");
+  const deepEvidenceRows = evidenceRows.filter(({ evidence }) =>
+    evidence.kind === "deep_history" || evidence.kind === "founding_snapshot");
+  const memoryEvidenceRows = evidenceRows.filter(({ evidence }) =>
+    evidence.kind === "place_memory" ||
+    evidence.kind === "route_memory" ||
+    evidence.kind === "crossing_memory" ||
+    evidence.kind === "reported_knowledge");
+
+  const requiredChecks = {
+    knowledgeProfilesExistForSampledBands:
+      liveEntries.length > 0 &&
+      allEntries.every((entry) => entry.profile.items.length > 0),
+    knowledgeItemsStructuredNotProseOnly:
+      items.length > 0 &&
+      items.every(({ item }) =>
+        item.id.startsWith("knowledge:") &&
+        item.domain.length > 0 &&
+        item.carrier.length > 0 &&
+        item.transmission.length > 0 &&
+        item.practicalStatus.length > 0),
+    groundedDomainsPresent:
+      ["route_corridor", "crossing", "place_country", "food_work", "water_refuge", "risk_caution"]
+        .every((domain) => domainsSeen.includes(domain)),
+    everyPublicClaimHasEvidence:
+      items.every(({ item }) => item.evidence.length > 0) &&
+      allEntries.every((entry) => entry.profile.integrity.evidenceBacked === true),
+    evidenceUsesAcceptedSubstrates:
+      evidenceRows.length > 0 &&
+      evidenceRows.every(({ evidence }) =>
+        KNOWLEDGE_ECOLOGY_VALID_EVIDENCE_KINDS.has(evidence.kind) &&
+        evidence.sourceId.length > 0 &&
+        evidence.label.length > 0),
+    activityDerivedEvidenceUsedOrCounted:
+      activityEvidenceRows.length > 0 &&
+      allEntries.some((entry) => entry.profile.activityEvidenceCount > 0),
+    noDuplicateTaskPartySystemCreated:
+      sourceChecks.noDuplicateTaskPartySystem &&
+      allEntries.every((entry) => entry.profile.integrity.usesExistingActivityPartiesOnly === true),
+    inheritedVsPersonallyLivedSeparated:
+      inheritedItems.length > 0 &&
+      livedItems.length > 0 &&
+      inheritedItems.every(({ item }) =>
+        item.evidence.every((evidence) => evidence.livedStatus === "inherited_not_personally_lived")) &&
+      allEntries.every((entry) => entry.profile.integrity.inheritedSeparated === true),
+    daughterBandsNotParentClones:
+      daughterEntries.length > 0 &&
+      daughterEntries.every((entry) =>
+        entry.profile.items.length <= entry.profile.caps.itemCap &&
+        entry.profile.items.some((item) => item.livedStatus === "inherited_not_personally_lived" || /parent|inherited/i.test(`${item.title} ${item.summary}`))),
+    practicalVsStoryHeardInheritedDistinguished:
+      practicalItems.length > 0 &&
+      storyOrHeardItems.length > 0 &&
+      allEntries.every((entry) => entry.profile.integrity.practicalVsStorySeparated === true),
+    fadingUncertainKnowledgeRepresented:
+      fadingItems.length > 0 &&
+      fadingItems.every(({ item }) => item.fading || item.confidenceBand === "fading" || item.practicalStatus === "fading_uncertain"),
+    legacyStartingSkillsNotKnowledgeProof:
+      legacySkillHits.length === 0 &&
+      sourceChecks.legacyStartingSkillsIgnored &&
+      allEntries.every((entry) => entry.profile.integrity.ignoresLegacyStartingSkills === true),
+    publicUiNoRawIdsJsonDebug:
+      rawDebugHits.length === 0 &&
+      codeLikeHits.length === 0 &&
+      sourceChecks.knowledgeUiNoRawDump,
+    publicUiCompactCardsNotFlatList:
+      sourceChecks.knowledgeTabExists &&
+      sourceChecks.knowledgeCardsCompact &&
+      maxItemsPerProfile <= 12 &&
+      maxEvidencePerItem <= 3,
+    technicalUiExposesCountsCapsPayload:
+      sourceChecks.technicalProofExists &&
+      allEntries.every((entry) => entry.profile.caps.capsHeld === true),
+    knowledgeDoesNotEnterDecisionPaths:
+      staticGuards.knowledgeEcologyRefsInDecisionPaths === 0 &&
+      sourceChecks.knowledgeProjectionPure,
+    noFakeCultureTabooMythWorldviewReligionLanguage:
+      fakeCultureHits.length === 0 &&
+      sourceChecks.noFakeLoreInKnowledgeUi,
+    noEarlySkillPracticeAdaptationProblemFramingSystem:
+      earlySystemHits.length === 0 &&
+      sourceChecks.noEarlySystemsImplemented,
+    eventEvidenceChronicleLinksNotBroken:
+      linkAudit.eventLinksChecked > 0 &&
+      linkAudit.brokenEventLinks.length === 0 &&
+      linkAudit.renderedChronicleLinksChecked > 0 &&
+      linkAudit.brokenChronicleLinks.length === 0,
+    deterministicKnowledgeOutput:
+      makeKnowledgeEcologyFingerprint(liveEntries) === makeKnowledgeEcologyFingerprint(repeatEntries),
+    payloadsAndListsBounded:
+      maxPayloadBytes > 0 &&
+      maxPayloadBytes < 45_000 &&
+      maxItemPayloadBytes < 8_000 &&
+      maxItemsPerProfile <= 12 &&
+      maxEvidencePerItem <= 3,
+    existingEventIdentityChronicleDeepHistoryReferentAuditsPass:
+      regressionAuditFlagsPresent,
+    observeOnlyBehaviorEconomyUnchanged:
+      makeDeterminismFingerprint(baseRun.summary) === makeDeterminismFingerprint(repeatRun.summary) &&
+      projectionMutatedBands === false &&
+      staticGuards.knowledgeEcologyRefsInDecisionPaths === 0,
+  };
+  const passedCount = Object.values(requiredChecks).filter(Boolean).length;
+  const failedChecks = Object.entries(requiredChecks)
+    .filter(([, passed]) => passed !== true)
+    .map(([name]) => name);
+  const verdict = failedChecks.length === 0 ? "pass" : "review";
+
+  return {
+    check: "LEARNING / TRANSMISSION / KNOWLEDGE ECOLOGY / ACTIVITY-PARTIES-1 targeted audit",
+    verdict,
+    command,
+    methodology: {
+      scenario: "baseline",
+      years,
+      selectedBandRule: "active bands scored for activity parties, route/crossing/place memory, deep history, daughter inheritance, events, and reports",
+      fixtureNote: "Projection-only fixtures exercise all required knowledge domains, inherited-not-practiced parent memory, activity-party evidence, heard reports, and fading route/risk memory. They do not mutate live sim state or affect decisions.",
+      uiLayer: "src/ui/band/Knowledge.tsx selected-band tab plus compact Technical substrate group.",
+      chronicleIntegration: "Chronicle prose was intentionally left unchanged; Knowledge links to supporting Chronicle pages where evidence exists.",
+    },
+    checkSummary: {
+      passed: passedCount,
+      failed: failedChecks.length,
+      total: Object.keys(requiredChecks).length,
+      failedChecks,
+    },
+    metrics: {
+      bandsSampled: selectedBands.length,
+      fixtureProfiles: fixtures.length,
+      knowledgeProfilesGenerated: allEntries.length,
+      knowledgeItems: items.length,
+      itemsByDomain: countRowsBy(items, ({ item }) => item.domain),
+      itemsByCarrier: countRowsBy(items, ({ item }) => item.carrier),
+      livedItems: livedItems.length,
+      inheritedItems: inheritedItems.length,
+      practicalItems: practicalItems.length,
+      storyOrHeardItems: storyOrHeardItems.length,
+      activityDerivedRefs: activityEvidenceRows.length,
+      eventDerivedRefs: eventEvidenceRows.length,
+      deepHistoryRefs: deepEvidenceRows.length,
+      memoryRefs: memoryEvidenceRows.length,
+      fadingOrUncertainItems: fadingItems.length,
+      daughterInheritedItems: daughterEntries.reduce(
+        (sum, entry) => sum + entry.profile.items.filter((item) => item.livedStatus === "inherited_not_personally_lived").length,
+        0,
+      ),
+      evidenceChips: evidenceRows.length,
+      eventLinksChecked: linkAudit.eventLinksChecked,
+      brokenEventLinks: linkAudit.brokenEventLinks.length,
+      renderedChronicleLinksChecked: linkAudit.renderedChronicleLinksChecked,
+      potentialUnresolvedChronicleTargets: linkAudit.potentialUnresolvedChronicleTargets,
+      brokenChronicleLinks: linkAudit.brokenChronicleLinks.length,
+      rawDebugHits: rawDebugHits.length,
+      fakeCultureHits: fakeCultureHits.length,
+      earlySystemHits: earlySystemHits.length,
+      legacySkillHits: legacySkillHits.length,
+      duplicateProseCount: duplicateProse.duplicateCount,
+      maxKnowledgePayloadBytes: maxPayloadBytes,
+      maxKnowledgePayloadKb: round2(maxPayloadBytes / 1024),
+      maxKnowledgeItemPayloadBytes: maxItemPayloadBytes,
+      maxKnowledgeItemPayloadKb: round2(maxItemPayloadBytes / 1024),
+      maxItemsPerProfile,
+      maxEvidencePerItem,
+      deterministicProfilesChecked: Math.min(liveEntries.length, repeatEntries.length),
+      projectionMutatedBands,
+      regressionAuditFlagsPresent,
+    },
+    samples: {
+      profiles: allEntries.slice(0, 5).map((entry) => ({
+        kind: entry.kind,
+        bandId: String(entry.band.id),
+        title: entry.profile.overviewTitle,
+        summary: entry.profile.overviewLines,
+        items: entry.profile.items.slice(0, 5).map((item) => ({
+          domain: item.domain,
+          title: item.title,
+          carrier: item.carrier,
+          transmission: item.transmission,
+          practicalStatus: item.practicalStatus,
+          confidenceBand: item.confidenceBand,
+          evidence: item.evidence.map((evidence) => evidence.label),
+        })),
+      })),
+      rawDebugHits,
+      codeLikeHits: codeLikeHits.slice(0, 8),
+      fakeCultureHits,
+      earlySystemHits,
+      legacySkillHits,
+      duplicateProseSamples: duplicateProse.samples,
+      brokenEventLinks: linkAudit.brokenEventLinks,
+      brokenChronicleLinks: linkAudit.brokenChronicleLinks,
+    },
+    sourceChecks,
+    staticGuards,
+    regressions: {
+      note: "Existing regression audits are not recursively run inside this targeted audit; run the documented verification battery separately.",
+      flagsPresent: regressionAuditFlagsPresent,
+    },
+    requiredChecks,
+  };
+}
+
+const KNOWLEDGE_ECOLOGY_VALID_EVIDENCE_KINDS = new Set([
+  "canonical_event",
+  "deep_history",
+  "activity_trip",
+  "activity_summary",
+  "place_memory",
+  "route_memory",
+  "crossing_memory",
+  "reported_knowledge",
+  "demography",
+  "founding_snapshot",
+  "residential_move",
+]);
+
+function selectKnowledgeEcologyBands(bands) {
+  const selected = [];
+  const add = (band) => {
+    if (band !== undefined && !selected.some((entry) => entry.id === band.id)) {
+      selected.push(band);
+    }
+  };
+  const scored = [...bands].sort((left, right) =>
+    scoreKnowledgeEcologyBand(right) - scoreKnowledgeEcologyBand(left) || compareBands(left, right));
+
+  for (const band of scored.filter((entry) => (entry.recentIntraSeasonTrips?.length ?? 0) > 0).slice(0, 4)) add(band);
+  for (const band of scored.filter((entry) => entry.deepHistory?.founding.kind === "fission_daughter").slice(0, 3)) add(band);
+  for (const band of scored.filter((entry) => Object.keys(entry.travelCorridors).length > 0 || Object.keys(entry.crossingMemories).length > 0).slice(0, 4)) add(band);
+  for (const band of scored.filter((entry) => (entry.reportedKnowledge?.reports.length ?? 0) > 0).slice(0, 2)) add(band);
+  for (const band of scored) {
+    add(band);
+    if (selected.length >= 10) {
+      break;
+    }
+  }
+
+  return selected;
+}
+
+function scoreKnowledgeEcologyBand(band) {
+  return (
+    (band.deepHistory === undefined ? 0 : 12) +
+    (band.deepHistory?.founding.kind === "fission_daughter" ? 14 : 0) +
+    (band.deepHistory?.inheritedEraSummaries.length ?? 0) * 6 +
+    (band.deepHistory?.inheritedEpisodes.length ?? 0) * 6 +
+    (band.recentIntraSeasonTrips?.length ?? 0) * 4 +
+    (band.activityLaborSummary?.activeActivityGroupCount ?? 0) * 3 +
+    Object.keys(band.travelCorridors).length * 3 +
+    Object.keys(band.crossingMemories).length * 3 +
+    Object.keys(band.placeMemory).length * 0.4 +
+    (band.reportedKnowledge?.reports.length ?? 0) * 2 +
+    (band.recentResidentialMoveEvents?.length ?? 0) * 2
+  );
+}
+
+function buildKnowledgeEcologyFixtures(modules, world, sourceBand) {
+  if (sourceBand === undefined) {
+    return [];
+  }
+
+  const fixtureBandId = `${String(sourceBand.id)}:knowledge-ecology-fixture`;
+  const parentBandId = sourceBand.id;
+  const fixtureTick = world.time.tick;
+  const oldTime = {
+    tick: Math.max(0, Number(fixtureTick) - 96),
+    year: Math.max(0, world.time.year - 24),
+    season: world.time.season,
+  };
+  const recentTime = {
+    tick: fixtureTick,
+    year: world.time.year,
+    season: world.time.season,
+  };
+  const routeId = `route:knowledge-fixture:${String(sourceBand.id)}`;
+  const tileA = sourceBand.position;
+  const tileB = sourceBand.currentCampTileId ?? sourceBand.position;
+  const activityTrip = makeKnowledgeFixtureTrip(sourceBand, world, tileB, "plant_gathering_group", "gathered_food_placeholder", "successful_observation", "confidence_refreshed");
+  const waterTrip = makeKnowledgeFixtureTrip(sourceBand, world, tileA, "water_group", "water_information", "returned_with_information", "water_reliability_refreshed");
+  const routeTrip = makeKnowledgeFixtureTrip(sourceBand, world, tileB, "memory_refresh_group", "route_information", "returned_with_information", "route_memory_refreshed");
+  const riskTrip = makeKnowledgeFixtureTrip(sourceBand, world, tileA, "memory_refresh_group", "none", "failed_due_to_water_risk", "risk_suspicion_added");
+  const inheritedEra = sourceBand.deepHistory?.eras.slice(-1)[0];
+  const deepHistory = sourceBand.deepHistory === undefined
+    ? undefined
+    : {
+      ...sourceBand.deepHistory,
+      bandId: fixtureBandId,
+      founding: {
+        ...sourceBand.deepHistory.founding,
+        bandId: fixtureBandId,
+        kind: "fission_daughter",
+        parentBandId,
+        foundedAt: { ...sourceBand.deepHistory.founding.foundedAt, year: Math.max(0, world.time.year - 30) },
+        parentPopulationBefore: sourceBand.size,
+      },
+      inheritedEraSummaries: inheritedEra === undefined
+        ? [{
+          sourceBandId: parentBandId,
+          startYear: Math.max(0, world.time.year - 50),
+          endYear: Math.max(0, world.time.year - 30),
+          headline: "steady_years",
+          populationEnd: sourceBand.size,
+        }]
+        : [{
+          sourceBandId: parentBandId,
+          startYear: inheritedEra.startYear,
+          endYear: inheritedEra.endYear,
+          headline: inheritedEra.headline,
+          populationEnd: inheritedEra.populationEnd,
+        }],
+      inheritedEpisodes: (sourceBand.deepHistory?.episodes ?? []).slice(0, 2).map((episode) => ({
+        ...episode,
+        id: `knowledge-inherited:${episode.id}`,
+        provenance: "inherited",
+        inheritedFromBandId: parentBandId,
+      })),
+      ancestryLine: [{
+        bandId: parentBandId,
+        foundedYear: sourceBand.deepHistory?.founding.foundedAt.year ?? 0,
+        kind: sourceBand.deepHistory?.founding.kind ?? "origin",
+      }],
+    };
+  const fixtureBand = {
+    ...sourceBand,
+    id: fixtureBandId,
+    parentBandId,
+    deepHistory,
+    recentIntraSeasonTrips: [activityTrip, waterTrip, routeTrip, riskTrip],
+    activityLaborSummary: {
+      ...(sourceBand.activityLaborSummary ?? {}),
+      activeActivityGroupCount: 4,
+      peopleAwayInActivityGroups: 10,
+      peopleAtResidentialCenterEstimate: Math.max(1, Math.round(sourceBand.size) - 10),
+      peopleByActivityType: [
+        { taskGroupType: "plant_gathering_group", groupCount: 1, assignedPeopleEstimate: 4 },
+        { taskGroupType: "water_group", groupCount: 1, assignedPeopleEstimate: 2 },
+        { taskGroupType: "memory_refresh_group", groupCount: 2, assignedPeopleEstimate: 4 },
+      ],
+    },
+    activityOutcomeSummary: {
+      ...(sourceBand.activityOutcomeSummary ?? {}),
+      successCount: 2,
+      partialCount: 1,
+      failedCount: 1,
+      informationCount: 2,
+      returnsByResourceKind: [
+        { returnedResourceKind: "gathered_food_placeholder", count: 1, estimatedReturnValueTotal: 0.3 },
+        { returnedResourceKind: "water_information", count: 1, estimatedReturnValueTotal: 0 },
+        { returnedResourceKind: "route_information", count: 1, estimatedReturnValueTotal: 0 },
+      ],
+    },
+    placeMemory: {
+      ...sourceBand.placeMemory,
+      [tileA]: {
+        tileId: tileA,
+        firstObservedAt: oldTime,
+        lastObservedAt: recentTime,
+        visitCount: 8,
+        seasonsObserved: [world.time.season],
+        lastKnownFoodEstimate: 0.5,
+        lastKnownWaterStress: 0.1,
+        lastKnownRiskEstimate: 0.2,
+        valences: ["reliable", "return_place", "route_node"],
+        attachment: 0.62,
+        confidence: 0.68,
+        reasonIds: [`knowledge-fixture:place:${String(sourceBand.id)}`],
+        repeatedReturnCount: 5,
+        isReturnPlace: true,
+        lastReturnAt: recentTime,
+        seasonalReturnPattern: [world.time.season],
+      },
+    },
+    travelCorridors: {
+      ...sourceBand.travelCorridors,
+      [routeId]: {
+        id: routeId,
+        fromTileId: tileA,
+        toTileId: tileB,
+        useCount: 12,
+        lastUsedAt: oldTime,
+        intentKinds: ["return_to_known_place"],
+        confidence: 0.72,
+      },
+    },
+    crossingMemories: {
+      ...sourceBand.crossingMemories,
+      [`${String(tileA)}|${String(tileB)}:knowledge-fixture`]: {
+        riverId: "knowledge-fixture-river",
+        crossingTileA: tileA,
+        crossingTileB: tileB,
+        crossingClass: "ford_like",
+        firstUsedAt: oldTime,
+        lastUsedAt: oldTime,
+        useCount: 3,
+        successConfidence: 0.32,
+        seasonalReliability: 0.42,
+        riskMemory: 0.72,
+        reasonIds: [`knowledge-fixture:crossing:${String(sourceBand.id)}`],
+      },
+    },
+    contactMemories: {
+      ...sourceBand.contactMemories,
+      [parentBandId]: {
+        otherBandId: parentBandId,
+        firstContactAt: oldTime,
+        lastContactAt: recentTime,
+        contactCount: 3,
+        peacefulContactCount: 2,
+        strainedContactCount: 0,
+        sharedUseCount: 1,
+        avoidanceCount: 0,
+        familiarity: 0.52,
+        tension: 0.08,
+        trustLikeTolerance: 0.5,
+        relation: "parent_daughter",
+        reasonIds: [`knowledge-fixture:contact:${String(sourceBand.id)}`],
+      },
+    },
+    reportedKnowledge: {
+      ...(sourceBand.reportedKnowledge ?? {}),
+      reports: [{
+        reportId: `knowledge-fixture-report:${String(sourceBand.id)}`,
+        sourceBandId: parentBandId,
+        receiverBandId: fixtureBandId,
+        tickCreated: fixtureTick,
+        tickReceived: fixtureTick,
+        topic: "reliable_water",
+        targetTileId: tileA,
+        confidence: 0.48,
+        freshness: 0.6,
+        hops: 1,
+        distortionLevel: "vague",
+        trustBasis: "parent",
+        receiverDisposition: "remembered_only",
+        confirmationStatus: "unconfirmed",
+        evidenceCount: 1,
+        contradictionCount: 0,
+        noHiddenTruth: true,
+        noDirectUnlock: true,
+        noGuaranteedTruth: true,
+        noLanguageSystem: true,
+        reasonIds: [`knowledge-fixture:report:${String(sourceBand.id)}`],
+      }],
+    },
+  };
+  const fixtureWorld = {
+    ...world,
+    bands: {
+      ...world.bands,
+      [fixtureBandId]: fixtureBand,
+    },
+  };
+
+  return [{
+    kind: "fixture:knowledge-domains",
+    band: fixtureBand,
+    profile: modules.knowledgeEcology.deriveKnowledgeEcologyProfile(fixtureWorld, fixtureBand),
+    events: modules.eventSystem.deriveCanonicalEvents(fixtureWorld, fixtureBand),
+    chronicle: modules.bandChronicle.deriveBandChronicle(fixtureWorld, fixtureBand),
+  }];
+}
+
+function makeKnowledgeFixtureTrip(sourceBand, world, targetTileId, taskGroupType, returnedResourceKind, activityOutcome, memoryEffectType) {
+  const reasonId = `knowledge-fixture:${String(sourceBand.id)}:${taskGroupType}:${activityOutcome}`;
+  return {
+    day: 10,
+    tick: world.time.tick,
+    season: world.time.season,
+    sourceBandId: sourceBand.id,
+    originTileId: sourceBand.position,
+    targetTileId,
+    taskGroupType,
+    groupLabel: taskGroupType.replace(/_/g, " "),
+    estimatedPeopleCount: 4,
+    objective: taskGroupType === "water_group" ? "water_security" : taskGroupType === "memory_refresh_group" ? "memory_refresh" : "local_exploitation",
+    objectiveLabel: "knowledge audit fixture",
+    startDay: 10,
+    endDay: 12,
+    activityStatus: "completed_observation",
+    distanceTiles: 2,
+    estimatedDurationDays: 2,
+    cause: taskGroupType === "water_group" ? "water_check" : taskGroupType === "memory_refresh_group" ? "memory_refresh" : "local_resource_use",
+    movementType: taskGroupType === "water_group" ? "water_trip" : taskGroupType === "memory_refresh_group" ? "memory_refresh_trip" : "food_patch_trip",
+    outcome: "returns_same_day",
+    activityResult: activityOutcome,
+    activityOutcome,
+    activityOutcomeReasonIds: [reasonId],
+    activityOutcomeSummary: "Projection fixture for knowledge ecology audit.",
+    resourceReturn: {
+      returnedResourceKind,
+      estimatedReturnValue: 0,
+      confidence: 0.5,
+      reasonIds: [reasonId],
+    },
+    shadowSubsistence: {
+      sameDayFoodValue: 0,
+      delayedFoodValue: 0,
+      consumedByEconomy: false,
+      sameDayFoodOnly: true,
+      delayedNotConsumed: true,
+      waterAndInfoNotConsumed: true,
+      plantsZeroed: true,
+      noYieldCoupling: true,
+      noCarryingCapacityMutation: true,
+      noHiddenTruth: true,
+      reasonIds: [reasonId],
+    },
+    activityMemoryEffect: {
+      sourceBandId: sourceBand.id,
+      sourceTripDay: 10,
+      tick: world.time.tick,
+      season: world.time.season,
+      targetTileId,
+      activityOutcome,
+      effectType: memoryEffectType,
+      effectSummary: "Knowledge audit fixture memory effect.",
+      confidenceDelta: memoryEffectType === "risk_suspicion_added" ? -0.1 : 0.12,
+      reasonIds: [reasonId],
+      noHiddenTruth: true,
+      targetKnownMemoryOnly: true,
+      noNewResourceDiscovery: true,
+      noFoodCoupling: true,
+      noYieldCoupling: true,
+      noCarryingCapacityCoupling: true,
+      noPopulationChange: true,
+      noStressChange: true,
+      noSupportChange: true,
+    },
+    pathTiles: [sourceBand.position, targetTileId],
+    tilesCrossed: 1,
+    roundTripTiles: 2,
+    activityDaysRepresented: 2,
+    resultSummary: "Projection fixture only.",
+    reasonIds: [reasonId],
+    noResidentialRelocation: true,
+    noYieldChange: true,
+    noStressChange: true,
+    noPopulationChange: true,
+    noCarryingCapacityChange: true,
+    noSupportChange: true,
+    bandKnownTargetOnly: true,
+  };
+}
+
+function collectKnowledgeEcologyNormalText(profile) {
+  return [
+    profile.overviewTitle,
+    ...profile.overviewLines,
+    ...profile.items.flatMap((item) => [
+      item.title,
+      item.summary,
+      item.uncertainty ?? "",
+      item.domain.replace(/_/g, " "),
+      item.carrier.replace(/_/g, " "),
+      item.transmission.replace(/_/g, " "),
+      item.practicalStatus.replace(/_/g, " "),
+      item.confidenceBand.replace(/_/g, " "),
+      ...item.evidence.map((entry) => entry.label),
+    ]),
+  ].filter((entry) => typeof entry === "string" && entry.length > 0);
+}
+
+function findKnowledgeEcologyRawDebugHits(samples) {
+  const rawPattern = /\b(?:knowledge|canonical-event|band|tile|reason|decision|stock|patch|event|route|era|episode|founding|activity):[a-z0-9]/i;
+  const jsonPattern = /(?:^\s*[\[{]|["'][a-zA-Z0-9_]+["']\s*:)/;
+  return samples
+    .filter((sample) => rawPattern.test(sample) || jsonPattern.test(sample))
+    .slice(0, 8);
+}
+
+function findKnowledgeEcologyDuplicateProse(entries) {
+  let duplicateCount = 0;
+  const samples = [];
+
+  for (const entry of entries) {
+    const seen = new Set();
+    const lines = entry.profile.items
+      .map((item) => `${item.title}: ${item.summary}`)
+      .filter((line) => line.length > 0);
+
+    for (const line of lines) {
+      if (seen.has(line)) {
+        duplicateCount += 1;
+        if (samples.length < 6) {
+          samples.push({ bandId: String(entry.band.id), sample: line.slice(0, 160) });
+        }
+      }
+      seen.add(line);
+    }
+  }
+
+  return { duplicateCount, samples };
+}
+
+function auditKnowledgeEcologyLinks(entries) {
+  let eventLinksChecked = 0;
+  let renderedChronicleLinksChecked = 0;
+  let potentialUnresolvedChronicleTargets = 0;
+  const brokenEventLinks = [];
+  const brokenChronicleLinks = [];
+
+  for (const entry of entries) {
+    const eventIds = new Set(entry.events.events.map((event) => event.id));
+    const pageIds = new Set(entry.chronicle.pages.map((page) => page.id));
+    for (const item of entry.profile.items) {
+      for (const eventId of item.relatedEventIds) {
+        eventLinksChecked += 1;
+        if (!eventIds.has(eventId)) {
+          brokenEventLinks.push({ bandId: String(entry.band.id), itemId: item.id, eventId });
+        }
+      }
+      for (const pageId of item.relatedChronicleLinkIds) {
+        if (pageIds.has(pageId)) {
+          renderedChronicleLinksChecked += 1;
+        } else {
+          potentialUnresolvedChronicleTargets += 1;
+        }
+      }
+    }
+  }
+
+  return {
+    eventLinksChecked,
+    renderedChronicleLinksChecked,
+    potentialUnresolvedChronicleTargets,
+    brokenEventLinks: brokenEventLinks.slice(0, 8),
+    brokenChronicleLinks: brokenChronicleLinks.slice(0, 8),
+  };
+}
+
+function makeKnowledgeEcologyFingerprint(entries) {
+  return JSON.stringify(entries
+    .slice()
+    .sort((left, right) => String(left.band.id).localeCompare(String(right.band.id)))
+    .map((entry) => ({
+      bandId: String(entry.band.id),
+      title: entry.profile.overviewTitle,
+      lines: entry.profile.overviewLines,
+      items: entry.profile.items.map((item) => ({
+        id: item.id,
+        domain: item.domain,
+        title: item.title,
+        summary: item.summary,
+        carrier: item.carrier,
+        transmission: item.transmission,
+        practicalStatus: item.practicalStatus,
+        memoryScope: item.memoryScope,
+        livedStatus: item.livedStatus,
+        confidenceBand: item.confidenceBand,
+        evidence: item.evidence.map((evidence) => ({
+          kind: evidence.kind,
+          label: evidence.label,
+          scope: evidence.scope,
+          livedStatus: evidence.livedStatus,
+        })),
+      })),
+    })));
+}
+
+function countRowsBy(rows, selectKey) {
+  return rows.reduce((counts, row) => {
+    const key = selectKey(row);
+    counts[key] = (counts[key] ?? 0) + 1;
+    return counts;
+  }, {});
+}
+
+function knowledgeEcologySourceChecks() {
+  const knowledge = readFileSync(join(process.cwd(), "src/sim/agents/knowledgeEcology.ts"), "utf8");
+  const knowledgeUi = readFileSync(join(process.cwd(), "src/ui/band/Knowledge.tsx"), "utf8");
+  const bandPanel = readFileSync(join(process.cwd(), "src/ui/BandPanel.tsx"), "utf8");
+  const technical = readFileSync(join(process.cwd(), "src/ui/band/Technical.tsx"), "utf8");
+  const css = readFileSync(join(process.cwd(), "src/index.css"), "utf8");
+  const graph = readFileSync(join(process.cwd(), "src/architecture/graphData.ts"), "utf8");
+  const benchmark = readFileSync(join(process.cwd(), "scripts/simBenchmark.mjs"), "utf8");
+
+  return {
+    knowledgeProjectionExists:
+      knowledge.includes("export function deriveKnowledgeEcologyProfile") &&
+      knowledge.includes("KnowledgeEcologyProfile") &&
+      knowledge.includes("KnowledgeEcologyItem") &&
+      knowledge.includes("usesExistingActivityPartiesOnly"),
+    knowledgeProjectionPure:
+      knowledge.includes("deriveKnowledgeEcologyProfile") &&
+      !knowledge.includes("applyKnowledgeEcology") &&
+      !knowledge.includes("advanceKnowledgeEcology") &&
+      !knowledge.includes("world.bands =") &&
+      !knowledge.includes("band.knowledgeEcology") &&
+      !knowledge.includes("Math.random"),
+    legacyStartingSkillsIgnored:
+      !knowledge.includes("technologies") &&
+      !knowledge.includes("subsistenceModes") &&
+      !/\b(?:basketry|wild_grain|wild grain|plant_tending|plant tending|basic foraging)\b/i.test(knowledge),
+    noDuplicateTaskPartySystem:
+      knowledge.includes("recentIntraSeasonTrips") &&
+      knowledge.includes("activityOutcomeSummary") &&
+      !knowledge.includes("createActivityParty") &&
+      !knowledge.includes("spawnActivityParty"),
+    knowledgeTabExists:
+      bandPanel.includes('id: "knowledge"') &&
+      bandPanel.includes('label: "Knowledge"') &&
+      bandPanel.includes("<Knowledge"),
+    knowledgeCardsCompact:
+      knowledgeUi.includes("Learning record") &&
+      knowledgeUi.includes("knowledge-card-grid") &&
+      knowledgeUi.includes("<details") &&
+      css.includes("knowledge-card-grid") &&
+      css.includes("knowledge-evidence-chip"),
+    eventChronicleLinkButtonsExist:
+      knowledgeUi.includes("See events behind this") &&
+      knowledgeUi.includes("Open Chronicle passage"),
+    knowledgeUiNoRawDump:
+      !knowledgeUi.includes("JSON.stringify") &&
+      !knowledgeUi.includes("Object.entries(item)") &&
+      !knowledgeUi.includes("sourceId") &&
+      !knowledgeUi.includes("reasonIds"),
+    technicalProofExists:
+      technical.includes("Knowledge ecology substrate") &&
+      technical.includes("deriveKnowledgeEcologyProfile") &&
+      technical.includes("existingActivityPartiesOnly") &&
+      technical.includes("payload estimate"),
+    graphNodeExists:
+      graph.includes('id: "knowledgeEcology"') &&
+      graph.includes("observe-only projection (LEARNING / TRANSMISSION / KNOWLEDGE ECOLOGY / ACTIVITY-PARTIES-1)") &&
+      graph.includes("existing activity-party trips"),
+    chronicleIntegrationInspected:
+      graph.includes("Chronicle integration was inspected; this pass avoids new Chronicle prose"),
+    auditFlagWired:
+      benchmark.includes("targetedKnowledgeEcologyActivityPartiesAudit") &&
+      benchmark.includes("--targeted-knowledge-ecology-activity-parties-audit") &&
+      benchmark.includes("runTargetedKnowledgeEcologyActivityPartiesAudit"),
+    regressionAuditFlagsPresent:
+      benchmark.includes("--targeted-band-identity-ui-audit") &&
+      benchmark.includes("--targeted-event-system-ui-audit") &&
+      benchmark.includes("--targeted-deep-time-history-audit") &&
+      benchmark.includes("--targeted-deep-time-chronicle-ui-audit") &&
+      benchmark.includes("--targeted-ui-readability-polish-1c-audit") &&
+      benchmark.includes("--targeted-whole-ui-readability-history-fun-audit") &&
+      benchmark.includes("--targeted-band-chronicle-foundation-audit") &&
+      benchmark.includes("--targeted-band-chronicle-wiki-expansion-audit") &&
+      benchmark.includes("--targeted-specific-memory-referents-audit"),
+    noFakeLoreInKnowledgeUi:
+      !/\b(religion|myth|sacred|ritual|civilization|nation|king|temple|war|taboo|worldview)\b/i.test(knowledgeUi),
+    noEarlySystemsImplemented:
+      !knowledge.includes("derivePractice") &&
+      !knowledge.includes("applyPractice") &&
+      !knowledge.includes("problemFraming") &&
+      !knowledge.includes("taboo") &&
+      !knowledge.includes("worldview") &&
+      !knowledge.includes("agriculture") &&
+      !knowledge.includes("domestication") &&
+      !knowledge.includes("territory"),
+  };
+}
+
+function runKnowledgeEcologyStaticGuards() {
+  const storageGuards = runStorageSuitabilityStaticGuards();
+  const simRoot = join(process.cwd(), "src/sim");
+  const decisionFiles = [
+    ...collectSourceFiles(join(simRoot, "rules")),
+    ...collectSourceFiles(join(simRoot, "tick")),
+  ];
+  const knowledgeEcologyRefsInDecisionPathFiles = decisionFiles
+    .filter((file) => /deriveKnowledgeEcologyProfile|knowledgeEcology|KnowledgeEcology/.test(readFileSync(file, "utf8")))
+    .map((file) => file.replace(`${process.cwd()}/`, ""));
+  const bandIdentityRefsInDecisionPathFiles = decisionFiles
+    .filter((file) => /deriveBandIdentityProfile|bandIdentity|BandIdentity/.test(readFileSync(file, "utf8")))
+    .map((file) => file.replace(`${process.cwd()}/`, ""));
+  const eventSystemRefsInDecisionPathFiles = decisionFiles
+    .filter((file) => /deriveCanonicalEvents|eventSystem|canonical-event/.test(readFileSync(file, "utf8")))
+    .map((file) => file.replace(`${process.cwd()}/`, ""));
+
+  return {
+    ...storageGuards,
+    knowledgeEcologyRefsInDecisionPaths: knowledgeEcologyRefsInDecisionPathFiles.length,
+    knowledgeEcologyRefsInDecisionPathFiles,
+    bandIdentityRefsInDecisionPaths: bandIdentityRefsInDecisionPathFiles.length,
+    bandIdentityRefsInDecisionPathFiles,
+    eventSystemRefsInDecisionPaths: eventSystemRefsInDecisionPathFiles.length,
+    eventSystemRefsInDecisionPathFiles,
   };
 }
 

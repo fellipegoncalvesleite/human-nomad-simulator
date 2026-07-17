@@ -619,7 +619,7 @@ export function App() {
     generateFromSeed(createRandomSeed());
   }
 
-  function handleStepSeason() {
+  function handleStep() {
     stepSimOnce(stepMode);
   }
 
@@ -653,11 +653,15 @@ export function App() {
           </button>
           <button
             type="button"
-            onClick={handleStepSeason}
+            onClick={handleStep}
             disabled={world === null || playBlockedByMap}
-            title={playBlockedByMap ? "Fix the map first — a starting band has no usable ground." : undefined}
+            title={
+              playBlockedByMap
+                ? "Fix the map first — a starting band has no usable ground."
+                : `Advance the simulation by ${formatStepAmount(stepMode).toLowerCase()}.`
+            }
           >
-            <Icon name="step" /> Step
+            <Icon name="step" /> Step {formatStepAmount(stepMode)}
           </button>
           <button type="button" onClick={handleResetTime} disabled={world === null}>
             Reset
@@ -1016,6 +1020,19 @@ function upsertInitialBandPlacement(
 
 function formatStepMode(mode: StepMode): string {
   return mode.charAt(0).toUpperCase() + mode.slice(1);
+}
+
+function formatStepAmount(mode: StepMode): string {
+  switch (mode) {
+    case "daily":
+      return "1 Day";
+    case "weekly":
+      return "1 Week";
+    case "monthly":
+      return "1 Month";
+    case "seasonal":
+      return "1 Season";
+  }
 }
 
 function createRandomSeed(): string {

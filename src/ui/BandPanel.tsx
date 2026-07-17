@@ -32,56 +32,12 @@ import { Knowledge } from "./band/Knowledge";
 import { History } from "./band/History";
 import { Technical } from "./band/Technical";
 import { BandMarkdownExport } from "./band/BandMarkdownExport";
-
-type BandDetailView =
-  | "overview"
-  | "doing"
-  | "survival"
-  | "food"
-  | "nature"
-  | "place"
-  | "camp"
-  | "movementCamp"
-  | "people"
-  | "affordances"
-  | "problems"
-  | "feedback"
-  | "between"
-  | "ideas"
-  | "knowledge"
-  | "identity"
-  | "events"
-  | "story"
-  | "technical";
+import { BAND_DETAIL_VIEWS } from "./band/views";
+import type { BandDetailView } from "./band/views";
 
 // READABILITY-UI-ORGANIZATION-1 — one tab per player question:
 // condition · activity · physical survival · food · living world · places ·
 // relationships · timeline · raw proof. Technical stays the only raw surface.
-const BAND_DETAIL_VIEWS: readonly {
-  readonly id: BandDetailView;
-  readonly label: string;
-}[] = [
-  { id: "overview", label: "Overview" },
-  { id: "doing", label: "Doing" },
-  { id: "survival", label: "Survival" },
-  { id: "food", label: "Food" },
-  { id: "nature", label: "Nature" },
-  { id: "place", label: "Place" },
-  { id: "camp", label: "Camp & Footholds" },
-  { id: "movementCamp", label: "Movement & Camp" },
-  { id: "people", label: "People" },
-  { id: "affordances", label: "Affordances" },
-  { id: "problems", label: "Problems & Trials" },
-  { id: "feedback", label: "Practice Feedback" },
-  { id: "between", label: "Between Bands" },
-  { id: "ideas", label: "Ideas & Solutions" },
-  { id: "knowledge", label: "Knowledge" },
-  { id: "identity", label: "Identity" },
-  { id: "events", label: "Events" },
-  { id: "story", label: "Chronicle" },
-  { id: "technical", label: "Technical" },
-];
-
 /**
  * Public band panel: roster + selected-band detail shell. Detail content is
  * split across `src/ui/band/*`; this file owns selection wiring and tab state
@@ -295,16 +251,6 @@ function BandDetails({
               onNavigateTab={setDetailView}
               onOpenChronicle={openChroniclePage}
             />
-            <BandMarkdownExport
-              band={band}
-              world={world}
-              currentTile={currentTile}
-              latestDecision={latestDecision}
-              selectedActivityTripId={selectedActivityTripId}
-              season={season}
-              currentTick={currentTick}
-              stepMode={stepMode}
-            />
           </>
         ) : null}
         {detailView === "doing" ? (
@@ -358,12 +304,24 @@ function BandDetails({
           />
         ) : null}
         {detailView === "technical" ? (
-          <Technical
-            band={band}
-            world={world}
-            currentTile={currentTile}
-            latestDecision={latestDecision}
-          />
+          <>
+            <BandMarkdownExport
+              band={band}
+              world={world}
+              currentTile={currentTile}
+              latestDecision={latestDecision}
+              selectedActivityTripId={selectedActivityTripId}
+              season={season}
+              currentTick={currentTick}
+              stepMode={stepMode}
+            />
+            <Technical
+              band={band}
+              world={world}
+              currentTile={currentTile}
+              latestDecision={latestDecision}
+            />
+          </>
         ) : null}
       </div>
     </>

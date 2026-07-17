@@ -26,58 +26,15 @@ import { IdeasSolutions } from "./IdeasSolutions";
 import { ProblemsAndTrials } from "./ProblemsAndTrials";
 import { Survival } from "./Survival";
 import { Technical } from "./Technical";
+import { BAND_DETAIL_VIEWS } from "./views";
+import type { BandDetailView } from "./views";
 
-// Keep this list and its ids/labels aligned with BAND_DETAIL_VIEWS in
-// BandPanel.tsx so the exported .md mirrors exactly the tabs a player sees.
-type ExportSectionId =
-  | "overview"
-  | "doing"
-  | "survival"
-  | "food"
-  | "nature"
-  | "place"
-  | "camp"
-  | "movementCamp"
-  | "people"
-  | "affordances"
-  | "problems"
-  | "feedback"
-  | "between"
-  | "ideas"
-  | "knowledge"
-  | "identity"
-  | "events"
-  | "story"
-  | "technical";
-
-const EXPORT_SECTIONS: readonly {
-  readonly id: ExportSectionId;
-  readonly label: string;
-}[] = [
-  { id: "overview", label: "Overview" },
-  { id: "doing", label: "Doing" },
-  { id: "survival", label: "Survival" },
-  { id: "food", label: "Food" },
-  { id: "nature", label: "Nature" },
-  { id: "place", label: "Place" },
-  { id: "camp", label: "Camp & Footholds" },
-  { id: "movementCamp", label: "Movement & Camp" },
-  { id: "people", label: "People" },
-  { id: "affordances", label: "Affordances" },
-  { id: "problems", label: "Problems & Trials" },
-  { id: "feedback", label: "Practice Feedback" },
-  { id: "between", label: "Between Bands" },
-  { id: "ideas", label: "Ideas & Solutions" },
-  { id: "knowledge", label: "Knowledge" },
-  { id: "identity", label: "Identity" },
-  { id: "events", label: "Events" },
-  { id: "story", label: "Chronicle" },
-  { id: "technical", label: "Technical" },
-];
+type ExportSectionId = BandDetailView;
+const EXPORT_SECTIONS = BAND_DETAIL_VIEWS;
 
 const DEFAULT_SECTION_IDS: readonly ExportSectionId[] = EXPORT_SECTIONS.map((section) => section.id);
 
-const EXPORT_BLOCK_SELECTOR = ".band-headline, .bp-section, .cause-card, .bp-activity";
+const EXPORT_BLOCK_SELECTOR = ".band-headline, .bp-section, .cause-card, .bp-activity, .collapsible";
 const TEXT_BLOCK_SELECTOR = [
   "h3",
   "p",
@@ -112,11 +69,11 @@ const TEXT_BLOCK_SELECTOR = [
   ".talk-panel-meta",
   ".talk-panel-title",
   ".timeline-item",
+  ".tile-detail-row",
   ".trip-talk-line",
 ].join(",");
 
 const SKIP_TEXT_SELECTOR = [
-  "details",
   "input",
   "script",
   "style",
@@ -506,6 +463,23 @@ function buildMarkdownFromExportSource({
 
     lines.push(`## ${label}`, "");
 
+    // Expanding every Technical group at once mounts dozens of expensive
+    // projections and can exhaust the browser. Keep the on-screen tree lazy,
+    // export its complete A-Z group index, and serialize the authoritative raw
+    // band state directly instead.
+    if (tabNode.dataset.exportView === "technical") {
+      const groupTitles = Array.from(
+        tabNode.querySelectorAll<HTMLElement>(".collapsible > summary"),
+      ).map((summary) => readElementText(summary));
+
+      lines.push("### Technical groups (A-Z)", "");
+      for (const groupTitle of groupTitles) {
+        lines.push(`- ${groupTitle}`);
+      }
+      lines.push("", "### Raw band state", "", "```json", JSON.stringify(band, null, 2), "```", "");
+      continue;
+    }
+
     const blockNodes = Array.from(tabNode.querySelectorAll<HTMLElement>(EXPORT_BLOCK_SELECTOR)).filter(
       (node) => node.parentElement?.closest(EXPORT_BLOCK_SELECTOR) === null,
     );
@@ -549,6 +523,10 @@ function buildMarkdownFromExportSource({
 }
 
 function headingForBlock(block: HTMLElement): string | undefined {
+  if (block.classList.contains("collapsible")) {
+    return readElementText(block.querySelector<HTMLElement>(":scope > summary"));
+  }
+
   if (block.classList.contains("band-headline")) {
     return "Current headline";
   }

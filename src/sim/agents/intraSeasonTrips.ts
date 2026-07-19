@@ -2843,6 +2843,21 @@ export function selectExpeditionTripCandidate(
     return undefined;
   }
 
+  // ECOLOGY-VIABILITY-CORRECTION-1 — this selector's ONLY production consumer is the
+  // expedition retrieval family (expedition.ts `retrieval`), which launches the party as
+  // `distant_plant_gathering` and hard-codes the cause to "food_resource_check". But
+  // `getTripCause` also yields non-food causes ("water_check" for water_resource,
+  // "plant_followup_test" for any observed class, "memory_refresh" for any stale memory),
+  // so a water or material memory could be sent out as a food-gathering expedition. Such a
+  // party cannot take food: the physically-at-target bypass below is food-class-only, so
+  // the belief gates zero the return kind, `activityEligible` is false, and the trip
+  // terminates `harvest_failed` having never queried a stock. Measured on a marginal-site
+  // founder: 86 of 115 gathering attempts ended `harvest_failed` and 0 food units were
+  // ever delivered. A gathering party must target food the band remembers as food.
+  if (!isFoodClass(candidate.memory.resourceClassId)) {
+    return undefined;
+  }
+
   return {
     memory: candidate.memory,
     targetTileId: candidate.targetTileId,

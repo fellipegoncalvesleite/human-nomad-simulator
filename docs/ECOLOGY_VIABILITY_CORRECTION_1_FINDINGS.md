@@ -155,3 +155,90 @@ zero-yield stamp), and must not become a free-knowledge shortcut.
 with 11 adults that is 3. Information tasks hard-code workers: 2 (:1110,:1119,:1128).
 Carry ceiling 2*0.12=0.24 units was NOT binding — rich delivered ~0.035/successful trip,
 ~1/7 of ceiling. The take at the target was the binding constraint, not carrying.
+
+# CORRECTION-2 — Defect A validation (COMPLETE) + Defect B seam (DESIGNED, NOT BUILT)
+
+## DEFECT A FIX: VALIDATED. All five §2 proofs pass.
+Same harness, same sites (verified identical), map2, 100y, isolated 22-person founder.
+
+| metric | rich before/after | ordinary before/after | marginal before/after |
+|---|---|---|---|
+| distant_plant_gathering | 30 / 30 | 0 / 0 | 115 / **3** |
+| distant_patch_verification | 4 / 4 | 50 / 50 | 27 / 24 |
+| route_reconnaissance | 8 / 8 | 0 / 0 | 4 / 0 |
+| harvest_failed | 0 / 0 | 0 / 0 | 86 / **0** |
+| target_absent | 0 / 0 | 0 / 0 | 29 / **0** |
+| physically_exhausted | 12 / 12 | 0 / 0 | 0 / **3** |
+| physicalReceipts | 3772 / 3772 | 240 / 240 | 46 / 59 |
+| receiptUnits | 132.8185 / 132.8185 | 5.1142 / 5.1142 | 0.6753 / **0.5861** |
+| final | 23 fragile / 23 fragile | extinct / extinct | extinct / extinct |
+
+Proofs:
+- REMOVES INVALID ATTEMPTS: marginal gathering 115->3; harvest_failed 86->0;
+  target_absent 29->0. The 3 surviving gathering launches are real food targets and
+  return the honest physical outcome `physically_exhausted`.
+- HIDES NO LEGITIMATE FOOD TARGET: rich is BYTE-IDENTICAL on every metric incl.
+  receiptUnits to 4dp. This is the negative control.
+- CREATES NO FOOD: marginal receiptUnits went DOWN (0.6753 -> 0.5861, -13%); rich
+  unchanged. No case gained food.
+- EXPOSES NO UNKNOWN RESOURCE: the filter only rejects candidates; it reads
+  `memory.resourceClassId`, which is already band-known. No knowledge path touched.
+- DOES NOT CONVERT VERIFICATION/RECON INTO GATHERING: verification 27->24,
+  reconnaissance 4->0, both DOWN. Total marginal expeditions 146->27: the band stops
+  burning party-days on impossible work rather than redirecting it into information.
+- All 11 pre-existing audit checks still PASS; audit verdict PASS before and after.
+
+Interpretation: Defect A was real and is fixed, but it was NOT the ordinary-habitat
+cause. Ordinary is byte-identical before/after because gathering was never ELIGIBLE
+there — confirming Defect B is the sole remaining blocker for ordinary viability.
+Marginal correctly remains non-viable (acceptance envelope wants that).
+
+## DEFECT B — exact seam located, fix designed, NOT implemented
+Confirmed live: ordinary still runs 50/50 `distant_patch_verification`,
+100% `returned_information_only`, 0 food units, extinct.
+
+What ALREADY exists and is correct (do not rebuild):
+`expedition.ts:590-598` already derives a real physical `ExpeditionObservation` with
+three distinct kinds at confidence 0.85:
+  - `target_absent`    when `harvest.physicalSourceFound !== true`
+  - `target_depleted`  when `harvest.physicalAvailability <= 0.001`
+  - `target_confirmed` otherwise
+This is exactly the §4.1 taxonomy (present / absent / depleted) already computed from
+physical presence, and it is carried home in `carriedObservations`.
+
+THE DEFECT — expedition.ts:1326 + 1361-1377:
+On physical return the code applies `pendingKnowledgeRecord` (the raw verifyOnly harvest
+record) through `applyActivityOutcomeToMemoryForWorld`, i.e. THE SAME WRITER A FAILED
+HARVEST USES (intraSeasonTrips.ts:1795 -> applyActivityOutcomeToMemory, keyed on the
+record's outcome/yield). Because `verifyOnly: true` forces `activityEligible = false`
+(intraSeasonTrips.ts:320), that record carries usableSupport 0 and failureReason
+"activity_failed". So a verification that PHYSICALLY CONFIRMED the resource is present
+writes a zero-yield/failed-harvest result into the very memory it was sent to confirm.
+The already-correct `ExpeditionObservation` is carried home and NEVER used to update
+resource memory — only the failure-shaped record is. That is the self-sealing loop.
+
+DESIGNED FIX (smallest correct change, §4/§5 compliant):
+Route a verification return through observation semantics instead of harvest semantics.
+At expedition.ts:1361-1377, when the completed expedition's taskKind is
+`distant_patch_verification`, do NOT feed `pendingKnowledgeRecord` to
+`applyActivityOutcomeToMemoryForWorld`. Instead apply a verification-specific update
+derived from the carried `ExpeditionObservation`:
+  - target_confirmed  -> refresh presence confidence + recency/staleness; leave
+                         yieldConfidence UNCHANGED (presence observed, yield was not
+                         attempted, so yield evidence must not move in either direction)
+  - target_depleted   -> keep presence; mark currently unproductive; reduce expected
+                         value modestly. MUST stay distinct from absent.
+  - target_absent     -> reduce presence confidence.
+  - route/endpoint failure (party never reached the patch) -> apply NOTHING.
+Add `seasonally_inactive` only if a physical seasonal-availability signal is already
+available at the observation site; otherwise leave it for later rather than inventing it.
+GUARDS: must not create food, must not reveal exact stock (confidence stays bounded at
+0.85, never 1.0), must not skip travel/return latency (the update still happens only on
+`phase === "completed"`), and must not auto-guarantee a later gathering success.
+ACCEPTANCE: after the fix, the ordinary founder must show
+`distant_plant_gathering > 0` (the loop opens) with rich still byte-identical.
+
+RISK NOTE: this edits resource-knowledge semantics, which is anti-omniscience-critical.
+It needs the resource-anti-omniscience audit plus a negative test proving a confirmed
+verification does NOT raise yieldConfidence. Deferred deliberately rather than shipped
+half-validated.

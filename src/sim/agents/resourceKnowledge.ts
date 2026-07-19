@@ -770,6 +770,69 @@ export interface ResourceInheritanceContext {
 
 // Pure, deterministic. Returns the daughter's INITIAL resource knowledge — never the
 // parent's container by reference, never a full copy.
+// ECOLOGY-VIABILITY-CORRECTION-3 (Defect B) — returned verification evidence.
+//
+// A verification party physically stands at ONE remembered patch and looks without
+// taking. Previously its return was applied through the activity-memory writer, i.e.
+// the SAME path a failed harvest uses: because `verifyOnly` forces
+// `activityEligible = false`, the carried record reads usableSupport 0 /
+// "activity_failed", so a verification that physically CONFIRMED the resource wrote a
+// failed-harvest result into the very memory it was sent to confirm. Confidence could
+// never rise to gathering eligibility, so verification repeated forever and distant
+// gathering never became reachable (measured: ordinary founder, 50 of 50 expeditions
+// verification, 0 food units, extinct by y80).
+//
+// This writer applies ONLY what physical presence at that one patch can establish, and
+// deliberately does NOT touch the other patches or classes on the tile (that would be a
+// general tile observation the party did not make).
+//
+// Anti-omniscience guards, all load-bearing:
+//   - presence confidence is raised only TOWARD the observation's own bounded
+//     confidence and never to certainty (one visit is one visit);
+//   - `target_confirmed` leaves yieldConfidence UNCHANGED — presence was observed, yield
+//     was never attempted, so yield evidence must not move in either direction;
+//   - `target_depleted` is the one case that legitimately carries yield evidence,
+//     because physical availability was directly observed at ~0. It keeps presence
+//     (the patch IS there) and stays distinct from absence;
+//   - exact stock is never copied into memory; only the bounded observation kind.
+export type VerificationObservationKind = "target_confirmed" | "target_depleted" | "target_absent";
+
+export function applyVerificationObservationToMemory(
+  memory: ResourcePatchMemory,
+  kind: VerificationObservationKind,
+  observedConfidence: number,
+  tick: TickNumber,
+): ResourcePatchMemory {
+  const observed = round2(clamp01(observedConfidence));
+  const presence = memory.confidence.presenceConfidence;
+  const yieldConf = memory.confidence.yieldConfidence;
+
+  const nextPresence =
+    kind === "target_absent"
+      ? round2(clamp01(presence * 0.5))
+      : round2(clamp01(Math.max(presence, observed)));
+
+  // Only a directly observed empty patch is yield evidence.
+  const nextYield = kind === "target_depleted" ? round2(clamp01(yieldConf * 0.6)) : yieldConf;
+
+  return {
+    ...memory,
+    confidence: {
+      ...memory.confidence,
+      presenceConfidence: nextPresence,
+      yieldConfidence: nextYield,
+    },
+    // Physical presence refreshes recency for every reached outcome, including absence:
+    // the band now knows something current about this patch either way. This is what
+    // breaks the loop — staleness no longer re-triggers the same verification forever.
+    lastNotedTick: tick,
+    reasonIds: [
+      ...memory.reasonIds.slice(-3),
+      `reason:verification-return:${kind}:${Number(tick)}` as ReasonId,
+    ],
+  };
+}
+
 export function inheritResourceKnowledgeForDaughter(
   parentState: ResourceKnowledgeState | undefined,
   context: ResourceInheritanceContext,

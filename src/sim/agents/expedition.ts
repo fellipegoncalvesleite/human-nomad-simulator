@@ -43,7 +43,12 @@ import {
   resolveExpeditionTargetWork,
   selectExpeditionTripCandidate,
 } from "./intraSeasonTrips";
-import { effectiveResourceConfidence, type ResourcePatchMemory } from "./resourceKnowledge";
+import {
+  applyVerificationObservationToMemory,
+  effectiveResourceConfidence,
+  type ResourcePatchMemory,
+  type VerificationObservationKind,
+} from "./resourceKnowledge";
 import { observeTileAndNearby } from "./tileObservation";
 import {
   SIGNAL_ATTEMPT_CAP,
@@ -1234,7 +1239,11 @@ function applyExpeditionDay(world: WorldState, day: DayNumber): WorldState {
     // §11 — knowledge PHYSICALLY carried home by parties that completed their return
     // today. It is applied below, once, through the canonical writers. Lost parties
     // apply nothing: their observations never came home.
-    const returnedKnowledgeRecords: { readonly record: IntraSeasonTripRecord; readonly targetPatchId: string }[] = [];
+    const returnedKnowledgeRecords: {
+      readonly record: IntraSeasonTripRecord;
+      readonly targetPatchId: string;
+      readonly verificationObservation?: ExpeditionObservation & { readonly kind: VerificationObservationKind };
+    }[] = [];
     const returnedReconRouteTiles: TileId[] = [];
     // §13 — smoke the residential camp physically received today (bounded meaning only).
     const receivedSignalsToday: ReceivedSmokeSignal[] = [];
@@ -1326,9 +1335,27 @@ function applyExpeditionDay(world: WorldState, day: DayNumber): WorldState {
           const knowledgeRecord = result.expedition.pendingReturnRecord ?? result.expedition.pendingKnowledgeRecord;
 
           if (knowledgeRecord !== undefined) {
+            // CORRECTION-3 (Defect B) — a verification party looked without taking, so its
+            // record is zero-yield BY CONSTRUCTION and must not be read as a failed
+            // harvest. Carry the physical observation it actually made about its own
+            // target instead; the applier below routes on this.
+            const verificationObservation =
+              result.expedition.taskKind === "distant_patch_verification"
+                ? result.expedition.carriedObservations.find(
+                    (observation): observation is ExpeditionObservation & {
+                      readonly kind: VerificationObservationKind;
+                    } =>
+                      observation.tileId === result.expedition.targetTileId &&
+                      (observation.kind === "target_confirmed" ||
+                        observation.kind === "target_depleted" ||
+                        observation.kind === "target_absent"),
+                  )
+                : undefined;
+
             returnedKnowledgeRecords.push({
               record: knowledgeRecord,
               targetPatchId: result.expedition.targetPatchId,
+              ...(verificationObservation === undefined ? {} : { verificationObservation }),
             });
           }
 
@@ -1366,6 +1393,28 @@ function applyExpeditionDay(world: WorldState, day: DayNumber): WorldState {
       );
 
       if (targetMemory === undefined) {
+        continue;
+      }
+
+      // CORRECTION-3 (Defect B) — verification returns go through the observation writer,
+      // NOT the activity/harvest writer. A party that never physically reached its patch
+      // carries no observation for that tile and therefore updates nothing here.
+      if (returned.verificationObservation !== undefined) {
+        const updated = applyVerificationObservationToMemory(
+          targetMemory,
+          returned.verificationObservation.kind,
+          returned.verificationObservation.confidence,
+          currentWorld.time.tick,
+        );
+        resourceKnowledgeState =
+          resourceKnowledgeState === undefined
+            ? resourceKnowledgeState
+            : {
+                ...resourceKnowledgeState,
+                patchMemories: resourceKnowledgeState.patchMemories.map((memory) =>
+                  memory.patchId === targetMemory.patchId ? updated : memory,
+                ),
+              };
         continue;
       }
 

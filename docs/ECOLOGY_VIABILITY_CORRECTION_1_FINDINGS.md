@@ -242,3 +242,58 @@ RISK NOTE: this edits resource-knowledge semantics, which is anti-omniscience-cr
 It needs the resource-anti-omniscience audit plus a negative test proving a confirmed
 verification does NOT raise yieldConfidence. Deferred deliberately rather than shipped
 half-validated.
+
+# CORRECTION-3 — Defect B fix IMPLEMENTED. Large effect, primary acceptance target MISSED.
+
+Implementation: `applyVerificationObservationToMemory` (resourceKnowledge.ts) + routing in
+expedition.ts so a completed `distant_patch_verification` applies its carried physical
+observation through the OBSERVATION writer instead of the activity/harvest writer.
+Anti-omniscience audit `scripts/verificationKnowledgeAudit.mjs`: PASS, 12/12.
+  confirmed: presence 0.40->0.85, yield 0.35 UNCHANGED
+  depleted:  presence kept 0.85, yield 0.35->0.21
+  absent:    presence 0.40->0.20, yield unchanged
+Determinism: deterministic=true. All 11 pre-existing habitat checks still PASS.
+
+## Measured (map2, 100y, identical sites; A = post-Defect-A, B = post-Defect-B)
+| metric | rich A/B | ordinary A/B | marginal A/B |
+|---|---|---|---|
+| physicalReceipts | 3772 / 3799 | 240 / **413 (+72%)** | 59 / **257 (+336%)** |
+| receiptUnits | 132.82 / 134.92 | 5.11 / **8.29 (+62%)** | 0.586 / **3.469 (+492%)** |
+| distant_plant_gathering | 30 / **79** | 0 / **0** | 3 / 7 |
+| distant_patch_verification | 4 / 5 | 50 / **38** | 24 / 31 |
+| returned_with_cargo | 18 / 32 | 0 / 0 | 0 / **1** |
+| expeditionDeliveredUnits | 0.625 / 0.867 | 0 / 0 | 0 / 0.0168 |
+| final | 23 fragile / **22 fragile** | extinct / extinct | extinct / extinct |
+
+## Interpretation — honest
+WORKED: the self-sealing loop is broken. Ordinary repeat verifications fell 50->38, and
+food rose sharply in BOTH failing habitats. Marginal delivered its first-ever expedition
+cargo. Rich distant gathering more than doubled (30->79).
+
+WHERE THE GAIN ACTUALLY CAME FROM: the large receipt jumps are mostly on the SAME-DAY
+trip path, not the expedition path. Refreshed presence confidence + recency (lastNotedTick)
+makes nearby remembered food eligible for ordinary daily trips again. That is a legitimate
+consequence of repairing knowledge, but it is not what the acceptance criterion targeted.
+
+FAILED — the stated acceptance criterion: "ordinary must show distant_plant_gathering > 0".
+It is still exactly 0. The knowledge write is fixed, but ordinary distant gathering is
+still blocked upstream in the RETRIEVAL CANDIDATE gates, not in the knowledge write:
+`getTripCause` + `wasRecentlyVisited` 12-day suppression (vs 6-day launch cadence, and the
+expedition re-dates its own return record to the return day) + the distance>=5-tile band.
+That is the next thing to fix, and it is a different seam from Defect B.
+
+STILL FAILING THE ENVELOPE: ordinary and marginal both still go extinct within 100y.
+Ordinary food rose 62% but remains far under break-even (~0.1875 units/season needed;
+8.29 units over ~320 seasons is ~0.026/season).
+
+MILD REGRESSION TO WATCH: rich ended 22 rather than 23, with far more expeditions
+(30->79 gathering, physically_exhausted 12->38, target_absent 0->9). More confident
+memory means more distant attempts, and on rich ground that effort is not clearly
+repaid. Not conclusive at n=1 seed; needs the multi-seed matrix.
+NOTE: rich is deliberately NOT byte-identical here. Byte-identity was the Defect A
+criterion (a filter must hide nothing). For Defect B, changed rich behavior is the
+expected consequence of verification knowledge finally working.
+
+NEXT (CORRECTION-4): open the ordinary retrieval-candidate gates above; then re-run the
+bounded viability matrix (7 cases x 25/50/100y, multi-seed on good/ordinary) and the
+adaptation-latency reassessment, both still outstanding.

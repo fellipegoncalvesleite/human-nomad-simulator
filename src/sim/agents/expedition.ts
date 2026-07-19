@@ -869,6 +869,145 @@ const INFORMATION_TASK_SUPPRESSION_TICKS = 8;
 /** Remembered value below which verification walking is not worth the labor (§10 EV gate). */
 const VERIFICATION_MIN_REMEMBERED_VALUE = 0.3;
 
+// ── CORRECTION-5 — expedition value control ────────────────────────────────────────
+//
+// CORRECTION-4 opened the retrieval chain but launched distant gathering on every
+// cadence day that any multi-day food memory existed. Measured cost: a rich founder ran
+// 1326 gathering expeditions, 822 of them into already-exhausted stock, and the labour
+// came straight out of productive local work — its same-day receipts fell 3799→3055 and
+// total food fell 134.92→92.20 (-32%). Distance was reachable; it simply was not WORTH
+// reaching.
+//
+// The gate below is an expected-net-value test computed ENTIRELY from band-known
+// evidence — remembered yield, remembered depletion, decayed confidence, the band's own
+// recent local trip returns, and its own expedition outcomes. It never reads a stock.
+//
+// Need changes WILLINGNESS and priority only: a hungry band accepts a thin margin, a
+// well-fed band demands a clear surplus. Need never changes stamina, carry capacity,
+// party size, travel speed, or yield.
+const RETRIEVAL_EXHAUSTED_COOLDOWN_TICKS = 12;
+/** Same-day food trips fire on this cadence, so one trip's yield spreads over 3 days. */
+const LOCAL_TRIP_CADENCE_DAYS = 3;
+/**
+ * Floor on what a day of committed party labour is worth, in harvest units. Keeps an
+ * expedition from reading as free when the band's recent local trips happened to return
+ * nothing. Well under a typical successful trip (~0.15), so it never blocks a genuinely
+ * good prospect — it only stops long walks toward weak ones.
+ */
+const MIN_COMMITTED_LABOUR_VALUE_PER_DAY = 0.025;
+
+/** The band's own recent same-day food return per day — its opportunity cost baseline. */
+function deriveRecentLocalYieldPerDay(band: Band): number {
+  const trips = (band.recentIntraSeasonTrips ?? []).filter(
+    (trip) => trip.inspectionOnly !== true && (trip.physicalFoodHarvest?.usableSupport ?? 0) > 0,
+  );
+
+  if (trips.length === 0) {
+    return 0;
+  }
+
+  const total = trips.reduce((sum, trip) => sum + (trip.physicalFoodHarvest?.usableSupport ?? 0), 0);
+  return total / trips.length / LOCAL_TRIP_CADENCE_DAYS;
+}
+
+/**
+ * The band's OWN recent experience that this target had nothing to give. Not a stock
+ * read: it is the party's returned outcome. Re-walking to a place that just came back
+ * empty is the thrashing CORRECTION-4 produced.
+ */
+function wasTargetRecentlyEmpty(band: Band, targetTileId: TileId, currentTick: number): boolean {
+  return (band.recentExpeditionOutcomes ?? []).some(
+    (outcome) =>
+      outcome.targetTileId === targetTileId &&
+      currentTick - Number(outcome.tick) <= RETRIEVAL_EXHAUSTED_COOLDOWN_TICKS &&
+      outcome.deliveredHarvestUnits <= 0 &&
+      (outcome.outcomeReason === "physically_exhausted" ||
+        outcome.outcomeReason === "target_absent" ||
+        outcome.outcomeReason === "seasonally_inactive"),
+  );
+}
+
+// CORRECTION-5 audit seam. Read-only; exposes the band-known value test so the
+// willingness/stamina distinction and the anti-omniscience guarantee can be proven
+// without a world. Mirrors the other *ForAudit helpers.
+export function isDistantRetrievalWorthwhileForAudit(
+  band: Band,
+  retrieval: { readonly memory: ResourcePatchMemory; readonly targetTileId: TileId; readonly distanceTiles: number },
+  foodStress: number,
+  workers: number,
+  currentTick: number,
+): boolean {
+  return isDistantRetrievalWorthwhile(
+    band,
+    retrieval,
+    effectiveResourceConfidence(retrieval.memory, currentTick),
+    foodStress,
+    workers,
+    currentTick,
+  );
+}
+
+function isDistantRetrievalWorthwhile(
+  band: Band,
+  retrieval: { readonly memory: ResourcePatchMemory; readonly targetTileId: TileId; readonly distanceTiles: number },
+  evidence: ReturnType<typeof effectiveResourceConfidence>,
+  foodStress: number,
+  workers: number,
+  currentTick: number,
+): boolean {
+  if (wasTargetRecentlyEmpty(band, retrieval.targetTileId, currentTick)) {
+    return false;
+  }
+
+  const history = retrieval.memory.useHistory;
+  // Remembered value, degraded by remembered depletion and by decayed confidence.
+  const rememberedUnits =
+    Math.max(0, Math.min(1, history.lastYieldEstimate)) *
+    evidence.effectivePresenceConfidence *
+    evidence.effectiveYieldConfidence *
+    Math.max(0, 1 - Math.max(0, Math.min(1, history.depletionMemory)));
+
+  // A patch memory records what the PLACE seemed to hold, not what a small party can
+  // actually walk home with. Measured: an ordinary founder's remembered value ran ~0.2
+  // while its expeditions delivered 0.011 each — a ~20x overestimate that kept it
+  // committing scarce workers to trips that never repaid them. Two physical corrections,
+  // both band-known:
+  //  1. a party cannot deliver more than it can carry;
+  //  2. the band's OWN returned expeditions are evidence about what distant work yields
+  //     here. If its parties keep coming home near-empty it should stop believing the
+  //     patch estimate. This is realized-outcome feedback, not a stock read.
+  const carryCeiling = deriveCarryCapacityUnits(band, workers, 0, currentTick);
+  const delivered = (band.recentExpeditionOutcomes ?? []).filter(
+    (outcome) => outcome.taskKind === "distant_plant_gathering",
+  );
+  const realizedMean =
+    delivered.length === 0
+      ? undefined
+      : delivered.reduce((sum, outcome) => sum + Math.max(0, outcome.deliveredHarvestUnits), 0) / delivered.length;
+  const expectedUnits =
+    realizedMean === undefined
+      ? Math.min(rememberedUnits, carryCeiling)
+      : Math.min(rememberedUnits, carryCeiling, Math.max(realizedMean, rememberedUnits * 0.25));
+
+  const travelDays = deriveTripDurationDays(retrieval.distanceTiles);
+  const totalDays = travelDays + 1;
+  const provisionUnits = workers * totalDays * EXPEDITION_PROVISION_UNITS_PER_WORKER_DAY;
+  // Provisions alone are far too small to represent what an expedition really costs
+  // (EXPEDITION_PROVISION_UNITS_PER_WORKER_DAY is 0.0008). The dominant cost is the
+  // COMMITTED LABOUR: workers away for `totalDays` are not foraging near camp, and the
+  // band cannot recall them. Valuing that at the band's own recent local return alone
+  // makes the labour look free exactly when the band has been unlucky locally, which is
+  // when it is least able to afford a wasted walk — so it is floored. This is what makes
+  // distance and duration bite, and it is still entirely band-known.
+  const labourValuePerDay = Math.max(deriveRecentLocalYieldPerDay(band), MIN_COMMITTED_LABOUR_VALUE_PER_DAY);
+  const opportunityUnits = labourValuePerDay * totalDays;
+  // Hungry → margin 1.0 (break-even is enough to try). Well fed → margin 2.5 (only a
+  // clearly better prospect than staying home is worth the walk).
+  const requiredMargin = 1 + (1 - Math.max(0, Math.min(1, foodStress))) * 1.5;
+
+  return expectedUnits > (provisionUnits + opportunityUnits) * requiredMargin;
+}
+
 function wasTargetRecentlyConcluded(band: Band, targetTileId: TileId, currentTick: number): boolean {
   return (band.recentExpeditionOutcomes ?? []).some(
     (outcome) =>
@@ -1085,15 +1224,23 @@ function maybeLaunchExpedition(world: WorldState, band: Band, day: DayNumber): B
     retrievalEvidenceDegraded &&
     foodStress < 0.35 &&
     !wasTargetRecentlyConcluded(band, retrieval.targetTileId, currentTick);
-  const verification =
-    retrieval === undefined ? selectVerificationCandidate(world, band, currentTick) : undefined;
+  // CORRECTION-5 — a reachable target is not automatically a worthwhile one.
+  const retrievalWorthwhile =
+    retrieval !== undefined &&
+    retrievalEvidence !== undefined &&
+    isDistantRetrievalWorthwhile(band, retrieval, retrievalEvidence, foodStress, partyWorkers, currentTick);
+
+  // A retrieval target rejected on VALUE leaves the band free to do something useful
+  // instead, exactly as if it had no retrieval candidate at all.
+  const noUsefulRetrieval = retrieval === undefined || !retrievalWorthwhile;
+  const verification = noUsefulRetrieval ? selectVerificationCandidate(world, band, currentTick) : undefined;
   const reconnaissance =
-    retrieval === undefined && verification === undefined
+    noUsefulRetrieval && verification === undefined
       ? selectReconnaissanceCandidate(world, band, currentTick)
       : undefined;
 
   const chosen =
-    retrieval !== undefined && !verifyBeforeRetrieving && !(retrievalEvidenceDegraded && foodStress < 0.35)
+    retrieval !== undefined && retrievalWorthwhile && !verifyBeforeRetrieving && !(retrievalEvidenceDegraded && foodStress < 0.35)
       ? {
           taskKind: "distant_plant_gathering" as ExpeditionTaskKind,
           targetTileId: retrieval.targetTileId,

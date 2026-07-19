@@ -356,3 +356,76 @@ physically_exhausted rather than re-launching at them.
 
 Determinism: NOT re-verified after this change. Full regression, viability matrix,
 adaptation reassessment, docs and push all still outstanding.
+
+# CORRECTION-5 — expedition value control. Rich regression FIXED. Marginal still regressed.
+
+## Implemented (expedition.ts only; +129 lines, no other sim file touched)
+`isDistantRetrievalWorthwhile` gates the retrieval family on band-known expected net value:
+  expectedUnits  = remembered lastYieldEstimate x effectivePresence x effectiveYield
+                   x (1 - depletionMemory)
+                   capped by deriveCarryCapacityUnits(workers)      [cannot deliver more
+                                                                     than it can carry]
+                   calibrated by the band's OWN mean delivered units over its recent
+                   distant_plant_gathering outcomes, floored at 25% of the remembered
+                   estimate                                        [realized-outcome
+                                                                     feedback, not a stock read]
+  costUnits      = provisions + committed-labour value x totalDays
+                   labour/day = max(band's own recent local yield/day,
+                                    MIN_COMMITTED_LABOUR_VALUE_PER_DAY = 0.025)
+  requiredMargin = 1 + (1 - foodStress) x 1.5     [hungry -> 1.0, well fed -> 2.5]
+Plus `wasTargetRecentlyEmpty`: a target the band's OWN party just found exhausted /
+absent / seasonally inactive is not re-walked for 12 ticks.
+A target rejected on VALUE frees the slot for verification or reconnaissance.
+Every input is band-known. No stock is read. Need changes willingness only -- never
+stamina, party size, carry capacity, travel speed or yield.
+
+Why the labour floor exists: provisions are 0.0008/worker/day, far too small to price an
+expedition. The real cost is committed workers. Valuing that purely at recent local yield
+makes the walk look FREE exactly when the band has been unlucky locally -- when it can
+least afford a wasted trip. Hence the floor.
+
+## Audit: scripts/expeditionValueGateAudit.mjs PASS 8/8
+richComfortableDeclines, ordinaryHungryAccepts, needChangesWillingness,
+localOpportunityCostCounts, emptyTargetCooldownHolds, cooldownExpires,
+rememberedDepletionCounts, nearerTargetPreferred.
+Determinism: deterministic=true. All 11 habitat checks PASS.
+Verification-knowledge audit (CORRECTION-3) still PASS 12/12.
+Sim purity: no Math.random, no `any`, no ui/render imports.
+
+## Measured (map2, 100y, identical sites)
+| metric | corr-3 | corr-4 | corr-5c | corr-5d (final) |
+|---|---|---|---|---|
+| rich units | 134.92 | 92.20 | 128.61 | **134.02** |
+| rich gathering launches | 79 | 1326 | 186 | **15** |
+| rich physically_exhausted | 38 | 822 | 69 | **6** |
+| rich final pop | 22 | 21 | 22 | **23** |
+| ordinary units | 8.29 | 6.41 | 4.91 | 6.23 |
+| ordinary extinction | y80 | y90 | y80 | y90 |
+| marginal units | 3.47 | 1.35 | 0.72 | 0.72 |
+
+RICH: the CORRECTION-4 regression is fully reversed and slightly bettered -- thrashing
+collapsed (1326 -> 15 launches, 822 -> 6 exhausted), local foraging restored
+(3055 -> 3759 receipts), and the founder reached population 23. §7 satisfied.
+
+## STILL FAILING
+ORDINARY: 6.23 units vs corr-3's 8.29. Extinct y90.
+MARGINAL: 0.72 vs corr-3's 3.47 -- a clear, unreversed regression.
+
+## Where the marginal regression came from (traced, not guessed)
+marginal units by checkpoint: 3.47 (corr-3) -> 1.35 (corr-4) -> 0.72 (corr-5).
+The dominant loss is CORRECTION-4, before any value gate existed, and marginal LOCAL
+receipts fell 257 -> 66 (-74%) even though distant gathering only went 7 -> 2. So the
+loss is NOT expedition labour diversion; it is on the SAME-DAY path.
+Leading hypothesis (untested, for CORRECTION-6): CORRECTION-4 made exploitation causes
+IGNORE inspection-only visits in `wasRecentlyVisited`. That correctly stopped a
+verification vetoing the gathering it enabled, but it also removed the rotation pressure
+that suppression provided -- the same-day path can now re-target the same recently
+inspected tile instead of moving on, reducing effective catchment coverage and total
+receipts. Test: count DISTINCT same-day target tiles per season on the marginal founder
+at corr-3 vs corr-5. If distinct targets collapsed, restore rotation WITHOUT restoring
+the gathering veto (e.g. inspection-only visits suppress re-INSPECTION and mildly
+de-prioritise, rather than being ignored entirely).
+
+Outstanding for CORRECTION-6: the above; ordinary break-even; the bounded viability
+matrix (7 cases x 25/50/100y, multi-seed on good/ordinary); adaptation reassessment;
+full regression; docs (HANDOFF/AGENTS/CLAUDE/graph/roadmap); push.

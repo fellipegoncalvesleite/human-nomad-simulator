@@ -201,8 +201,15 @@ export function resolveExpeditionTargetWork(
   // Override the route with the expedition's real, already-walked physical route so
   // `routeReached` reflects where the party is genuinely standing rather than
   // re-deriving a short daily path.
-  const expeditionRecord: IntraSeasonTripRecord = { ...baseRecord, pathTiles: routeTiles };
-  return resolvePhysicalFoodHarvest(world, expeditionRecord, time, faunaGeo, options?.verifyOnly === true);
+  const verifyOnly = options?.verifyOnly === true;
+  const expeditionRecord: IntraSeasonTripRecord = {
+    ...baseRecord,
+    pathTiles: routeTiles,
+    // CORRECTION-4 §4 — mark a look-without-taking visit so recency suppression can tell
+    // inspection from exploitation.
+    ...(verifyOnly ? { inspectionOnly: true } : {}),
+  };
+  return resolvePhysicalFoodHarvest(world, expeditionRecord, time, faunaGeo, verifyOnly);
 }
 
 // EXPEDITIONARY-2 (Slice A): the registry moved to `dailyActionRegistry.ts`. Keeping it
@@ -479,6 +486,16 @@ function selectTripCandidate(
   band: Band,
   day: number,
   maxDistanceTiles: number = MAX_TRIP_DISTANCE_TILES,
+  // CORRECTION-4 — when the caller is the EXPEDITION selector it needs the best
+  // MULTI-DAY candidate, not the global best. Previously the argmax ran over every
+  // distance and near targets always won (their distance penalty is lowest); the
+  // expedition selector then discarded that same-day winner and returned undefined.
+  // A band holding any near food memory could therefore never produce a retrieval
+  // candidate, which is why the ordinary founder launched 0 gathering expeditions
+  // while still running verifications. Restricting the argmax domain — rather than
+  // filtering after it — closes that eligibility gap without a second distance
+  // authority: multi-day-ness is still decided by deriveTripDurationDays.
+  requireMultiDay: boolean = false,
 ): TripCandidate | undefined {
   const seededResourceKnowledgeState =
     (band.resourceKnowledgeState?.patchMemories.length ?? 0) === 0
@@ -513,13 +530,17 @@ function selectTripCandidate(
       continue;
     }
 
+    if (requireMultiDay && deriveTripDurationDays(distanceTiles) <= 1) {
+      continue;
+    }
+
     const cause = getTripCause(band, memory, currentTick);
 
     if (cause === undefined) {
       continue;
     }
 
-    if (wasRecentlyVisited(band, memory.approximateTile, day, getRepeatTargetSuppressionDays(cause))) {
+    if (wasRecentlyVisited(band, memory.approximateTile, day, getRepeatTargetSuppressionDays(cause), isExploitationCause(cause))) {
       continue;
     }
 
@@ -782,10 +803,26 @@ function wasRecentlyVisited(
   targetTileId: TileId,
   day: number,
   suppressionDays: number,
+  // CORRECTION-4 §4 — exploitation causes ignore inspection-only visits. A verification
+  // party physically stood at the patch and refreshed what the band knows, but it took
+  // nothing, so it is not evidence that another visit is pointless. Previously the
+  // expedition deposited its return record re-dated to the RETURN day, re-suppressing its
+  // own target for another 12 days against a 6-day launch cadence — the verification
+  // permanently vetoed the gathering it had just justified. Verification still suppresses
+  // redundant VERIFICATION (that cause keeps counting these records).
+  ignoreInspectionOnly: boolean = false,
 ): boolean {
   return (band.recentIntraSeasonTrips ?? []).some(
-    (trip) => trip.targetTileId === targetTileId && day - Number(trip.day) <= suppressionDays,
+    (trip) =>
+      trip.targetTileId === targetTileId &&
+      day - Number(trip.day) <= suppressionDays &&
+      !(ignoreInspectionOnly && trip.inspectionOnly === true),
   );
+}
+
+// Causes that represent actually working a target, as opposed to inspecting it.
+function isExploitationCause(cause: IntraSeasonTripCause): boolean {
+  return cause === "food_resource_check" || cause === "local_resource_use" || cause === "water_check";
 }
 
 function buildTripRecord(
@@ -2837,7 +2874,7 @@ export function selectExpeditionTripCandidate(
   day: number,
   maxDistanceTiles: number,
 ): { readonly memory: ResourcePatchMemory; readonly targetTileId: TileId; readonly distanceTiles: number } | undefined {
-  const candidate = selectTripCandidate(world, band, day, maxDistanceTiles);
+  const candidate = selectTripCandidate(world, band, day, maxDistanceTiles, true);
 
   if (candidate === undefined || deriveTripDurationDays(candidate.distanceTiles) <= 1) {
     return undefined;

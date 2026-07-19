@@ -297,3 +297,62 @@ expected consequence of verification knowledge finally working.
 NEXT (CORRECTION-4): open the ordinary retrieval-candidate gates above; then re-run the
 bounded viability matrix (7 cases x 25/50/100y, multi-seed on good/ordinary) and the
 adaptation-latency reassessment, both still outstanding.
+
+# CORRECTION-4 — retrieval chain OPENED; exposed a net regression. FAIL -> CORRECTION-5.
+
+## Blockers found and fixed (both real, both correct in isolation)
+1. ARGMAX DOMAIN BUG (intraSeasonTrips.ts selectTripCandidate).
+   selectTripCandidate returned a single GLOBAL argmax over all distances; near targets
+   always win (lowest distance penalty). selectExpeditionTripCandidate then discarded that
+   same-day winner and returned undefined. A band holding ANY near food memory could
+   therefore never yield a retrieval candidate -> ordinary launched 0 gathering
+   expeditions forever. Fix: added `requireMultiDay` so the expedition selector runs its
+   argmax over the multi-day domain instead of filtering after it. No second distance
+   authority: multi-day-ness is still decided by deriveTripDurationDays.
+2. UNTYPED VISIT SUPPRESSION (§4).
+   wasRecentlyVisited counted every visit identically, and the expedition deposits its
+   return record re-dated to the RETURN day, so a verification re-suppressed its own
+   target for 12 more days against a 6-day launch cadence -- the verification permanently
+   vetoed the gathering it justified. Fix: IntraSeasonTripRecord.inspectionOnly marks
+   look-without-taking visits; exploitation causes ignore them, verification still
+   suppresses redundant verification.
+
+## Result: the behavioral gate OPENED
+ordinary distant_plant_gathering 0 -> 274, returned_with_cargo 58,
+expeditionDeliveredUnits 0 -> 0.825, honest terminal outcomes present
+(physically_exhausted 202, cargo_return_failed 4, seasonally_inactive 8).
+PASS-gate items 1, 7 and 8 are met.
+
+## But the NET result is WORSE. This is a regression, not an improvement.
+| metric | B (corr-3) | C4 | delta |
+|---|---|---|---|
+| rich receipts | 3799 | 3055 | -20% |
+| rich receiptUnits | 134.92 | 92.20 | -32% |
+| rich gathering launches | 79 | 1326 | +1578% |
+| rich physically_exhausted | 38 | 822 | massive |
+| rich final pop | 22 | 21 | worse |
+| ordinary receipts | 413 | 266 | -36% |
+| ordinary receiptUnits | 8.29 | 6.41 | -23% |
+| ordinary extinction | y80 | y90 | marginally later |
+| marginal receiptUnits | 3.469 | 1.346 | -61% |
+
+## Diagnosis of the regression (not yet fixed)
+Opening the gate with no value/need test makes distant gathering fire on EVERY 6-day
+cadence whenever any multi-day food memory exists. Rich launches 1326 expeditions and
+822 of them hit already-exhausted stock, spending labour that previously produced
+local receipts -- which is why rich LOCAL receipts fell 3799->3055 and total food fell
+32%. Bands now thrash distant targets instead of working productive nearby ones.
+
+## The missing piece (CORRECTION-5, specified by this prompt's §6/§7)
+There is no expected-net-value or need gate on expedition launch. §6 requires scoring
+  expected harvest - travel - task - provisions - risk - opportunity cost
+from BAND KNOWLEDGE (not hidden stock), and §7 requires that a rich band with adequate
+nearby receipts not spend labour on distant low-value food merely because it now knows
+the target exists. Need must change willingness and priority, never stamina or yield.
+Concretely: gate `retrieval` on (a) local per-capita support below a threshold, and
+(b) remembered expected value net of travel/provisions exceeding the opportunity cost of
+the same workers doing same-day trips; and cool down targets that recently returned
+physically_exhausted rather than re-launching at them.
+
+Determinism: NOT re-verified after this change. Full regression, viability matrix,
+adaptation reassessment, docs and push all still outstanding.

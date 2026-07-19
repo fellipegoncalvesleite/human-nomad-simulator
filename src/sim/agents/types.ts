@@ -821,6 +821,11 @@ export interface IntraSeasonTripRecord {
   readonly activityOutcomeSummary: string;
   readonly resourceReturn: ActivityResourceReturnRecord;
   readonly physicalFoodHarvest?: PhysicalFoodHarvestRecord;
+  // CORRECTION-4 §4 — this visit LOOKED without attempting a take (expedition
+  // verification, `verifyOnly`). It is real physical presence and legitimately refreshes
+  // knowledge, but it is NOT exploitation, so it must not suppress the gathering attempt
+  // it exists to enable. Absent/false on every ordinary trip.
+  readonly inspectionOnly?: boolean;
   // ACTIVITY-GROUPS-10: SHADOW subsistence estimate for this trip (never economy-coupled).
   readonly shadowSubsistence: ActivityShadowReturnRecord;
   // ECO-SEASON-1: realized seasonal ecology the activity observed at its target this

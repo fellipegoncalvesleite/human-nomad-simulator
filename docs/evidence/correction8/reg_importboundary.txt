@@ -1,0 +1,80 @@
+{
+  "check": "IMPORT-BOUNDARY-1",
+  "verdict": "PASS",
+  "checks": {
+    "simDoesNotImportUiRenderStoreWorker": true
+  },
+  "simFileCount": 130,
+  "uiFileCount": 45,
+  "simLayerViolations": [],
+  "uiToDeepSimCoupling": {
+    "distinctSimAgentModulesImportedByUi": 43,
+    "topModules": [
+      [
+        "types",
+        35
+      ],
+      [
+        "publicHumanStory",
+        7
+      ],
+      [
+        "bandChronicle",
+        5
+      ],
+      [
+        "familiarCountry",
+        4
+      ],
+      [
+        "memoryReferents",
+        3
+      ],
+      [
+        "materialAffordance",
+        2
+      ],
+      [
+        "socialEcologicalDiffusion",
+        2
+      ],
+      [
+        "campFoothold",
+        2
+      ],
+      [
+        "campMovement",
+        2
+      ],
+      [
+        "eventSystem",
+        2
+      ],
+      [
+        "adaptiveHuman",
+        2
+      ],
+      [
+        "bandIdentity",
+        2
+      ],
+      [
+        "knowledgeEcology",
+        2
+      ],
+      [
+        "knowledgeCarriers",
+        2
+      ],
+      [
+        "demographicRenewal",
+        2
+      ]
+    ],
+    "note": "Allowed direction (UI reads sim). High count is maintenance coupling addressed incrementally, not a behavior-isolation violation."
+  },
+  "internalSimBackEdges": {
+    "count": 83,
+    "note": "Informational: cyclic import edges among src/sim modules. Track that consolidation does not increase this, not that it is zero."
+  }
+}

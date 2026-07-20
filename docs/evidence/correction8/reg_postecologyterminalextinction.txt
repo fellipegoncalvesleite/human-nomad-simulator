@@ -1,0 +1,112 @@
+{
+  "check": "POST-ECOLOGY terminal extinction / zombie-band audit",
+  "verdict": "PASS",
+  "checks": {
+    "groundedDemographicZero": true,
+    "demographicReconciles": true,
+    "lifecycleTerminal": true,
+    "exactExtinctionTickRecorded": true,
+    "populationRemainsZero": true,
+    "terminalTraceExactlyOnce": true,
+    "bandStateFrozen": true,
+    "decisionsFrozen": true,
+    "tripsFrozen": true,
+    "nutritionFrozen": true,
+    "demographicAccumulatorsFrozen": true,
+    "animalManagementFrozen": true,
+    "ideasExperimentsFrozen": true,
+    "observationsFrozen": true,
+    "chronicleReadable": true,
+    "chronicleTerminalYearFrozen": true,
+    "uiTerminal": true,
+    "ecologyRecovers": true,
+    "minimalPositiveNotFrozen": true,
+    "deterministic": true,
+    "observerParity": true
+  },
+  "extinction": {
+    "bandId": "band:delta-coastal-foragers",
+    "tick": 4,
+    "terminalSnapshot": {
+      "tick": 4,
+      "year": 1,
+      "season": "spring",
+      "cause": "demographic_zero",
+      "populationBeforeRemoval": 1,
+      "dependentsBeforeRemoval": 0,
+      "workingAdultsBeforeRemoval": 1,
+      "eldersBeforeRemoval": 0,
+      "finalPopulationChangeReasonIds": [
+        "reason:demography:band:delta-coastal-foragers:4:demography:0"
+      ]
+    },
+    "terminalTraceCount": 1
+  },
+  "postExtinction": {
+    "seasonsAdvanced": 12,
+    "before": {
+      "decisionHistory": 2,
+      "archiveDecisions": 1,
+      "trips": 24,
+      "foodSamples": 0,
+      "animalState": "{\"knowledge\":{\"bandId\":\"band:delta-coastal-foragers\",\"lastUpdatedTick\":4,\"records\":[{\"id\":\"animal-pattern:fauna:waterfowl:tile:124:60\",\"stockId\":\"fauna:waterfowl:tile:124:60\",\"faunaKind\":\"waterfowl\",\"placeTileId\":\"tile:126:60\",\"routeTileIds\":[\"tile:126:60\"],\"seasonsObserved\":[\"spring\"],\"patterns\":[\"water_seeking\",\"herd_cohesion\"],\"observationCount\":1,\"directObservationCount\":0,\"inferenceCount\":1,\"contradictionCount\":0,\"confidence\":0.33,\"state\":\"tentative\",\"basis\":\"bounded_inference\",\"lastObservedTick\":4,\"evidenceRefs\":[\"local-tracks:4:tile:126:60\"]}],\"recordCap\":12,\"evidencePerRecordCap\":5,\"capsHeld\":true},\"management\":{\"bandId\":\"band:delta-coastal-foragers\",\"lastUpdatedTick\":4,\"records\":[],\"recordCap\":4,\"capsHeld\":true,\"noDomesticationUnlock\":true,\"noOwnershipBreedingPastoralism\":true}}",
+      "practicalState": "{\"problems\":[{\"id\":\"problem:band:delta-coastal-foragers:water_route_shortage\",\"family\":\"water_route_shortage\",\"publicLabel\":\"travel keeps outrunning the water\",\"interpretation\":\"the routes ahead hold too little water for the crossing days\",\"competingInterpretation\":\"the band reads the country's water wrong and walks past it\",\"misread\":false,\"severity\":1,\"confidence\":0.62,\"repetitionCount\":1,\"origin\":\"lived\",\"status\":\"active\",\"evidenceRefs\":[\"pressure:water_stress\",\"movement:water_hardship\"],\"framedAtTick\":4,\"lastEvidenceTick\":4},{\"id\":\"problem:band:delta-coastal-foragers:camp_water_shortage\",\"family\":\"camp_water_shortage\",\"publicLabel\":\"the camp's water is failing where the band sits\",\"interpretation\":\"water may sit beneath the damp ground near camp\",\"competingInterpretation\":\"this country simply lacks water and the camp must move\",\"misread\":false,\"severity\":0.72,\"confidence\":0.6,\"repetitionCount\":1,\"origin\":\"lived\",\"status\":\"active\",\"evidenceRefs\":[\"pressure:water_stress_persistent\"],\"contextKey\":\"tile:126:58\",\"framedAtTick\":4,\"lastEvidenceTick\":4},{\"id\":\"problem:band:delta-coastal-foragers:camp_exposure\",\"family\":\"camp_exposure\",\"publicLabel\":\"the camp lies open to wet\",\"interpretation\":\"the shelters themselves are shaped wrong, not the ground they stand on\",\"competingInterpretation\":\"rain and wet ground reach the bedding because nothing sheds them\",\"misread\":true,\"severity\":0.71,\"confidence\":0.61,\"repetitionCount\":2,\"origin\":\"lived\",\"status\":\"active\",\"evidenceRefs\":[\"camp_exposure:lived\",\"weather_memories\"],\"contextKey\":\"tile:126:58\",\"framedAtTick\":1,\"lastEvidenceTick\":4},{\"id\":\"problem:band:delta-coastal-foragers:journey_misjudgment\",\"family\":\"journey_misjudgment\",\"publicLabel\":\"journeys and loads keep coming out short of the reckoning\",\"interpretation\":\"what is carried is not being matched against the days it must last\",\"misread\":false,\"severity\":0.08,\"confidence\":0.6,\"repetitionCount\":1,\"origin\":\"opportunity\",\"status\":\"active\",\"evidenceRefs\":[\"movement:staged_legs\",\"movement:shuttle_division\"],\"framedAtTick\":4,\"lastEvidenceTick\":4},{\"id\":\"problem:band:delta-coastal-foragers:carrying_burden\",\"family\":\"carrying_burden\",\"publicLabel\":\"moving camp under load wears the carriers down\",\"interpretation\":\"the loads and the slow walkers exceed what hands can carry\",\"misread\":false,\"severity\":0.05,\"confidence\":0.75,\"repetitionCount\":2,\"origin\":\"lived\",\"status\":\"active\",\"evidenceRefs\":[\"body_logistics:carry_constraint\",\"movement:burdened_moves\"],\"framedAtTick\":1,\"lastEvidenceTick\":4}],\"ideas\":[{\"id\":\"idea:problem:band:delta-coastal-foragers:water_route_shortage:water_storage:membrane_water_bag:4\",\"problemId\":\"problem:band:delta-coastal-foragers:water_route_shortage\",\"family\":\"water_storage\",\"variantKey\":\"membrane_water_bag\",\"publicLabel\":\"plugged membrane water bag\",\"mechanismBelief\":\"a folded skin or membrane tied around a plug holds some water between camps\",\"basisFragmentIds\":[\"fragment:technique:membrane_folding\"],\"basisScore\":0.26,\"status\":\"selected\",\"statusReason\":\"strongest practiced basis among the considered options\",\"source\":\"local_inference\",\"consideredAtTick\":4},{\"id\":\"idea:problem:band:delta-coastal-foragers:water_route_shortage:water_storage:sealed_water_carrier:4\",\"problemId\":\"problem:band:delta-coastal-foragers:water_route_shortage\",\"family\":\"water_storage\",\"variantKey\":\"sealed_water_carrier\",\"publicLabel\":\"gum-sealed water carrier\",\"mechanismBelief\":\"a heated gum coat closes the seams a weave alone cannot\",\"basisFragmentIds\":[\"fragment:technique:container_holding\"],\"basisScore\":0,\"status\":\"postponed\",\"statusReason\":\"material/technique basis 0.00 below the 0.50 this configuration needs\",\"source\":\"local_inference\",\"consideredAtTick\":4},{\"id\":\"idea:problem:band:delta-coastal-foragers:water_route_shortage:water_storage:woven_lined_carrier:4\",\"problemId\":\"problem:band:delta-coastal-foragers:water_route_shortage\",\"family\":\"water_storage\",\"variantKey\":\"woven_lined_carrier\",\"publicLabel\":\"woven lined water carrier\",\"mechanismBelief\":\"a tight weave with a wet lining holds water long enough to cross a dry stage\",\"basisFragmentIds\":[\"fragment:technique:container_holding\"],\"basisScore\":0,\"status\":\"postponed\",\"statusReason\":\"material/technique basis 0.00 below the 0.25 this configuration needs\",\"source\":\"local_inference\",\"consideredAtTick\":4}],\"experiments\":[{\"id\":\"experiment:practical-response:band:delta-coastal-foragers:water_storage:membrane_water_bag:4\",\"problemId\":\"problem:band:delta-coastal-foragers:water_route_shortage\",\"ideaId\":\"idea:problem:band:delta-coastal-foragers:water_route_shortage:water_storage:membrane_water_bag:4\",\"responseId\":\"practical-response:band:delta-coastal-foragers:water_storage:membrane_water_bag:4\",\"family\":\"water_storage\",\"variantKey\":\"membrane_water_bag\",\"expectedEffect\":\"carried-water relief on the travel plan water limiter and the residential-move water hardship term\",\"materials\":[\"flexible skin or membrane\",\"wooden or bone plug\",\"binding strip\"],\"procedure\":\"fold the membrane around a plug, bind the neck, fill it, and watch how much remains after a short carry\",\"laborCost\":0.06,\"riskCost\":0.07,\"opportunityCost\":\"small capacity and steady leakage; the lining also adds carried weight\",\"observationBasis\":\"inferred\",\"attemptSeasons\":0,\"status\":\"underway\",\"fragmentsLearned\":[],\"fragmentsContradicted\":[],\"startedAtTick\":4}]}",
+      "observations": 31
+    },
+    "after": {
+      "decisionHistory": 2,
+      "archiveDecisions": 1,
+      "trips": 24,
+      "foodSamples": 0,
+      "animalState": "{\"knowledge\":{\"bandId\":\"band:delta-coastal-foragers\",\"lastUpdatedTick\":4,\"records\":[{\"id\":\"animal-pattern:fauna:waterfowl:tile:124:60\",\"stockId\":\"fauna:waterfowl:tile:124:60\",\"faunaKind\":\"waterfowl\",\"placeTileId\":\"tile:126:60\",\"routeTileIds\":[\"tile:126:60\"],\"seasonsObserved\":[\"spring\"],\"patterns\":[\"water_seeking\",\"herd_cohesion\"],\"observationCount\":1,\"directObservationCount\":0,\"inferenceCount\":1,\"contradictionCount\":0,\"confidence\":0.33,\"state\":\"tentative\",\"basis\":\"bounded_inference\",\"lastObservedTick\":4,\"evidenceRefs\":[\"local-tracks:4:tile:126:60\"]}],\"recordCap\":12,\"evidencePerRecordCap\":5,\"capsHeld\":true},\"management\":{\"bandId\":\"band:delta-coastal-foragers\",\"lastUpdatedTick\":4,\"records\":[],\"recordCap\":4,\"capsHeld\":true,\"noDomesticationUnlock\":true,\"noOwnershipBreedingPastoralism\":true}}",
+      "practicalState": "{\"problems\":[{\"id\":\"problem:band:delta-coastal-foragers:water_route_shortage\",\"family\":\"water_route_shortage\",\"publicLabel\":\"travel keeps outrunning the water\",\"interpretation\":\"the routes ahead hold too little water for the crossing days\",\"competingInterpretation\":\"the band reads the country's water wrong and walks past it\",\"misread\":false,\"severity\":1,\"confidence\":0.62,\"repetitionCount\":1,\"origin\":\"lived\",\"status\":\"active\",\"evidenceRefs\":[\"pressure:water_stress\",\"movement:water_hardship\"],\"framedAtTick\":4,\"lastEvidenceTick\":4},{\"id\":\"problem:band:delta-coastal-foragers:camp_water_shortage\",\"family\":\"camp_water_shortage\",\"publicLabel\":\"the camp's water is failing where the band sits\",\"interpretation\":\"water may sit beneath the damp ground near camp\",\"competingInterpretation\":\"this country simply lacks water and the camp must move\",\"misread\":false,\"severity\":0.72,\"confidence\":0.6,\"repetitionCount\":1,\"origin\":\"lived\",\"status\":\"active\",\"evidenceRefs\":[\"pressure:water_stress_persistent\"],\"contextKey\":\"tile:126:58\",\"framedAtTick\":4,\"lastEvidenceTick\":4},{\"id\":\"problem:band:delta-coastal-foragers:camp_exposure\",\"family\":\"camp_exposure\",\"publicLabel\":\"the camp lies open to wet\",\"interpretation\":\"the shelters themselves are shaped wrong, not the ground they stand on\",\"competingInterpretation\":\"rain and wet ground reach the bedding because nothing sheds them\",\"misread\":true,\"severity\":0.71,\"confidence\":0.61,\"repetitionCount\":2,\"origin\":\"lived\",\"status\":\"active\",\"evidenceRefs\":[\"camp_exposure:lived\",\"weather_memories\"],\"contextKey\":\"tile:126:58\",\"framedAtTick\":1,\"lastEvidenceTick\":4},{\"id\":\"problem:band:delta-coastal-foragers:journey_misjudgment\",\"family\":\"journey_misjudgment\",\"publicLabel\":\"journeys and loads keep coming out short of the reckoning\",\"interpretation\":\"what is carried is not being matched against the days it must last\",\"misread\":false,\"severity\":0.08,\"confidence\":0.6,\"repetitionCount\":1,\"origin\":\"opportunity\",\"status\":\"active\",\"evidenceRefs\":[\"movement:staged_legs\",\"movement:shuttle_division\"],\"framedAtTick\":4,\"lastEvidenceTick\":4},{\"id\":\"problem:band:delta-coastal-foragers:carrying_burden\",\"family\":\"carrying_burden\",\"publicLabel\":\"moving camp under load wears the carriers down\",\"interpretation\":\"the loads and the slow walkers exceed what hands can carry\",\"misread\":false,\"severity\":0.05,\"confidence\":0.75,\"repetitionCount\":2,\"origin\":\"lived\",\"status\":\"active\",\"evidenceRefs\":[\"body_logistics:carry_constraint\",\"movement:burdened_moves\"],\"framedAtTick\":1,\"lastEvidenceTick\":4}],\"ideas\":[{\"id\":\"idea:problem:band:delta-coastal-foragers:water_route_shortage:water_storage:membrane_water_bag:4\",\"problemId\":\"problem:band:delta-coastal-foragers:water_route_shortage\",\"family\":\"water_storage\",\"variantKey\":\"membrane_water_bag\",\"publicLabel\":\"plugged membrane water bag\",\"mechanismBelief\":\"a folded skin or membrane tied around a plug holds some water between camps\",\"basisFragmentIds\":[\"fragment:technique:membrane_folding\"],\"basisScore\":0.26,\"status\":\"selected\",\"statusReason\":\"strongest practiced basis among the considered options\",\"source\":\"local_inference\",\"consideredAtTick\":4},{\"id\":\"idea:problem:band:delta-coastal-foragers:water_route_shortage:water_storage:sealed_water_carrier:4\",\"problemId\":\"problem:band:delta-coastal-foragers:water_route_shortage\",\"family\":\"water_storage\",\"variantKey\":\"sealed_water_carrier\",\"publicLabel\":\"gum-sealed water carrier\",\"mechanismBelief\":\"a heated gum coat closes the seams a weave alone cannot\",\"basisFragmentIds\":[\"fragment:technique:container_holding\"],\"basisScore\":0,\"status\":\"postponed\",\"statusReason\":\"material/technique basis 0.00 below the 0.50 this configuration needs\",\"source\":\"local_inference\",\"consideredAtTick\":4},{\"id\":\"idea:problem:band:delta-coastal-foragers:water_route_shortage:water_storage:woven_lined_carrier:4\",\"problemId\":\"problem:band:delta-coastal-foragers:water_route_shortage\",\"family\":\"water_storage\",\"variantKey\":\"woven_lined_carrier\",\"publicLabel\":\"woven lined water carrier\",\"mechanismBelief\":\"a tight weave with a wet lining holds water long enough to cross a dry stage\",\"basisFragmentIds\":[\"fragment:technique:container_holding\"],\"basisScore\":0,\"status\":\"postponed\",\"statusReason\":\"material/technique basis 0.00 below the 0.25 this configuration needs\",\"source\":\"local_inference\",\"consideredAtTick\":4}],\"experiments\":[{\"id\":\"experiment:practical-response:band:delta-coastal-foragers:water_storage:membrane_water_bag:4\",\"problemId\":\"problem:band:delta-coastal-foragers:water_route_shortage\",\"ideaId\":\"idea:problem:band:delta-coastal-foragers:water_route_shortage:water_storage:membrane_water_bag:4\",\"responseId\":\"practical-response:band:delta-coastal-foragers:water_storage:membrane_water_bag:4\",\"family\":\"water_storage\",\"variantKey\":\"membrane_water_bag\",\"expectedEffect\":\"carried-water relief on the travel plan water limiter and the residential-move water hardship term\",\"materials\":[\"flexible skin or membrane\",\"wooden or bone plug\",\"binding strip\"],\"procedure\":\"fold the membrane around a plug, bind the neck, fill it, and watch how much remains after a short carry\",\"laborCost\":0.06,\"riskCost\":0.07,\"opportunityCost\":\"small capacity and steady leakage; the lining also adds carried weight\",\"observationBasis\":\"inferred\",\"attemptSeasons\":0,\"status\":\"underway\",\"fragmentsLearned\":[],\"fragmentsContradicted\":[],\"startedAtTick\":4}]}",
+      "observations": 31
+    }
+  },
+  "demographicReconciliation": {
+    "startingPopulation": 1,
+    "births": 0,
+    "elderDeaths": 0,
+    "dependentDeaths": 0,
+    "adultDeaths": 1,
+    "endingPopulation": 0,
+    "causalAttributionNonAdditive": {
+      "crisis": 1,
+      "water": 0,
+      "food": 1,
+      "migration": 0
+    }
+  },
+  "minimalPositiveControl": {
+    "startingPopulation": 1,
+    "endingPopulation": 1,
+    "viability": "nonviable",
+    "decisionsBefore": 1,
+    "decisionsAfter": 2
+  },
+  "ui": {
+    "status": {
+      "label": "Died out",
+      "tone": "gone",
+      "icon": "status"
+    },
+    "doing": "Extinct — archival record",
+    "condition": {
+      "foodLabel": "Final value archived",
+      "waterLabel": "Final value archived",
+      "crowdingLabel": "Final value archived",
+      "viabilityLabel": "Died out",
+      "bars": {
+        "food": 0,
+        "water": 0,
+        "safety": 0
+      }
+    },
+    "currentEraAtExtinction": "Ended by year 1",
+    "currentEraAfter": "Ended by year 1"
+  },
+  "ecology": {
+    "depletionBefore": 0.8,
+    "depletionAfter": 0.7688
+  }
+}

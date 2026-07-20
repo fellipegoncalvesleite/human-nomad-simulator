@@ -1,0 +1,187 @@
+{
+  "check": "DEMOGRAPHIC-PERSISTENCE-LONG-RUN",
+  "verdict": "PASS",
+  "map": "map1",
+  "years": 300,
+  "repeat": false,
+  "checks": {
+    "completed": true,
+    "populationReconciles": true,
+    "observerParity": true,
+    "deterministic": true,
+    "stateCapsHeld": true,
+    "noHumanRemainsNoHuman": true,
+    "survivorsNotAllStructurallyCapPinned": true
+  },
+  "result": {
+    "completedYears": 300,
+    "startPopulation": 155,
+    "endPopulation": 58,
+    "activeBands": 3,
+    "extinctBands": 2,
+    "fissionEvents": 0,
+    "births": 562,
+    "uniqueDeaths": 659,
+    "accounting": {
+      "equation": "155 + 562 - 659 = 58",
+      "reconciles": true,
+      "recordedDeaths": 643,
+      "terminalDeaths": 16,
+      "elderDeaths": 552,
+      "dependentDeaths": 3,
+      "adultDeaths": 88,
+      "overlappingAttributionDoNotSum": {
+        "crisis": 91,
+        "water": 4,
+        "food": 91,
+        "movement": 0
+      }
+    },
+    "means": {
+      "physicalUsableSupport": 18.5743,
+      "adultEquivalentDemand": 19.5254,
+      "supportRatio": 0.9679,
+      "foodStress": 0.4045,
+      "fertilityPressure": 0.2038,
+      "mortalityPressure": 0.4561
+    },
+    "movements": 4197,
+    "adaptationsAttempted": 12,
+    "adaptationsEffective": 1,
+    "renewal": {
+      "replacing_losses": 1,
+      "declining": 2
+    },
+    "declineCap": {
+      "perBand": {
+        "band:delta-coastal-foragers": {
+          "active": true,
+          "years": 300,
+          "declineCapShare": 0,
+          "maxContinuousDeclineCapYears": 0,
+          "positiveRateShare": 0.4167,
+          "replacementYears": 284,
+          "severeDeficitYears": 240,
+          "meanUncappedRate": -0.000191,
+          "meanClampedRate": -0.000191,
+          "meanRateSuppressedByCap": 0
+        },
+        "band:dry-margin-foragers": {
+          "active": false,
+          "years": 176,
+          "declineCapShare": 0,
+          "maxContinuousDeclineCapYears": 0,
+          "positiveRateShare": 0.0739,
+          "replacementYears": 29,
+          "severeDeficitYears": 148,
+          "meanUncappedRate": -0.006083,
+          "meanClampedRate": -0.006083,
+          "meanRateSuppressedByCap": 0
+        },
+        "band:highland-edge-foragers": {
+          "active": false,
+          "years": 293,
+          "declineCapShare": 0,
+          "maxContinuousDeclineCapYears": 0,
+          "positiveRateShare": 0,
+          "replacementYears": 73,
+          "severeDeficitYears": 293,
+          "meanUncappedRate": -0.003987,
+          "meanClampedRate": -0.003987,
+          "meanRateSuppressedByCap": 0
+        },
+        "band:lake-wetland-foragers": {
+          "active": true,
+          "years": 300,
+          "declineCapShare": 0,
+          "maxContinuousDeclineCapYears": 0,
+          "positiveRateShare": 0.0767,
+          "replacementYears": 153,
+          "severeDeficitYears": 277,
+          "meanUncappedRate": -0.002942,
+          "meanClampedRate": -0.002942,
+          "meanRateSuppressedByCap": 0
+        },
+        "band:river-valley-foragers": {
+          "active": true,
+          "years": 300,
+          "declineCapShare": 0,
+          "maxContinuousDeclineCapYears": 0,
+          "positiveRateShare": 0.3433,
+          "replacementYears": 192,
+          "severeDeficitYears": 219,
+          "meanUncappedRate": -0.003167,
+          "meanClampedRate": -0.003167,
+          "meanRateSuppressedByCap": 0
+        }
+      },
+      "survivorCount": 3,
+      "survivorMeanDeclineCapShare": 0,
+      "survivorMaxDeclineCapShare": 0,
+      "survivorsWithPositiveInterval": 3,
+      "survivorsWithReplacementInterval": 3,
+      "allSurvivorsStructurallyCapPinned": false
+    },
+    "checkpoints": [
+      {
+        "year": 0,
+        "population": 155,
+        "activeBands": 5,
+        "extinctBands": 0,
+        "births": 0,
+        "uniqueDeaths": 0
+      },
+      {
+        "year": 50,
+        "population": 129,
+        "activeBands": 5,
+        "extinctBands": 0,
+        "births": 125,
+        "uniqueDeaths": 151
+      },
+      {
+        "year": 100,
+        "population": 117,
+        "activeBands": 5,
+        "extinctBands": 0,
+        "births": 238,
+        "uniqueDeaths": 276
+      },
+      {
+        "year": 150,
+        "population": 101,
+        "activeBands": 5,
+        "extinctBands": 0,
+        "births": 342,
+        "uniqueDeaths": 396
+      },
+      {
+        "year": 200,
+        "population": 79,
+        "activeBands": 4,
+        "extinctBands": 1,
+        "births": 424,
+        "uniqueDeaths": 500
+      },
+      {
+        "year": 250,
+        "population": 70,
+        "activeBands": 4,
+        "extinctBands": 1,
+        "births": 496,
+        "uniqueDeaths": 581
+      },
+      {
+        "year": 300,
+        "population": 58,
+        "activeBands": 3,
+        "extinctBands": 2,
+        "births": 562,
+        "uniqueDeaths": 659
+      }
+    ],
+    "stateCapsHeld": true,
+    "runtimeMs": 231124.3483,
+    "fingerprint": "950b575d283d01d2eb2b4a089b099d6b587137a3776fbe77d5bc34c67984b476"
+  }
+}

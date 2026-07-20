@@ -1,0 +1,129 @@
+WebSocket server error: Port 24678 is already in use
+{
+  "check": "POST-ECOLOGY explicit return-kind semantics audit",
+  "verdict": "PASS",
+  "checks": {
+    "exhaustiveRegistry": true,
+    "plantPhysicalFood": true,
+    "aquaticPhysicalFood": true,
+    "faunaPhysicalFood": true,
+    "targetDiscoveryNoNutrition": true,
+    "absentExhaustedZero": true,
+    "materialExplicitNonFood": true,
+    "materialCannotFeedLedger": true,
+    "observationInformational": true,
+    "failedTripNone": true,
+    "opportunisticFoodExplicit": true,
+    "realPhysicalFoodFeedsLedger": true,
+    "liveReceiptsExplicitOnly": true,
+    "liveZeroReceiptsReturnNone": true,
+    "adaptationReadsResolvedReceipt": true,
+    "noPlaceholderSuffixBehavior": true,
+    "legacyBoundarySafe": true,
+    "deterministic": true
+  },
+  "inventory": [
+    {
+      "kind": "none",
+      "category": "failed_or_none",
+      "isPhysical": false,
+      "contributesToNutrition": false,
+      "materialDomain": "none"
+    },
+    {
+      "kind": "food_observation_only",
+      "category": "opportunity",
+      "isPhysical": false,
+      "contributesToNutrition": false,
+      "materialDomain": "information"
+    },
+    {
+      "kind": "gathered_plant_food",
+      "category": "physical_food",
+      "isPhysical": true,
+      "contributesToNutrition": true,
+      "materialDomain": "plant_food"
+    },
+    {
+      "kind": "harvested_aquatic_food",
+      "category": "physical_food",
+      "isPhysical": true,
+      "contributesToNutrition": true,
+      "materialDomain": "aquatic_food"
+    },
+    {
+      "kind": "hunted_fauna_food",
+      "category": "physical_food",
+      "isPhysical": true,
+      "contributesToNutrition": true,
+      "materialDomain": "fauna_food"
+    },
+    {
+      "kind": "gathered_fiber_material",
+      "category": "physical_material",
+      "isPhysical": true,
+      "contributesToNutrition": false,
+      "materialDomain": "fiber"
+    },
+    {
+      "kind": "gathered_fuel_material",
+      "category": "physical_material",
+      "isPhysical": true,
+      "contributesToNutrition": false,
+      "materialDomain": "fuel"
+    },
+    {
+      "kind": "water_information",
+      "category": "observation",
+      "isPhysical": false,
+      "contributesToNutrition": false,
+      "materialDomain": "water"
+    },
+    {
+      "kind": "plant_information",
+      "category": "observation",
+      "isPhysical": false,
+      "contributesToNutrition": false,
+      "materialDomain": "information"
+    },
+    {
+      "kind": "route_information",
+      "category": "observation",
+      "isPhysical": false,
+      "contributesToNutrition": false,
+      "materialDomain": "information"
+    }
+  ],
+  "controlled": {
+    "plantGathering": "gathered_plant_food",
+    "aquaticHarvest": "harvested_aquatic_food",
+    "faunaHunting": "hunted_fauna_food",
+    "targetFoundNoPhysicalAvailability": "activity_failed",
+    "exhaustedPlantPatch": "physically_exhausted",
+    "absentFauna": "physical_source_absent",
+    "fiberMaterial": "gathered_fiber_material",
+    "fuelMaterial": "gathered_fuel_material",
+    "observationOnly": "food_observation_only",
+    "failedTrip": "none",
+    "opportunisticFood": "gathered_plant_food"
+  },
+  "ledger": {
+    "physicalFoodSupport": 20,
+    "discoverySupport": 0,
+    "materialSupport": 0,
+    "failedSupport": 0
+  },
+  "live": {
+    "tripCount": 216,
+    "physicalReceiptCount": 84,
+    "resolvedZeroCount": 36
+  },
+  "compatibility": {
+    "liveWorldSnapshotsPersisted": false,
+    "historicalPlaceholderNormalization": "legacy values normalize to none at the boundary; never directly to calories"
+  },
+  "sourceGuards": {
+    "sourceFiles": 184,
+    "placeholderSuffixChecks": 0
+  }
+}

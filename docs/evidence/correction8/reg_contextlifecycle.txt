@@ -1,0 +1,86 @@
+{
+  "check": "CONTEXT-LIFECYCLE-1",
+  "verdict": "PASS",
+  "years": 12,
+  "target": "fullSharedContextBuildsPerSeasonTick <= 2",
+  "checks": {
+    "fullRebuildsAtMostTwoPerTick": true,
+    "partialRefreshByteIdenticalToFullRebuild": true,
+    "deterministic": true,
+    "observerParity": true,
+    "seasonOrderPhysicalInvariant": true
+  },
+  "invalidationContract": {
+    "fullBuilds": [
+      "pre-decision (season-start perceive/derive: spatial index + salient memory)",
+      "post-decision (bands moved: spatial index invalidated by movement)"
+    ],
+    "partialRefresh": [
+      "end-of-season read-model: reuse post-decision derived data, reset ecology-dependent memos; when the active band set changed (fission/extinction) rebuild spatial/nearby but reuse per-band salient memory for survivors"
+    ],
+    "eliminated": [
+      "the redundant post-acute-risk rebuild (acute risk / context state are not cache inputs)"
+    ]
+  },
+  "results": {
+    "no_change_healthy": {
+      "seasons": 48,
+      "fullBuildsPerSeasonTick": 2,
+      "partialRefreshesPerSeasonTick": 1,
+      "withinTarget": true,
+      "staleReadFreeVsForcedFullRebuild": true,
+      "deterministic": true,
+      "observerParity": true
+    },
+    "movement_marginal": {
+      "seasons": 48,
+      "fullBuildsPerSeasonTick": 2,
+      "partialRefreshesPerSeasonTick": 1,
+      "withinTarget": true,
+      "staleReadFreeVsForcedFullRebuild": true,
+      "deterministic": true,
+      "observerParity": true
+    },
+    "demographic_change": {
+      "seasons": 48,
+      "fullBuildsPerSeasonTick": 2,
+      "partialRefreshesPerSeasonTick": 1,
+      "withinTarget": true,
+      "staleReadFreeVsForcedFullRebuild": true,
+      "deterministic": true,
+      "observerParity": true
+    },
+    "multi_band_map2": {
+      "seasons": 48,
+      "fullBuildsPerSeasonTick": 2,
+      "partialRefreshesPerSeasonTick": 1,
+      "withinTarget": true,
+      "staleReadFreeVsForcedFullRebuild": true,
+      "deterministic": true,
+      "observerParity": true
+    },
+    "terminal_extinction": {
+      "seasons": 48,
+      "fullBuildsPerSeasonTick": 2,
+      "partialRefreshesPerSeasonTick": 1,
+      "withinTarget": true,
+      "staleReadFreeVsForcedFullRebuild": true,
+      "deterministic": true,
+      "observerParity": true
+    },
+    "shared_catchment_cluster": {
+      "seasons": 48,
+      "fullBuildsPerSeasonTick": 2,
+      "partialRefreshesPerSeasonTick": 1,
+      "withinTarget": true,
+      "staleReadFreeVsForcedFullRebuild": true,
+      "deterministic": true,
+      "observerParity": true
+    }
+  }
+}
+tic": true,
+      "observerParity": true
+    }
+  }
+}

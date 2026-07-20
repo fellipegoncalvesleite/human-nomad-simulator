@@ -1,0 +1,36 @@
+{
+  "check": "ADAPTATION-BOUNDARY-1",
+  "verdict": "PASS",
+  "checks": {
+    "noUnauthorizedDeepImports": true,
+    "boundaryExposesSanctionedOps": true,
+    "boundaryIsCuratedNotBarrel": true,
+    "singleEffectDefinitionInPracticalResponses": true,
+    "boundaryEffectMatchesInternalNoDuplicate": true,
+    "livedProblemToExperimentToResponseChainExecutes": true,
+    "responsesProduceRealEffectCoefficient": true,
+    "efficacyEvaluated": true,
+    "adaptationObserverParity": true
+  },
+  "canonicalState": "band.practicalAdaptation",
+  "publicBoundary": "src/sim/agents/adaptationBoundary.ts",
+  "boundaryNamedExportCount": 35,
+  "internalDefinitionCount": 92,
+  "effectBoundary": "practicalResponses.ts (derive*Condition / storage readers)",
+  "advanceWriters": [
+    "advancePracticalAdaptation",
+    "advanceAdaptiveHumanState"
+  ],
+  "inheritance": "inheritPracticalAdaptationForDaughter (fission)",
+  "allowlist": "internal adaptation modules + adaptationBoundary.ts may import internals; production callers (bandDecision, demography) use the boundary",
+  "unauthorizedDeepImports": [],
+  "runtime": {
+    "problemsFormed": 5,
+    "experimentsRun": 5,
+    "responsesFormed": 5,
+    "effectCoefficientActive": 5,
+    "efficacyEvaluated": 5,
+    "boundaryMatchesInternal": true,
+    "adaptationObserverParity": true
+  }
+}

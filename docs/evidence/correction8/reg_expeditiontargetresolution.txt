@@ -1,0 +1,49 @@
+{
+  "check": "EXPEDITION-TARGET-RESOLUTION-1",
+  "verdict": "PASS",
+  "site": {
+    "tileId": "tile:100:31",
+    "routeTiles": 52,
+    "patches": [
+      "plant:tile:100:31:roots_tubers_uso"
+    ]
+  },
+  "checks": {
+    "stableExactTargetIsFound": true,
+    "stableTargetIdentityMatches": true,
+    "multiTilePatchKeepsIdentity": true,
+    "depletedTargetIsExplicit": true,
+    "seasonalMismatchIsExplicit": true,
+    "staleEvidenceIsExplicit": true,
+    "freshWrongEvidenceIsTargetAbsent": true,
+    "endpointMismatchIsExplicit": true,
+    "noGenericTargetNotFound": true,
+    "deterministicResolution": true
+  },
+  "cases": {
+    "stable": {
+      "reason": "returned_with_cargo",
+      "taken": 0.0485
+    },
+    "multiTile": {
+      "reason": "returned_with_cargo",
+      "taken": 0.0462,
+      "stoodAt": "tile:100:32"
+    },
+    "depleted": {
+      "reason": "physically_exhausted"
+    },
+    "seasonal": {
+      "reason": "seasonally_inactive"
+    },
+    "stale": {
+      "reason": "evidence_stale"
+    },
+    "absent": {
+      "reason": "target_absent"
+    },
+    "endpoint": {
+      "reason": "route_endpoint_mismatch"
+    }
+  }
+}

@@ -1,0 +1,412 @@
+{
+  "probe": "waterCheckLoop",
+  "years": 40,
+  "cases": {
+    "rich": {
+      "site": {
+        "tileId": "tile:192:96",
+        "stock": 35.86,
+        "meanWater": 0.8016057407923315,
+        "waterTiles": 171
+      },
+      "homeTileWaterAccess": 1,
+      "seasons": 160,
+      "waterCheckTrips": 0,
+      "distinctWaterTargets": 0,
+      "topWaterTargets": [],
+      "waterStressSeries": [
+        {
+          "season": 0,
+          "waterStress": 0.01,
+          "foodStress": 0
+        },
+        {
+          "season": 8,
+          "waterStress": 0.05,
+          "foodStress": 0.07
+        },
+        {
+          "season": 16,
+          "waterStress": 0.03,
+          "foodStress": 0.11
+        },
+        {
+          "season": 24,
+          "waterStress": 0.03,
+          "foodStress": 0.07
+        },
+        {
+          "season": 32,
+          "waterStress": 0.04,
+          "foodStress": 0.07
+        },
+        {
+          "season": 40,
+          "waterStress": 0.04,
+          "foodStress": 0.07
+        },
+        {
+          "season": 48,
+          "waterStress": 0.02,
+          "foodStress": 0.07
+        },
+        {
+          "season": 56,
+          "waterStress": 0.02,
+          "foodStress": 0.09
+        },
+        {
+          "season": 64,
+          "waterStress": 0.03,
+          "foodStress": 0.07
+        },
+        {
+          "season": 72,
+          "waterStress": 0.03,
+          "foodStress": 0.07
+        },
+        {
+          "season": 80,
+          "waterStress": 0.02,
+          "foodStress": 0.04
+        },
+        {
+          "season": 88,
+          "waterStress": 0.03,
+          "foodStress": 0.08
+        },
+        {
+          "season": 96,
+          "waterStress": 0.02,
+          "foodStress": 0.09
+        },
+        {
+          "season": 104,
+          "waterStress": 0.03,
+          "foodStress": 0.07
+        },
+        {
+          "season": 112,
+          "waterStress": 0.02,
+          "foodStress": 0.07
+        },
+        {
+          "season": 120,
+          "waterStress": 0.02,
+          "foodStress": 0.11
+        },
+        {
+          "season": 128,
+          "waterStress": 0.03,
+          "foodStress": 0.13
+        },
+        {
+          "season": 136,
+          "waterStress": 0.03,
+          "foodStress": 0.26
+        },
+        {
+          "season": 144,
+          "waterStress": 0.03,
+          "foodStress": 0.12
+        },
+        {
+          "season": 152,
+          "waterStress": 0.03,
+          "foodStress": 0.11
+        }
+      ],
+      "waterStressMin": 0.01,
+      "waterStressMax": 0.05,
+      "triggerThreshold": 0.32
+    },
+    "ordinary": {
+      "site": {
+        "tileId": "tile:24:120",
+        "stock": 7.51,
+        "meanWater": 0.25910282121863887,
+        "waterTiles": 23
+      },
+      "homeTileWaterAccess": 0.15601639292951308,
+      "seasons": 160,
+      "waterCheckTrips": 3434,
+      "distinctWaterTargets": 9,
+      "topWaterTargets": [
+        {
+          "tile": "tile:27:122",
+          "count": 1073,
+          "meanReturnConfidence": 0.765
+        },
+        {
+          "tile": "tile:27:123",
+          "count": 684,
+          "meanReturnConfidence": 0.659
+        },
+        {
+          "tile": "tile:27:121",
+          "count": 453,
+          "meanReturnConfidence": 0.764
+        },
+        {
+          "tile": "tile:27:124",
+          "count": 423,
+          "meanReturnConfidence": 0.756
+        },
+        {
+          "tile": "tile:27:120",
+          "count": 328,
+          "meanReturnConfidence": 0.743
+        }
+      ],
+      "waterStressSeries": [
+        {
+          "season": 0,
+          "waterStress": 0.35,
+          "foodStress": 0.06
+        },
+        {
+          "season": 8,
+          "waterStress": 0.41,
+          "foodStress": 1
+        },
+        {
+          "season": 16,
+          "waterStress": 0.45,
+          "foodStress": 1
+        },
+        {
+          "season": 24,
+          "waterStress": 0.48,
+          "foodStress": 1
+        },
+        {
+          "season": 32,
+          "waterStress": 0.44,
+          "foodStress": 1
+        },
+        {
+          "season": 40,
+          "waterStress": 0.47,
+          "foodStress": 1
+        },
+        {
+          "season": 48,
+          "waterStress": 0.48,
+          "foodStress": 0.87
+        },
+        {
+          "season": 56,
+          "waterStress": 0.42,
+          "foodStress": 1
+        },
+        {
+          "season": 64,
+          "waterStress": 0.46,
+          "foodStress": 0.64
+        },
+        {
+          "season": 72,
+          "waterStress": 0.49,
+          "foodStress": 0.97
+        },
+        {
+          "season": 80,
+          "waterStress": 0.41,
+          "foodStress": 1
+        },
+        {
+          "season": 88,
+          "waterStress": 0.52,
+          "foodStress": 1
+        },
+        {
+          "season": 96,
+          "waterStress": 0.45,
+          "foodStress": 0.97
+        },
+        {
+          "season": 104,
+          "waterStress": 0.39,
+          "foodStress": 1
+        },
+        {
+          "season": 112,
+          "waterStress": 0.41,
+          "foodStress": 1
+        },
+        {
+          "season": 120,
+          "waterStress": 0.41,
+          "foodStress": 1
+        },
+        {
+          "season": 128,
+          "waterStress": 0.4,
+          "foodStress": 1
+        },
+        {
+          "season": 136,
+          "waterStress": 0.41,
+          "foodStress": 0.87
+        },
+        {
+          "season": 144,
+          "waterStress": 0.45,
+          "foodStress": 1
+        },
+        {
+          "season": 152,
+          "waterStress": 0.4,
+          "foodStress": 1
+        }
+      ],
+      "waterStressMin": 0.35,
+      "waterStressMax": 0.52,
+      "triggerThreshold": 0.32
+    },
+    "marginal": {
+      "site": {
+        "tileId": "tile:66:114",
+        "stock": 2.1,
+        "meanWater": 0.10351546511914983,
+        "waterTiles": 12
+      },
+      "homeTileWaterAccess": 0,
+      "seasons": 160,
+      "waterCheckTrips": 3222,
+      "distinctWaterTargets": 21,
+      "topWaterTargets": [
+        {
+          "tile": "tile:66:107",
+          "count": 459,
+          "meanReturnConfidence": 0.726
+        },
+        {
+          "tile": "tile:72:108",
+          "count": 357,
+          "meanReturnConfidence": 0.753
+        },
+        {
+          "tile": "tile:71:108",
+          "count": 299,
+          "meanReturnConfidence": 0.736
+        },
+        {
+          "tile": "tile:73:108",
+          "count": 279,
+          "meanReturnConfidence": 0.756
+        },
+        {
+          "tile": "tile:73:109",
+          "count": 276,
+          "meanReturnConfidence": 0.763
+        }
+      ],
+      "waterStressSeries": [
+        {
+          "season": 0,
+          "waterStress": 0.56,
+          "foodStress": 0.8
+        },
+        {
+          "season": 8,
+          "waterStress": 0.71,
+          "foodStress": 1
+        },
+        {
+          "season": 16,
+          "waterStress": 0.45,
+          "foodStress": 1
+        },
+        {
+          "season": 24,
+          "waterStress": 0.49,
+          "foodStress": 1
+        },
+        {
+          "season": 32,
+          "waterStress": 0.57,
+          "foodStress": 1
+        },
+        {
+          "season": 40,
+          "waterStress": 0.54,
+          "foodStress": 1
+        },
+        {
+          "season": 48,
+          "waterStress": 0.48,
+          "foodStress": 1
+        },
+        {
+          "season": 56,
+          "waterStress": 0.45,
+          "foodStress": 1
+        },
+        {
+          "season": 64,
+          "waterStress": 0.57,
+          "foodStress": 1
+        },
+        {
+          "season": 72,
+          "waterStress": 0.48,
+          "foodStress": 1
+        },
+        {
+          "season": 80,
+          "waterStress": 0.45,
+          "foodStress": 1
+        },
+        {
+          "season": 88,
+          "waterStress": 0.49,
+          "foodStress": 1
+        },
+        {
+          "season": 96,
+          "waterStress": 0.56,
+          "foodStress": 1
+        },
+        {
+          "season": 104,
+          "waterStress": 0.56,
+          "foodStress": 1
+        },
+        {
+          "season": 112,
+          "waterStress": 0.52,
+          "foodStress": 1
+        },
+        {
+          "season": 120,
+          "waterStress": 0.51,
+          "foodStress": 0.98
+        },
+        {
+          "season": 128,
+          "waterStress": 0.53,
+          "foodStress": 1
+        },
+        {
+          "season": 136,
+          "waterStress": 0.54,
+          "foodStress": 1
+        },
+        {
+          "season": 144,
+          "waterStress": 0.54,
+          "foodStress": 1
+        },
+        {
+          "season": 152,
+          "waterStress": 0.55,
+          "foodStress": 1
+        }
+      ],
+      "waterStressMin": 0.45,
+      "waterStressMax": 0.71,
+      "triggerThreshold": 0.32
+    }
+  }
+}

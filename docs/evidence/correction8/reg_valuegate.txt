@@ -1,0 +1,28 @@
+WebSocket server error: Port 24678 is already in use
+{
+ "check": "expedition-value-gate",
+ "verdict": "PASS",
+ "checks": {
+  "richComfortableDeclines": true,
+  "ordinaryHungryAccepts": true,
+  "needChangesWillingness": true,
+  "localOpportunityCostCounts": true,
+  "emptyTargetCooldownHolds": true,
+  "cooldownExpires": true,
+  "rememberedDepletionCounts": true,
+  "nearerTargetPreferred": true
+ },
+ "observed": {
+  "richComfortable": false,
+  "richHungryHigh": true,
+  "richHungryMid": false,
+  "ordinaryHungryMid": true,
+  "ordinaryHungry": true,
+  "ordinaryComfortable": true,
+  "afterEmpty": false,
+  "afterEmptyExpired": true,
+  "depletedMemory": false,
+  "nearOk": true,
+  "veryFar": false
+ }
+}

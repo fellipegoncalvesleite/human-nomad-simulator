@@ -767,7 +767,31 @@ function getTripCause(
     0.5;
   const stressedForFood = foodStress >= 0.35 || perCapitaReturn < 0.55 || band.returnTrend?.chronicDecline === true;
 
-  if (memory.resourceClassId === "water_resource" && waterStress >= 0.32) {
+  // ECOLOGY-VIABILITY-CORRECTION-8 §1 — MEASURED DEFECT. A water_check is an
+  // INFORMATION action: it returns "returned_with_information", creates no water, and
+  // never reaches the physical harvest resolver. But `waterStress` (pressure.ts:209) is
+  // derived from the tile's `waterAccess` plus seasonal/acute terms and contains NO term
+  // for water actually fetched — so the action CANNOT reduce the condition that triggers
+  // it. Because a band selects ONE candidate per day, an unsatisfiable trigger evaluated
+  // ahead of every food cause consumed the entire subsistence day, permanently.
+  // Measured (docs/evidence/correction8/, 160 seasons, map2):
+  //   rich     waterAccess 1.00  -> waterStress 0.01-0.05, never >= 0.32 ->    0 checks
+  //   ordinary waterAccess 0.156 -> waterStress 0.35-0.52, NEVER < 0.32  -> 3434 checks
+  //                                 = 89.4% of all trips; foodStress pinned at 1.0
+  //   marginal waterAccess 0.00  -> waterStress 0.45-0.71                -> 3222 checks
+  // The band re-checked 9 distinct tiles, the top one 1073 times, at mean confidence
+  // 0.76 — it already knew those sources; the re-checks produced no new information.
+  // That is why ordinary trip success was 2.9% while rich was 39.2%: it was never a
+  // harvest-yield defect, it was food trips not being SELECTED.
+  // Repair: an information action fires only when it can actually produce information —
+  // when the band's own knowledge of that water source is deficient (dormant or below the
+  // observation-confidence line). Band knowledge only; no hidden state is read, no
+  // ecology/yield/fertility coefficient is touched, and a genuinely unknown or stale
+  // water source still preempts food exactly as before.
+  const waterKnowledgeDeficient =
+    effective.isDormant || effective.effectivePresenceConfidence < OBSERVATION_CONFIDENCE_THRESHOLD;
+
+  if (memory.resourceClassId === "water_resource" && waterStress >= 0.32 && waterKnowledgeDeficient) {
     return "water_check";
   }
 

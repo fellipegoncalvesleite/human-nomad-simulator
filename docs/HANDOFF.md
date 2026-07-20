@@ -181,6 +181,65 @@ has a seed input — the sim layer just never consumes it. All audits/baselines 
 
 ## Current Status
 
+### ECOLOGY VIABILITY ADAPTATION CORRECTION-8 — PASS (2026-07-19)
+
+Branch `checkpoint/ecology-viability-adaptation-correction-8` from `6fe9cf2`.
+Evidence: `docs/evidence/correction8/` (FINDINGS.md + all decisive run outputs).
+
+**The 97% same-day failure gate was found, and it was not in the harvest path.**
+CORRECTION-7 measured that ordinary same-day trips returned food only 2.9% of the time
+vs rich 39.2%, and correctly predicted a binary success gate rather than a yield defect.
+Terminal classification of every attempted trip (`sameDayFailureGateProbe.mjs`, reading
+only fields production already writes — no production code changed to measure) found:
+**89.4% of ordinary trips and 90.7% of marginal trips were `cause=water_check` and never
+reached the physical resolver at all.** Rich: 1 trip in 160 seasons. The ~97% of ordinary
+trips returning no food were, in the main, never food trips — a band selects ONE candidate
+per day, so each water_check consumed the whole subsistence day.
+
+**Root cause (measured, not inferred):** `waterStress` (`pressure.ts:209`) is derived from
+tile `waterAccess` + seasonal/acute terms and contains **no term for water actually
+fetched**; a water_check returns `returned_with_information` and creates nothing. So the
+trigger could not be released by the action it triggered. Ordinary's waterStress stayed in
+0.35–0.52 for all 160 seasons and never once fell below the 0.32 trigger, while foodStress
+sat pinned at 1.0 from season 8. The checks were not even informative: 9 distinct tiles,
+the top one re-checked **1073 times** at mean confidence 0.76. Classified as **(4) a
+defective/unsatisfiable threshold + (7) a selection/execution mismatch** — not scarcity,
+not anti-omniscience.
+
+**Fix — one predicate in `getTripCause` (`intraSeasonTrips.ts`).** An information action
+fires only when it can produce information: `effective.isDormant ||
+effectivePresenceConfidence < OBSERVATION_CONFIDENCE_THRESHOLD` (0.42, the existing
+constant — no new number invented). Band knowledge only, no hidden state. Unknown/stale
+water still preempts food, so real water emergencies are unaffected. Nothing global was
+raised (ecology, yield, fertility, stamina, carrying capacity, adaptation speed untouched).
+
+**Measured result (100y production runs, `expeditionHabitatCasesAudit` PASS, 11/11):**
+
+| case | corr-7 | corr-8 | receipts |
+|---|---|---|---|
+| rich | 23, fragile | 23, fragile (unchanged) | 134.02 → 134.0164 |
+| ordinary | **extinct y90** | **survives 100y, pop 11** | 8.29 → 27.56 |
+| marginal | extinct y70 | extinct y70 (correct — stock 2.1, waterAccess 0) | 0.72 → 2.97 |
+
+Rich receipts being byte-identical is the control: the fix cannot fire where waterStress
+never crossed the trigger, and it didn't. Multi-seed matrix (seeds base/2/3/4) is stable:
+rich 155–168% of break-even, ordinary 34–44%, marginal 6–14%.
+
+**Honest limitation — ordinary is rescued from extinction but is NOT at replacement**
+(34–44% of the 0.1875 break-even, still declining 22 → 11 over a century). The newly
+exposed gate is measured and classified but deliberately NOT fixed:
+`route_time_infeasible` is 18.1% of ordinary trips and **0% of rich** — candidate
+selection uses `getGridDistance` (straight line, `intraSeasonTrips.ts:527`) while
+execution needs a passable path within `MAX_TRIP_DISTANCE_TILES=10`, so in fragmented
+terrain a "same-day feasible" target has no route and the day is spent. Making selection
+route-aware changes what every band considers reachable across every trip family — too
+large to bundle behind this evidence and it would confound attribution for the water fix.
+That is the CORRECTION-9 entry point. Note `depleted_below_threshold` is now 38.7%
+ordinary vs 41.2% rich — that share is honest depletion, not a defect.
+
+Full regression, fresh-process determinism (0 non-timing differences across 299 leaves),
+build, and graph all green — see `docs/evidence/correction8/FINDINGS.md` §I.
+
 ### EXPEDITIONARY LOGISTICAL MOBILITY-5 — validation closure: PASS (2026-07-17)
 
 Branch `checkpoint/expeditionary-logistical-mobility-5` from `16abffe`.
@@ -7113,7 +7172,21 @@ UI in `src/ui/BandPanel.tsx`, audit + `--targeted-cause-event-check` in
 
 ## Recommended Next Step
 
-**Current recommendation after EXPEDITIONARY LOGISTICAL MOBILITY-1 (FAIL):**
+**Current recommendation after ECOLOGY VIABILITY CORRECTION-8 (PASS):**
+**CLIMATE / WEATHER / REGIONAL SEASONALITY FOUNDATION-2 is restored as the ACTIVE
+checkpoint** (roadmap item 2). The ecology-viability correction line is closed: the
+selection-level bottleneck that made ordinary habitat non-viable is measured and fixed,
+ordinary no longer goes extinct, and rich is unchanged.
+
+One bounded, fully-measured item is deliberately deferred rather than dropped —
+**CORRECTION-9 (optional, non-blocking):** make same-day candidate selection route-aware
+so `getGridDistance` selection agrees with `findPassablePath` execution. Measured at 18.1%
+of ordinary trips and 0% of rich (`docs/evidence/correction8/gate_after_fix.json`). Do NOT
+treat this as required before climate: ordinary now persists a century, and the remaining
+gap to replacement may be honest habitat quality rather than a defect — that question is
+explicitly unproven and needs a controlled arm, not an assumption.
+
+**Superseded recommendation after EXPEDITIONARY LOGISTICAL MOBILITY-1 (FAIL):**
 **EXPEDITIONARY LOGISTICAL MOBILITY-2** — the same checkpoint, resumed. The
 investigation is DONE (see Current Status: exact baseline limitation, canonical
 authorities, the inert `create_temporary_camp` finding, and the
@@ -8986,3 +9059,17 @@ exception; daughter colours related-but-distinct and never visually confusing.
   movement/passability/invention/shared-catchment audits are green. faunaAdvance ≈14 ms/tick;
   state bounded (264 fauna, ~1200 plant records). `hardshipOutcome` left isolated/untouched.
   Recommendation: **LIVING ECOLOGY / TROPHIC COUPLING-1C** — do not proceed to expeditions.
+
+- **ECOLOGY VIABILITY ADAPTATION CORRECTION-8 — PASS (2026-07-19).** Found the ~97%
+  same-day failure gate by terminal-classifying every trip: 89.4% of ordinary (90.7%
+  marginal, 0.03% rich) trips were `water_check` and never reached the harvest resolver.
+  `waterStress` has no fetched-water term, so the trigger could not be released by the
+  action it triggered — an unsatisfiable condition holding the one-per-day trip slot
+  forever (ordinary re-checked one tile 1073x at confidence 0.76 while foodStress sat at
+  1.0). Fixed with one predicate in `getTripCause`: an information action fires only when
+  band knowledge of that source is actually deficient. Ordinary goes from **extinct y90 to
+  surviving 100y at pop 11** (receipts 8.29 → 27.56); rich byte-identical (134.02). Still
+  below replacement (34–44% of break-even) — the newly exposed `route_time_infeasible`
+  gate (18.1% ordinary / 0% rich, selection uses straight-line distance, execution needs a
+  passable path) is measured, classified, and deferred to CORRECTION-9. Roadmap restores
+  CLIMATE-2 as active. Evidence: `docs/evidence/correction8/`.

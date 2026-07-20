@@ -1,0 +1,1844 @@
+
+> emergent-civilization-simulation@0.1.0 sim:benchmark
+> node scripts/simBenchmark.mjs --scenario baseline --years 25 --deterministic
+
+
+## baseline
+- default regional debug world
+{
+  "completed": true,
+  "tick": 100,
+  "year": 25,
+  "ticksRequested": 100,
+  "ticksSimulated": 100,
+  "totalRuntimeMs": 16617.43,
+  "averageMsPerTick": 166.1743,
+  "maxMsPerTick": 327.8453,
+  "phaseSummary": {
+    "time": {
+      "totalMs": 1.5,
+      "averageMsPerTick": 0.015,
+      "share": 0.0001
+    },
+    "contextBeforeDecisionCache": {
+      "totalMs": 31.66,
+      "averageMsPerTick": 0.3166,
+      "share": 0.0019
+    },
+    "contextBeforeDecisionRangeSaturation": {
+      "totalMs": 860.22,
+      "averageMsPerTick": 8.6022,
+      "share": 0.0518
+    },
+    "contextBeforeDecisionFrontierOpportunity": {
+      "totalMs": 396.04,
+      "averageMsPerTick": 3.9604,
+      "share": 0.0238
+    },
+    "contextBeforeDecisionDisposition": {
+      "totalMs": 20.97,
+      "averageMsPerTick": 0.2097,
+      "share": 0.0013
+    },
+    "contextBeforeDecisionEncounterContact": {
+      "totalMs": 4.79,
+      "averageMsPerTick": 0.0479,
+      "share": 0.0003
+    },
+    "movementDecisionAndPressure": {
+      "totalMs": 2295.31,
+      "averageMsPerTick": 22.9531,
+      "share": 0.1381
+    },
+    "contextAfterDecisionCache": {
+      "totalMs": 127.15,
+      "averageMsPerTick": 1.2715,
+      "share": 0.0077
+    },
+    "contextAfterDecisionRangeSaturation": {
+      "totalMs": 583.81,
+      "averageMsPerTick": 5.8381,
+      "share": 0.0351
+    },
+    "contextAfterDecisionFrontierOpportunity": {
+      "totalMs": 0,
+      "averageMsPerTick": 0,
+      "share": 0
+    },
+    "contextAfterDecisionDisposition": {
+      "totalMs": 0,
+      "averageMsPerTick": 0,
+      "share": 0
+    },
+    "contextAfterDecisionEncounterContact": {
+      "totalMs": 6.36,
+      "averageMsPerTick": 0.0636,
+      "share": 0.0004
+    },
+    "demographyFission": {
+      "totalMs": 23.19,
+      "averageMsPerTick": 0.2319,
+      "share": 0.0014
+    },
+    "viability": {
+      "totalMs": 17.58,
+      "averageMsPerTick": 0.1758,
+      "share": 0.0011
+    },
+    "deepHistoryAdvance": {
+      "totalMs": 34.04,
+      "averageMsPerTick": 0.3404,
+      "share": 0.002
+    },
+    "depletionAdvance": {
+      "totalMs": 58.17,
+      "averageMsPerTick": 0.5817,
+      "share": 0.0035
+    },
+    "contextFinalCache": {
+      "totalMs": 23.07,
+      "averageMsPerTick": 0.2307,
+      "share": 0.0014
+    },
+    "contextFinalRangeSaturation": {
+      "totalMs": 524.87,
+      "averageMsPerTick": 5.2487,
+      "share": 0.0316
+    },
+    "contextFinalFrontierOpportunity": {
+      "totalMs": 111.28,
+      "averageMsPerTick": 1.1128,
+      "share": 0.0067
+    },
+    "contextFinalDisposition": {
+      "totalMs": 18.81,
+      "averageMsPerTick": 0.1881,
+      "share": 0.0011
+    },
+    "contextFinalEncounterContact": {
+      "totalMs": 4.41,
+      "averageMsPerTick": 0.0441,
+      "share": 0.0003
+    },
+    "intraSeasonActivities": {
+      "totalMs": 9582.31,
+      "averageMsPerTick": 95.8231,
+      "share": 0.5766
+    },
+    "context:contextBeforeDecision:rangeSaturationState": {
+      "totalMs": 71.92,
+      "averageMsPerTick": 0.7192,
+      "share": 0.0043
+    },
+    "context:contextBeforeDecision:carryingCapacity": {
+      "totalMs": 375.64,
+      "averageMsPerTick": 3.7564,
+      "share": 0.0226
+    },
+    "context:contextBeforeDecision:returnTrend": {
+      "totalMs": 5.73,
+      "averageMsPerTick": 0.0573,
+      "share": 0.0003
+    },
+    "context:contextBeforeDecision:seasonalSupport": {
+      "totalMs": 20.79,
+      "averageMsPerTick": 0.2079,
+      "share": 0.0013
+    },
+    "context:contextBeforeDecision:exhaustedRangeAudit": {
+      "totalMs": 27.01,
+      "averageMsPerTick": 0.2701,
+      "share": 0.0016
+    },
+    "context:contextBeforeDecision:resourceObservation": {
+      "totalMs": 27.37,
+      "averageMsPerTick": 0.2737,
+      "share": 0.0016
+    },
+    "context:contextBeforeDecision:resourceInferenceCandidates": {
+      "totalMs": 16.9,
+      "averageMsPerTick": 0.169,
+      "share": 0.001
+    },
+    "context:contextBeforeDecision:resourceInference": {
+      "totalMs": 69.79,
+      "averageMsPerTick": 0.6979,
+      "share": 0.0042
+    },
+    "context:contextBeforeDecision:landscapeVisibility": {
+      "totalMs": 224.87,
+      "averageMsPerTick": 2.2487,
+      "share": 0.0135
+    },
+    "context:contextBeforeDecision:frontierCandidateSearch": {
+      "totalMs": 43.64,
+      "averageMsPerTick": 0.4364,
+      "share": 0.0026
+    },
+    "context:contextBeforeDecision:frontierDispersal": {
+      "totalMs": 46.62,
+      "averageMsPerTick": 0.4662,
+      "share": 0.0028
+    },
+    "context:contextBeforeDecision:nearbyOpportunity": {
+      "totalMs": 39.25,
+      "averageMsPerTick": 0.3925,
+      "share": 0.0024
+    },
+    "context:contextBeforeDecision:frontierIntent": {
+      "totalMs": 8.74,
+      "averageMsPerTick": 0.0874,
+      "share": 0.0005
+    },
+    "context:contextBeforeDecision:frontierResidence": {
+      "totalMs": 4.39,
+      "averageMsPerTick": 0.0439,
+      "share": 0.0003
+    },
+    "context:contextBeforeDecision:frontierKnowledge": {
+      "totalMs": 279.34,
+      "averageMsPerTick": 2.7934,
+      "share": 0.0168
+    },
+    "reportedKnowledge:activeBandCollection": {
+      "totalMs": 1.85,
+      "averageMsPerTick": 0.0185,
+      "share": 0.0001
+    },
+    "reportedKnowledge:childrenByParent": {
+      "totalMs": 0.49,
+      "averageMsPerTick": 0.0049,
+      "share": 0
+    },
+    "reportedKnowledge:sourceFactGeneration": {
+      "totalMs": 101.33,
+      "averageMsPerTick": 1.0133,
+      "share": 0.0061
+    },
+    "reportedKnowledge:sourceCandidateSelection": {
+      "totalMs": 2.78,
+      "averageMsPerTick": 0.0278,
+      "share": 0.0002
+    },
+    "reportedKnowledge:interBandTransmission": {
+      "totalMs": 2.11,
+      "averageMsPerTick": 0.0211,
+      "share": 0.0001
+    },
+    "reportedKnowledge:reportRefresh": {
+      "totalMs": 203.62,
+      "averageMsPerTick": 2.0362,
+      "share": 0.0123
+    },
+    "reportedKnowledge:mergeDedupRetain": {
+      "totalMs": 19.23,
+      "averageMsPerTick": 0.1923,
+      "share": 0.0012
+    },
+    "reportedKnowledge:speculationRefresh": {
+      "totalMs": 6.4,
+      "averageMsPerTick": 0.064,
+      "share": 0.0004
+    },
+    "reportedKnowledge:speculationGeneration": {
+      "totalMs": 16.04,
+      "averageMsPerTick": 0.1604,
+      "share": 0.001
+    },
+    "reportedKnowledge:speculationRetain": {
+      "totalMs": 7.03,
+      "averageMsPerTick": 0.0703,
+      "share": 0.0004
+    },
+    "reportedKnowledge:internalReportGeneration": {
+      "totalMs": 60.89,
+      "averageMsPerTick": 0.6089,
+      "share": 0.0037
+    },
+    "contextBeforeDecisionReportedKnowledge": {
+      "totalMs": 444.86,
+      "averageMsPerTick": 4.4486,
+      "share": 0.0268
+    },
+    "contextBeforeDecisionRangeFriction": {
+      "totalMs": 146.48,
+      "averageMsPerTick": 1.4648,
+      "share": 0.0088
+    },
+    "movement:pressureStateDerivation": {
+      "totalMs": 89.99,
+      "averageMsPerTick": 0.8999,
+      "share": 0.0054
+    },
+    "movement:candidateOpportunityScoring": {
+      "totalMs": 70.69,
+      "averageMsPerTick": 0.7069,
+      "share": 0.0043
+    },
+    "movement:knownTileStats": {
+      "totalMs": 7.59,
+      "averageMsPerTick": 0.0759,
+      "share": 0.0005
+    },
+    "movement:corridorLookupBuild": {
+      "totalMs": 14.69,
+      "averageMsPerTick": 0.1469,
+      "share": 0.0009
+    },
+    "movement:adaptiveDecisionSupport": {
+      "totalMs": 21.32,
+      "averageMsPerTick": 0.2132,
+      "share": 0.0013
+    },
+    "movement:campMovementDecisionSupport": {
+      "totalMs": 140.81,
+      "averageMsPerTick": 1.4081,
+      "share": 0.0085
+    },
+    "movement:candidatePassabilityChecks": {
+      "totalMs": 124.76,
+      "averageMsPerTick": 1.2476,
+      "share": 0.0075
+    },
+    "movement:candidatePressureScoring": {
+      "totalMs": 37.09,
+      "averageMsPerTick": 0.3709,
+      "share": 0.0022
+    },
+    "movement:candidateMemoryScoring": {
+      "totalMs": 18.47,
+      "averageMsPerTick": 0.1847,
+      "share": 0.0011
+    },
+    "movement:candidateEncounterSocialScoring": {
+      "totalMs": 2.47,
+      "averageMsPerTick": 0.0247,
+      "share": 0.0001
+    },
+    "movement:sideCountryEvidenceLookup": {
+      "totalMs": 66.23,
+      "averageMsPerTick": 0.6623,
+      "share": 0.004
+    },
+    "movement:reportBiasIntegration": {
+      "totalMs": 113.9,
+      "averageMsPerTick": 1.139,
+      "share": 0.0069
+    },
+    "movement:knownMoveCandidateRadiusLookup": {
+      "totalMs": 4.86,
+      "averageMsPerTick": 0.0486,
+      "share": 0.0003
+    },
+    "movement:knownMoveCandidateFiltering": {
+      "totalMs": 63.16,
+      "averageMsPerTick": 0.6316,
+      "share": 0.0038
+    },
+    "movement:candidateFrontierDispersalScoring": {
+      "totalMs": 4.74,
+      "averageMsPerTick": 0.0474,
+      "share": 0.0003
+    },
+    "movement:stuckSitePenalty": {
+      "totalMs": 2.5,
+      "averageMsPerTick": 0.025,
+      "share": 0.0002
+    },
+    "movement:candidateSorting": {
+      "totalMs": 3.84,
+      "averageMsPerTick": 0.0384,
+      "share": 0.0002
+    },
+    "movement:candidateGeneration": {
+      "totalMs": 881.9,
+      "averageMsPerTick": 8.819,
+      "share": 0.0531
+    },
+    "movement:finalDecisionSelection": {
+      "totalMs": 27.16,
+      "averageMsPerTick": 0.2716,
+      "share": 0.0016
+    },
+    "movement:candidateReasonHydration": {
+      "totalMs": 20.23,
+      "averageMsPerTick": 0.2023,
+      "share": 0.0012
+    },
+    "movement:observationUpdate": {
+      "totalMs": 33.41,
+      "averageMsPerTick": 0.3341,
+      "share": 0.002
+    },
+    "movement:memoryUpdate": {
+      "totalMs": 55.48,
+      "averageMsPerTick": 0.5548,
+      "share": 0.0033
+    },
+    "movement:biomeAdaptationUpdate": {
+      "totalMs": 10.36,
+      "averageMsPerTick": 0.1036,
+      "share": 0.0006
+    },
+    "movement:pressureUpdate": {
+      "totalMs": 107.62,
+      "averageMsPerTick": 1.0762,
+      "share": 0.0065
+    },
+    "movement:animalPatternManagementUpdate": {
+      "totalMs": 26.66,
+      "averageMsPerTick": 0.2666,
+      "share": 0.0016
+    },
+    "movement:adaptiveStateUpdate": {
+      "totalMs": 7.19,
+      "averageMsPerTick": 0.0719,
+      "share": 0.0004
+    },
+    "movement:campMovementStateUpdate": {
+      "totalMs": 185.67,
+      "averageMsPerTick": 1.8567,
+      "share": 0.0112
+    },
+    "context:contextAfterDecision:rangeSaturationState": {
+      "totalMs": 62.47,
+      "averageMsPerTick": 0.6247,
+      "share": 0.0038
+    },
+    "context:contextAfterDecision:carryingCapacity": {
+      "totalMs": 332.51,
+      "averageMsPerTick": 3.3251,
+      "share": 0.02
+    },
+    "context:contextAfterDecision:returnTrend": {
+      "totalMs": 5.53,
+      "averageMsPerTick": 0.0553,
+      "share": 0.0003
+    },
+    "context:contextAfterDecision:seasonalSupport": {
+      "totalMs": 19.83,
+      "averageMsPerTick": 0.1983,
+      "share": 0.0012
+    },
+    "context:contextAfterDecision:exhaustedRangeAudit": {
+      "totalMs": 26.41,
+      "averageMsPerTick": 0.2641,
+      "share": 0.0016
+    },
+    "context:contextAfterDecision:resourceObservation": {
+      "totalMs": 32.08,
+      "averageMsPerTick": 0.3208,
+      "share": 0.0019
+    },
+    "context:contextAfterDecision:resourceInferenceCandidates": {
+      "totalMs": 5.96,
+      "averageMsPerTick": 0.0596,
+      "share": 0.0004
+    },
+    "context:contextAfterDecision:resourceInference": {
+      "totalMs": 67.64,
+      "averageMsPerTick": 0.6764,
+      "share": 0.0041
+    },
+    "context:contextAfterDecision:landscapeVisibility": {
+      "totalMs": 13.91,
+      "averageMsPerTick": 0.1391,
+      "share": 0.0008
+    },
+    "faunaAdvance": {
+      "totalMs": 1038.38,
+      "averageMsPerTick": 10.3838,
+      "share": 0.0625
+    },
+    "plantAdvance": {
+      "totalMs": 106.13,
+      "averageMsPerTick": 1.0613,
+      "share": 0.0064
+    },
+    "context:contextFinal:rangeSaturationState": {
+      "totalMs": 57.79,
+      "averageMsPerTick": 0.5779,
+      "share": 0.0035
+    },
+    "context:contextFinal:carryingCapacity": {
+      "totalMs": 302.38,
+      "averageMsPerTick": 3.0238,
+      "share": 0.0182
+    },
+    "context:contextFinal:returnTrend": {
+      "totalMs": 5.07,
+      "averageMsPerTick": 0.0507,
+      "share": 0.0003
+    },
+    "context:contextFinal:seasonalSupport": {
+      "totalMs": 19.59,
+      "averageMsPerTick": 0.1959,
+      "share": 0.0012
+    },
+    "context:contextFinal:exhaustedRangeAudit": {
+      "totalMs": 26.08,
+      "averageMsPerTick": 0.2608,
+      "share": 0.0016
+    },
+    "context:contextFinal:resourceObservation": {
+      "totalMs": 27.18,
+      "averageMsPerTick": 0.2718,
+      "share": 0.0016
+    },
+    "context:contextFinal:resourceInferenceCandidates": {
+      "totalMs": 4.32,
+      "averageMsPerTick": 0.0432,
+      "share": 0.0003
+    },
+    "context:contextFinal:resourceInference": {
+      "totalMs": 51.59,
+      "averageMsPerTick": 0.5159,
+      "share": 0.0031
+    },
+    "context:contextFinal:landscapeVisibility": {
+      "totalMs": 14.27,
+      "averageMsPerTick": 0.1427,
+      "share": 0.0009
+    },
+    "context:contextFinal:frontierCandidateSearch": {
+      "totalMs": 42.53,
+      "averageMsPerTick": 0.4253,
+      "share": 0.0026
+    },
+    "context:contextFinal:frontierDispersal": {
+      "totalMs": 44.9,
+      "averageMsPerTick": 0.449,
+      "share": 0.0027
+    },
+    "context:contextFinal:nearbyOpportunity": {
+      "totalMs": 39.71,
+      "averageMsPerTick": 0.3971,
+      "share": 0.0024
+    },
+    "context:contextFinal:frontierIntent": {
+      "totalMs": 4.03,
+      "averageMsPerTick": 0.0403,
+      "share": 0.0002
+    },
+    "context:contextFinal:frontierResidence": {
+      "totalMs": 3.64,
+      "averageMsPerTick": 0.0364,
+      "share": 0.0002
+    },
+    "context:contextFinal:frontierKnowledge": {
+      "totalMs": 6.98,
+      "averageMsPerTick": 0.0698,
+      "share": 0.0004
+    },
+    "contextFinalReportedKnowledge": {
+      "totalMs": 4.11,
+      "averageMsPerTick": 0.0411,
+      "share": 0.0002
+    },
+    "contextFinalRangeFriction": {
+      "totalMs": 141.85,
+      "averageMsPerTick": 1.4185,
+      "share": 0.0085
+    },
+    "reportedKnowledge:confirmationContradiction": {
+      "totalMs": 3.63,
+      "averageMsPerTick": 0.0363,
+      "share": 0.0002
+    },
+    "reportedKnowledge:evidenceScanning": {
+      "totalMs": 197.43,
+      "averageMsPerTick": 1.9743,
+      "share": 0.0119
+    },
+    "reportedKnowledge:regionMatching": {
+      "totalMs": 0.52,
+      "averageMsPerTick": 0.0052,
+      "share": 0
+    }
+  },
+  "slowestSubpasses": [
+    {
+      "phase": "intraSeasonActivities",
+      "totalMs": 9582.31,
+      "averageMsPerTick": 95.8231,
+      "share": 0.5766
+    },
+    {
+      "phase": "movementDecisionAndPressure",
+      "totalMs": 2295.31,
+      "averageMsPerTick": 22.9531,
+      "share": 0.1381
+    },
+    {
+      "phase": "faunaAdvance",
+      "totalMs": 1038.38,
+      "averageMsPerTick": 10.3838,
+      "share": 0.0625
+    },
+    {
+      "phase": "movement:candidateGeneration",
+      "totalMs": 881.9,
+      "averageMsPerTick": 8.819,
+      "share": 0.0531
+    },
+    {
+      "phase": "contextBeforeDecisionRangeSaturation",
+      "totalMs": 860.22,
+      "averageMsPerTick": 8.6022,
+      "share": 0.0518
+    }
+  ],
+  "reportedKnowledgeCounters": {
+    "activeBandsVisited": {
+      "total": 1000,
+      "averagePerTick": 10
+    },
+    "sourceFactsProcessed": {
+      "total": 3009,
+      "averagePerTick": 30.09
+    },
+    "sourceCandidatesProcessed": {
+      "total": 14,
+      "averagePerTick": 0.14
+    },
+    "reportsProcessed": {
+      "total": 7478,
+      "averagePerTick": 74.78
+    },
+    "cheapLifecycleRefreshBands": {
+      "total": 378,
+      "averagePerTick": 3.78
+    },
+    "internalReportsCreated": {
+      "total": 621,
+      "averagePerTick": 6.21
+    },
+    "fullEvidenceRefreshBands": {
+      "total": 125,
+      "averagePerTick": 1.25
+    },
+    "alreadyUpdatedEarlyReturn": {
+      "total": 99,
+      "averagePerTick": 0.99
+    },
+    "interBandReportsCreated": {
+      "total": 2,
+      "averagePerTick": 0.02
+    }
+  },
+  "movementCounters": {
+    "sideCountryEvidenceIndexBuilds": {
+      "total": 500,
+      "averagePerTick": 5
+    },
+    "reportBiasComputed": {
+      "total": 5253,
+      "averagePerTick": 52.53
+    },
+    "knownMoveCandidatesConsidered": {
+      "total": 6000,
+      "averagePerTick": 60
+    },
+    "knownMoveCandidatesAccepted": {
+      "total": 4538,
+      "averagePerTick": 45.38
+    },
+    "sideCountryEvidenceCacheHits": {
+      "total": 4538,
+      "averagePerTick": 45.38
+    },
+    "reportBiasCacheHits": {
+      "total": 333,
+      "averagePerTick": 3.33
+    },
+    "candidateCount": {
+      "total": 5981,
+      "averagePerTick": 59.81
+    }
+  },
+  "contextCounters": {
+    "contextBeforeDecision:resourceInferenceCandidates": {
+      "total": 3998,
+      "averagePerTick": 39.98
+    },
+    "contextBeforeDecision:frontierCandidatesConsidered": {
+      "total": 7089,
+      "averagePerTick": 70.89
+    },
+    "contextBeforeDecision:frontierCandidatesAccepted": {
+      "total": 6093,
+      "averagePerTick": 60.93
+    },
+    "contextBeforeDecision:nearbyOpportunityCandidatesConsidered": {
+      "total": 7935,
+      "averagePerTick": 79.35
+    },
+    "contextBeforeDecision:nearbyOpportunityRejectedLowScore": {
+      "total": 7888,
+      "averagePerTick": 78.88
+    },
+    "contextBeforeDecision:nearbyOpportunityCandidatesAccepted": {
+      "total": 47,
+      "averagePerTick": 0.47
+    },
+    "contextAfterDecision:resourceInferenceCandidates": {
+      "total": 4000,
+      "averagePerTick": 40
+    },
+    "contextFinal:resourceInferenceCandidates": {
+      "total": 4000,
+      "averagePerTick": 40
+    },
+    "contextFinal:frontierCandidatesConsidered": {
+      "total": 7129,
+      "averagePerTick": 71.29
+    },
+    "contextFinal:frontierCandidatesAccepted": {
+      "total": 6115,
+      "averagePerTick": 61.15
+    },
+    "contextFinal:nearbyOpportunityCandidatesConsidered": {
+      "total": 7965,
+      "averagePerTick": 79.65
+    },
+    "contextFinal:nearbyOpportunityRejectedLowScore": {
+      "total": 7918,
+      "averagePerTick": 79.18
+    },
+    "contextFinal:nearbyOpportunityCandidatesAccepted": {
+      "total": 47,
+      "averagePerTick": 0.47
+    },
+    "contextFinal:frontierCandidatesRejectedReachability": {
+      "total": 1014,
+      "averagePerTick": 10.14
+    },
+    "contextBeforeDecision:frontierCandidatesRejectedReachability": {
+      "total": 996,
+      "averagePerTick": 9.96
+    }
+  },
+  "cacheBuilds": 300,
+  "cacheBuildsPerTick": 3,
+  "activeBands": 5,
+  "totalBands": 5,
+  "absorbedBands": 0,
+  "extinctBands": 0,
+  "fragileBands": 4,
+  "totalPopulation": 155,
+  "startPopulation": 155,
+  "populationDelta": 0,
+  "decisionArchive": {
+    "totalDecisions": 500,
+    "totalStayDecisions": 79,
+    "totalMoveDecisions": 379,
+    "totalExploreDecisions": 0,
+    "totalNoOpDecisions": 0,
+    "totalProbeDecisions": 37,
+    "totalResourceScoutDecisions": 5,
+    "totalFrontierMoves": 379,
+    "recentDecisionLimit": 64,
+    "recentDecisionIdsRetained": 64
+  },
+  "fissions": 0,
+  "fissionPopulationConserved": true,
+  "absorptionTransfers": 0,
+  "extinctionRemovals": 0,
+  "encountersProcessed": 0,
+  "contactMemoriesUpdated": 0,
+  "movementDecisionsEvaluated": 500,
+  "knownTileRecordsTotal": 335,
+  "compressedKnownTileSummariesTotal": 26,
+  "knownAreaSummariesTotal": 26,
+  "placeMemoriesTotal": 335,
+  "corridorMemoriesTotal": 136,
+  "compressedCorridorSummariesTotal": 0,
+  "causalTracesRecentCount": 400,
+  "decisionRecordsTotal": 64,
+  "decisionHistoryTotal": 400,
+  "inactiveBands": 0,
+  "averageKnownTilesPerActiveBand": 67,
+  "averagePlaceMemoriesPerActiveBand": 67,
+  "averageCorridorMemoriesPerActiveBand": 27.2,
+  "averageEncounterRecordsPerActiveBand": 0,
+  "averageContactMemoriesPerActiveBand": 0,
+  "maxKnownTilesPerBand": 84,
+  "maxPlaceMemoriesPerBand": 84,
+  "maxCorridorMemoriesPerBand": 33,
+  "maxDecisionHistoryPerBand": 80,
+  "daughters": {
+    "count": 0,
+    "averageDistanceFromParent": 0,
+    "withPhysicalSpawnPerception": 0,
+    "inheritingFullParentMap": 0,
+    "inheritingFullParentCorridors": 0,
+    "samples": []
+  },
+  "viabilitySamples": [
+    {
+      "id": "band:delta-coastal-foragers",
+      "status": "fragile",
+      "population": 36,
+      "growthAccumulator": 0.3682,
+      "mortalityAccumulator": 0,
+      "viabilityPressure": 0.64,
+      "extinctionRisk": 0.4,
+      "absorptionOpportunity": 0
+    },
+    {
+      "id": "band:dry-margin-foragers",
+      "status": "viable",
+      "population": 23,
+      "growthAccumulator": 0.8086,
+      "mortalityAccumulator": 0.9858,
+      "viabilityPressure": 0.59,
+      "extinctionRisk": 0.37,
+      "absorptionOpportunity": 0
+    },
+    {
+      "id": "band:highland-edge-foragers",
+      "status": "fragile",
+      "population": 26,
+      "growthAccumulator": 0.2916,
+      "mortalityAccumulator": 0.3114,
+      "viabilityPressure": 0.71,
+      "extinctionRisk": 0.44,
+      "absorptionOpportunity": 0
+    },
+    {
+      "id": "band:lake-wetland-foragers",
+      "status": "fragile",
+      "population": 31,
+      "growthAccumulator": 0.927,
+      "mortalityAccumulator": 0,
+      "viabilityPressure": 0.66,
+      "extinctionRisk": 0.41,
+      "absorptionOpportunity": 0
+    },
+    {
+      "id": "band:river-valley-foragers",
+      "status": "fragile",
+      "population": 39,
+      "growthAccumulator": 0.7697,
+      "mortalityAccumulator": 0.1083,
+      "viabilityPressure": 0.63,
+      "extinctionRisk": 0.39,
+      "absorptionOpportunity": 0
+    }
+  ],
+  "seaBands": [],
+  "plantPatchAudit": {
+    "status": "truth/debug plant-patch samples; causal resource-class pressure is audited by ECO-MIG",
+    "tileSampleCount": 96,
+    "tileSampleCap": 96,
+    "materializedPatchCount": 253,
+    "averagePatchesPerSampledTile": 2.64,
+    "classDistribution": {
+      "fiber_reed": 77,
+      "wetland_plant": 77,
+      "roots_tubers_uso": 20,
+      "wild_grain_seed": 56,
+      "leaf_green": 8,
+      "aquatic_plant": 15
+    },
+    "availabilityDistribution": {
+      "low": 63,
+      "active": 130,
+      "absent": 25,
+      "dormant": 35
+    },
+    "lifecycleDistribution": {
+      "low": 63,
+      "active": 122,
+      "absent": 25,
+      "dormant": 31,
+      "recovering": 8,
+      "unreliable": 4
+    },
+    "conditionDistribution": {
+      "normal": 160,
+      "sparse": 85,
+      "recovering": 8
+    },
+    "abundanceTrendDistribution": {
+      "flat": 124,
+      "rising": 125,
+      "unreliable": 4
+    },
+    "examples": {
+      "wetlandOrAquaticNearWater": {
+        "patchId": "plant:tile:127:62:fiber_reed",
+        "tileId": "tile:127:62",
+        "plantClassId": "fiber_reed",
+        "season": "spring",
+        "lifecycleState": "low",
+        "condition": "normal",
+        "currentAvailability": "low",
+        "previousAvailability": "low",
+        "baseAbundance": 0.56,
+        "currentAbundance": 0.12,
+        "abundanceTrend": "flat",
+        "seasonalPulseStrength": 0.88,
+        "reliabilityThisSeason": 0.62,
+        "naturalRecoveryProgress": 0.9,
+        "naturalRegrowthModifier": 0.92,
+        "visibility": 0.68,
+        "laborCost": 0.46,
+        "processingNeed": "low",
+        "safetyRisk": "low",
+        "depletion": 0,
+        "regrowthProfile": "fast_wetland",
+        "fallbackRank": 0,
+        "debugReasons": [
+          "reason:plant_patch:tile:127:62:fiber_reed:100:sparse_deterministic_truth",
+          "reason:plant_patch:tile:127:62:fiber_reed:100:river_valley",
+          "reason:plant_season:tile:127:62:fiber_reed:spring:season_low"
+        ],
+        "lifecycleReasonIds": [
+          "reason:plant_lifecycle:tile:127:62:fiber_reed:100:state_low",
+          "reason:plant_lifecycle:tile:127:62:fiber_reed:100:condition_normal",
+          "reason:plant_lifecycle:tile:127:62:fiber_reed:100:reliability_seasonal",
+          "reason:plant_lifecycle:tile:127:62:fiber_reed:100:trend_flat"
+        ]
+      },
+      "rootsTubersFallbackDryRefuge": {
+        "patchId": "plant:tile:110:40:roots_tubers_uso",
+        "tileId": "tile:110:40",
+        "plantClassId": "roots_tubers_uso",
+        "season": "spring",
+        "lifecycleState": "active",
+        "condition": "sparse",
+        "currentAvailability": "active",
+        "previousAvailability": "absent",
+        "baseAbundance": 0.21,
+        "currentAbundance": 0.09,
+        "abundanceTrend": "flat",
+        "seasonalPulseStrength": 0.8,
+        "reliabilityThisSeason": 0.66,
+        "naturalRecoveryProgress": 0.74,
+        "naturalRegrowthModifier": 0.83,
+        "visibility": 0.27,
+        "laborCost": 0.72,
+        "processingNeed": "moderate",
+        "safetyRisk": "moderate",
+        "depletion": 0,
+        "regrowthProfile": "belowground_reserve",
+        "fallbackRank": 0.84,
+        "debugReasons": [
+          "reason:plant_patch:tile:110:40:roots_tubers_uso:100:sparse_deterministic_truth",
+          "reason:plant_patch:tile:110:40:roots_tubers_uso:100:desert",
+          "reason:plant_season:tile:110:40:roots_tubers_uso:spring:season_active"
+        ],
+        "lifecycleReasonIds": [
+          "reason:plant_lifecycle:tile:110:40:roots_tubers_uso:100:state_active",
+          "reason:plant_lifecycle:tile:110:40:roots_tubers_uso:100:condition_sparse",
+          "reason:plant_lifecycle:tile:110:40:roots_tubers_uso:100:reliability_stable",
+          "reason:plant_lifecycle:tile:110:40:roots_tubers_uso:100:trend_flat"
+        ]
+      },
+      "seasonalActive": {
+        "patchId": "plant:tile:127:62:wetland_plant",
+        "tileId": "tile:127:62",
+        "plantClassId": "wetland_plant",
+        "season": "spring",
+        "lifecycleState": "active",
+        "condition": "normal",
+        "currentAvailability": "active",
+        "previousAvailability": "dormant",
+        "baseAbundance": 0.55,
+        "currentAbundance": 0.26,
+        "abundanceTrend": "rising",
+        "seasonalPulseStrength": 0.9,
+        "reliabilityThisSeason": 0.57,
+        "naturalRecoveryProgress": 0.9,
+        "naturalRegrowthModifier": 0.92,
+        "visibility": 0.55,
+        "laborCost": 0.48,
+        "processingNeed": "moderate",
+        "safetyRisk": "moderate",
+        "depletion": 0,
+        "regrowthProfile": "fast_wetland",
+        "fallbackRank": 0.58,
+        "debugReasons": [
+          "reason:plant_patch:tile:127:62:wetland_plant:100:sparse_deterministic_truth",
+          "reason:plant_patch:tile:127:62:wetland_plant:100:river_valley",
+          "reason:plant_season:tile:127:62:wetland_plant:spring:season_active"
+        ],
+        "lifecycleReasonIds": [
+          "reason:plant_lifecycle:tile:127:62:wetland_plant:100:state_active",
+          "reason:plant_lifecycle:tile:127:62:wetland_plant:100:condition_normal",
+          "reason:plant_lifecycle:tile:127:62:wetland_plant:100:reliability_water_sensitive",
+          "reason:plant_lifecycle:tile:127:62:wetland_plant:100:trend_rising"
+        ]
+      },
+      "seasonalAbsentOrDormant": {
+        "patchId": "plant:tile:113:58:wild_grain_seed",
+        "tileId": "tile:113:58",
+        "plantClassId": "wild_grain_seed",
+        "season": "spring",
+        "lifecycleState": "absent",
+        "condition": "sparse",
+        "currentAvailability": "absent",
+        "previousAvailability": "dormant",
+        "baseAbundance": 0.48,
+        "currentAbundance": 0.04,
+        "abundanceTrend": "flat",
+        "seasonalPulseStrength": 0.62,
+        "reliabilityThisSeason": 0.41,
+        "naturalRecoveryProgress": 0.42,
+        "naturalRegrowthModifier": 0.72,
+        "visibility": 0.49,
+        "laborCost": 0.62,
+        "processingNeed": "moderate",
+        "safetyRisk": "low",
+        "depletion": 0,
+        "regrowthProfile": "seasonal_annual",
+        "fallbackRank": 0.62,
+        "debugReasons": [
+          "reason:plant_patch:tile:113:58:wild_grain_seed:100:sparse_deterministic_truth",
+          "reason:plant_patch:tile:113:58:wild_grain_seed:100:river_valley",
+          "reason:plant_season:tile:113:58:wild_grain_seed:spring:season_low"
+        ],
+        "lifecycleReasonIds": [
+          "reason:plant_lifecycle:tile:113:58:wild_grain_seed:100:state_absent",
+          "reason:plant_lifecycle:tile:113:58:wild_grain_seed:100:condition_sparse",
+          "reason:plant_lifecycle:tile:113:58:wild_grain_seed:100:reliability_seasonal",
+          "reason:plant_lifecycle:tile:113:58:wild_grain_seed:100:trend_flat"
+        ]
+      },
+      "lifecycleRecovering": {
+        "patchId": "plant:tile:121:61:leaf_green",
+        "tileId": "tile:121:61",
+        "plantClassId": "leaf_green",
+        "season": "spring",
+        "lifecycleState": "recovering",
+        "condition": "recovering",
+        "currentAvailability": "active",
+        "previousAvailability": "dormant",
+        "baseAbundance": 0.49,
+        "currentAbundance": 0.18,
+        "abundanceTrend": "rising",
+        "seasonalPulseStrength": 0.81,
+        "reliabilityThisSeason": 0.62,
+        "naturalRecoveryProgress": 0.42,
+        "naturalRegrowthModifier": 0.72,
+        "visibility": 0.65,
+        "laborCost": 0.38,
+        "processingNeed": "none",
+        "safetyRisk": "low",
+        "depletion": 0,
+        "regrowthProfile": "seasonal_annual",
+        "fallbackRank": 0.2,
+        "debugReasons": [
+          "reason:plant_patch:tile:121:61:leaf_green:100:sparse_deterministic_truth",
+          "reason:plant_patch:tile:121:61:leaf_green:100:river_valley",
+          "reason:plant_season:tile:121:61:leaf_green:spring:season_active"
+        ],
+        "lifecycleReasonIds": [
+          "reason:plant_lifecycle:tile:121:61:leaf_green:100:state_recovering",
+          "reason:plant_lifecycle:tile:121:61:leaf_green:100:condition_recovering",
+          "reason:plant_lifecycle:tile:121:61:leaf_green:100:reliability_seasonal",
+          "reason:plant_lifecycle:tile:121:61:leaf_green:100:trend_rising"
+        ]
+      },
+      "lifecycleUnreliable": {
+        "patchId": "plant:tile:111:42:wild_grain_seed",
+        "tileId": "tile:111:42",
+        "plantClassId": "wild_grain_seed",
+        "season": "spring",
+        "lifecycleState": "unreliable",
+        "condition": "sparse",
+        "currentAvailability": "dormant",
+        "previousAvailability": "dormant",
+        "baseAbundance": 0.3,
+        "currentAbundance": 0.02,
+        "abundanceTrend": "unreliable",
+        "seasonalPulseStrength": 0.65,
+        "reliabilityThisSeason": 0.33,
+        "naturalRecoveryProgress": 0.42,
+        "naturalRegrowthModifier": 0.72,
+        "visibility": 0.43,
+        "laborCost": 0.62,
+        "processingNeed": "moderate",
+        "safetyRisk": "low",
+        "depletion": 0,
+        "regrowthProfile": "seasonal_annual",
+        "fallbackRank": 0.62,
+        "debugReasons": [
+          "reason:plant_patch:tile:111:42:wild_grain_seed:100:sparse_deterministic_truth",
+          "reason:plant_patch:tile:111:42:wild_grain_seed:100:plains",
+          "reason:plant_season:tile:111:42:wild_grain_seed:spring:season_low"
+        ],
+        "lifecycleReasonIds": [
+          "reason:plant_lifecycle:tile:111:42:wild_grain_seed:100:state_unreliable",
+          "reason:plant_lifecycle:tile:111:42:wild_grain_seed:100:condition_sparse",
+          "reason:plant_lifecycle:tile:111:42:wild_grain_seed:100:reliability_low",
+          "reason:plant_lifecycle:tile:111:42:wild_grain_seed:100:trend_unreliable"
+        ]
+      },
+      "sparseCondition": {
+        "patchId": "plant:tile:113:58:fiber_reed",
+        "tileId": "tile:113:58",
+        "plantClassId": "fiber_reed",
+        "season": "spring",
+        "lifecycleState": "low",
+        "condition": "sparse",
+        "currentAvailability": "low",
+        "previousAvailability": "low",
+        "baseAbundance": 0.52,
+        "currentAbundance": 0.11,
+        "abundanceTrend": "flat",
+        "seasonalPulseStrength": 0.87,
+        "reliabilityThisSeason": 0.65,
+        "naturalRecoveryProgress": 0.88,
+        "naturalRegrowthModifier": 0.92,
+        "visibility": 0.63,
+        "laborCost": 0.46,
+        "processingNeed": "low",
+        "safetyRisk": "low",
+        "depletion": 0,
+        "regrowthProfile": "fast_wetland",
+        "fallbackRank": 0,
+        "debugReasons": [
+          "reason:plant_patch:tile:113:58:fiber_reed:100:sparse_deterministic_truth",
+          "reason:plant_patch:tile:113:58:fiber_reed:100:river_valley",
+          "reason:plant_season:tile:113:58:fiber_reed:spring:season_low"
+        ],
+        "lifecycleReasonIds": [
+          "reason:plant_lifecycle:tile:113:58:fiber_reed:100:state_low",
+          "reason:plant_lifecycle:tile:113:58:fiber_reed:100:condition_sparse",
+          "reason:plant_lifecycle:tile:113:58:fiber_reed:100:reliability_seasonal",
+          "reason:plant_lifecycle:tile:113:58:fiber_reed:100:trend_flat"
+        ]
+      }
+    },
+    "boundedDerivation": "active-band positions plus capped known tiles; no full-map scan",
+    "denseBandTables": false,
+    "perTickGlobalPlantUpdate": false,
+    "behaviorCoupling": {
+      "yield": false,
+      "stress": false,
+      "mortality": false,
+      "relocation": false,
+      "carryingCapacity": false
+    }
+  },
+  "plantEligibilityAudit": {
+    "status": "band-known/scouted readiness only",
+    "activeBandCount": 5,
+    "candidateCount": 30,
+    "knownOrScoutedCandidateCount": 4,
+    "candidateCapPerBand": 6,
+    "eligibleCautiousCount": 0,
+    "eligibleKnownCount": 0,
+    "outOfSeasonCount": 2,
+    "safetyUncertainCount": 0,
+    "processingMissingCount": 0,
+    "fallbackOnlyCount": 2,
+    "materialOnlyCount": 0,
+    "medicinalToxicCautionCount": 0,
+    "countsByState": {
+      "not_known": 26,
+      "fallback_only": 2,
+      "out_of_season": 2
+    },
+    "readinessCounts": {
+      "fallback_resource_candidate": 20,
+      "preferred_resource_candidate": 6,
+      "famine_only_candidate": 4
+    },
+    "examples": [
+      {
+        "band": "band:delta-coastal-foragers",
+        "patchId": "patch:tile:125:60:generic_plant_food",
+        "tileId": "tile:125:60",
+        "linkedResourceClassId": "generic_plant_food",
+        "eligibilityState": "not_known",
+        "eligibilityScore": 0.53,
+        "dietBreadthReadiness": "fallback_resource_candidate",
+        "failedGates": [
+          "knowledge"
+        ],
+        "gates": {
+          "knowledge": {
+            "status": "fail",
+            "score": 0.12,
+            "reason": "reason:plant_eligibility:knowledge_no_plant_patch_observation"
+          },
+          "season": {
+            "status": "weak",
+            "score": 0.89,
+            "reason": "reason:plant_eligibility:season_memory_only"
+          },
+          "abundance": {
+            "status": "weak",
+            "score": 0.66,
+            "reason": "reason:plant_eligibility:abundance_memory_only"
+          },
+          "access": {
+            "status": "pass",
+            "score": 0.67,
+            "reason": "reason:plant_eligibility:access_known_enough"
+          },
+          "safety": {
+            "status": "weak",
+            "score": 0.42,
+            "reason": "reason:plant_eligibility:safety_cautious_only"
+          },
+          "processing": {
+            "status": "weak",
+            "score": 0.44,
+            "reason": "reason:plant_eligibility:processing_not_suspected_but_skill_unknown"
+          },
+          "labor": {
+            "status": "pass",
+            "score": 0.76,
+            "reason": "reason:plant_eligibility:labor_plausible_debug_gate"
+          },
+          "fallback": {
+            "status": "pass",
+            "score": 1,
+            "reason": "reason:plant_eligibility:fallback_not_required"
+          }
+        },
+        "confidenceUsed": {
+          "source": "direct",
+          "memoryState": "used",
+          "stalenessTicks": 1,
+          "stalenessLabel": "fresh",
+          "presence": 0.7,
+          "season": 0.89,
+          "yield": 0.66,
+          "safety": 0.42,
+          "processing": 0,
+          "access": 0.67,
+          "recovery": 0,
+          "observationCount": 0,
+          "contradictionCount": 5,
+          "falseInferenceCount": 0
+        },
+        "currentSeason": "spring",
+        "fallbackRoleHint": "none",
+        "fallbackRankHint": 0,
+        "processingNeedSuspected": false,
+        "safetyRiskSuspected": false,
+        "storagePotentialSuspected": false,
+        "knownVsTruthLabel": "band_known_or_scouted_only",
+        "noYieldStressRelocationCoupling": true,
+        "trueValueHiddenFromBand": true
+      },
+      {
+        "band": "band:delta-coastal-foragers",
+        "patchId": "patch:tile:126:60:fallback_food",
+        "tileId": "tile:126:60",
+        "linkedResourceClassId": "fallback_food",
+        "eligibilityState": "not_known",
+        "eligibilityScore": 0.53,
+        "dietBreadthReadiness": "fallback_resource_candidate",
+        "failedGates": [
+          "knowledge"
+        ],
+        "gates": {
+          "knowledge": {
+            "status": "fail",
+            "score": 0.12,
+            "reason": "reason:plant_eligibility:knowledge_no_plant_patch_observation"
+          },
+          "season": {
+            "status": "weak",
+            "score": 0.89,
+            "reason": "reason:plant_eligibility:season_memory_only"
+          },
+          "abundance": {
+            "status": "weak",
+            "score": 0.61,
+            "reason": "reason:plant_eligibility:abundance_memory_only"
+          },
+          "access": {
+            "status": "pass",
+            "score": 0.67,
+            "reason": "reason:plant_eligibility:access_known_enough"
+          },
+          "safety": {
+            "status": "weak",
+            "score": 0.43,
+            "reason": "reason:plant_eligibility:safety_cautious_only"
+          },
+          "processing": {
+            "status": "weak",
+            "score": 0.44,
+            "reason": "reason:plant_eligibility:processing_not_suspected_but_skill_unknown"
+          },
+          "labor": {
+            "status": "pass",
+            "score": 0.76,
+            "reason": "reason:plant_eligibility:labor_plausible_debug_gate"
+          },
+          "fallback": {
+            "status": "pass",
+            "score": 1,
+            "reason": "reason:plant_eligibility:fallback_not_required"
+          }
+        },
+        "confidenceUsed": {
+          "source": "direct",
+          "memoryState": "used",
+          "stalenessTicks": 1,
+          "stalenessLabel": "fresh",
+          "presence": 0.66,
+          "season": 0.89,
+          "yield": 0.61,
+          "safety": 0.43,
+          "processing": 0,
+          "access": 0.67,
+          "recovery": 0,
+          "observationCount": 0,
+          "contradictionCount": 6,
+          "falseInferenceCount": 0
+        },
+        "currentSeason": "spring",
+        "fallbackRoleHint": "none",
+        "fallbackRankHint": 0,
+        "processingNeedSuspected": false,
+        "safetyRiskSuspected": false,
+        "storagePotentialSuspected": false,
+        "knownVsTruthLabel": "band_known_or_scouted_only",
+        "noYieldStressRelocationCoupling": true,
+        "trueValueHiddenFromBand": true
+      },
+      {
+        "band": "band:delta-coastal-foragers",
+        "patchId": "patch:tile:126:58:generic_plant_food",
+        "tileId": "tile:126:58",
+        "linkedResourceClassId": "generic_plant_food",
+        "eligibilityState": "not_known",
+        "eligibilityScore": 0.51,
+        "dietBreadthReadiness": "fallback_resource_candidate",
+        "failedGates": [
+          "knowledge"
+        ],
+        "gates": {
+          "knowledge": {
+            "status": "fail",
+            "score": 0.12,
+            "reason": "reason:plant_eligibility:knowledge_no_plant_patch_observation"
+          },
+          "season": {
+            "status": "weak",
+            "score": 0.54,
+            "reason": "reason:plant_eligibility:season_memory_only"
+          },
+          "abundance": {
+            "status": "weak",
+            "score": 0.36,
+            "reason": "reason:plant_eligibility:abundance_memory_only"
+          },
+          "access": {
+            "status": "pass",
+            "score": 0.64,
+            "reason": "reason:plant_eligibility:access_known_enough"
+          },
+          "safety": {
+            "status": "pass",
+            "score": 0.82,
+            "reason": "reason:plant_eligibility:safety_confidence_sufficient_for_debug"
+          },
+          "processing": {
+            "status": "weak",
+            "score": 0.44,
+            "reason": "reason:plant_eligibility:processing_not_suspected_but_skill_unknown"
+          },
+          "labor": {
+            "status": "pass",
+            "score": 0.76,
+            "reason": "reason:plant_eligibility:labor_plausible_debug_gate"
+          },
+          "fallback": {
+            "status": "pass",
+            "score": 1,
+            "reason": "reason:plant_eligibility:fallback_not_required"
+          }
+        },
+        "confidenceUsed": {
+          "source": "direct",
+          "memoryState": "used",
+          "stalenessTicks": 27,
+          "stalenessLabel": "fresh",
+          "presence": 0.57,
+          "season": 0.54,
+          "yield": 0.36,
+          "safety": 0.82,
+          "processing": 0,
+          "access": 0.64,
+          "recovery": 0,
+          "observationCount": 0,
+          "contradictionCount": 41,
+          "falseInferenceCount": 0
+        },
+        "currentSeason": "spring",
+        "fallbackRoleHint": "none",
+        "fallbackRankHint": 0,
+        "processingNeedSuspected": false,
+        "safetyRiskSuspected": false,
+        "storagePotentialSuspected": false,
+        "knownVsTruthLabel": "band_known_or_scouted_only",
+        "noYieldStressRelocationCoupling": true,
+        "trueValueHiddenFromBand": true
+      },
+      {
+        "band": "band:delta-coastal-foragers",
+        "patchId": "patch:tile:127:60:fallback_food",
+        "tileId": "tile:127:60",
+        "linkedResourceClassId": "fallback_food",
+        "eligibilityState": "not_known",
+        "eligibilityScore": 0.51,
+        "dietBreadthReadiness": "fallback_resource_candidate",
+        "failedGates": [
+          "knowledge"
+        ],
+        "gates": {
+          "knowledge": {
+            "status": "fail",
+            "score": 0.12,
+            "reason": "reason:plant_eligibility:knowledge_no_plant_patch_observation"
+          },
+          "season": {
+            "status": "weak",
+            "score": 0.87,
+            "reason": "reason:plant_eligibility:season_memory_only"
+          },
+          "abundance": {
+            "status": "weak",
+            "score": 0.55,
+            "reason": "reason:plant_eligibility:abundance_memory_only"
+          },
+          "access": {
+            "status": "pass",
+            "score": 0.65,
+            "reason": "reason:plant_eligibility:access_known_enough"
+          },
+          "safety": {
+            "status": "weak",
+            "score": 0.37,
+            "reason": "reason:plant_eligibility:safety_cautious_only"
+          },
+          "processing": {
+            "status": "weak",
+            "score": 0.44,
+            "reason": "reason:plant_eligibility:processing_not_suspected_but_skill_unknown"
+          },
+          "labor": {
+            "status": "pass",
+            "score": 0.76,
+            "reason": "reason:plant_eligibility:labor_plausible_debug_gate"
+          },
+          "fallback": {
+            "status": "pass",
+            "score": 1,
+            "reason": "reason:plant_eligibility:fallback_not_required"
+          }
+        },
+        "confidenceUsed": {
+          "source": "direct",
+          "memoryState": "used",
+          "stalenessTicks": 1,
+          "stalenessLabel": "fresh",
+          "presence": 0.82,
+          "season": 0.87,
+          "yield": 0.55,
+          "safety": 0.37,
+          "processing": 0,
+          "access": 0.65,
+          "recovery": 0,
+          "observationCount": 0,
+          "contradictionCount": 2,
+          "falseInferenceCount": 0
+        },
+        "currentSeason": "spring",
+        "fallbackRoleHint": "none",
+        "fallbackRankHint": 0,
+        "processingNeedSuspected": false,
+        "safetyRiskSuspected": false,
+        "storagePotentialSuspected": false,
+        "knownVsTruthLabel": "band_known_or_scouted_only",
+        "noYieldStressRelocationCoupling": true,
+        "trueValueHiddenFromBand": true
+      },
+      {
+        "band": "band:delta-coastal-foragers",
+        "patchId": "patch:tile:127:62:generic_plant_food",
+        "tileId": "tile:127:62",
+        "linkedResourceClassId": "generic_plant_food",
+        "eligibilityState": "not_known",
+        "eligibilityScore": 0.51,
+        "dietBreadthReadiness": "fallback_resource_candidate",
+        "failedGates": [
+          "knowledge"
+        ],
+        "gates": {
+          "knowledge": {
+            "status": "fail",
+            "score": 0.12,
+            "reason": "reason:plant_eligibility:knowledge_no_plant_patch_observation"
+          },
+          "season": {
+            "status": "weak",
+            "score": 0.84,
+            "reason": "reason:plant_eligibility:season_memory_only"
+          },
+          "abundance": {
+            "status": "weak",
+            "score": 0.62,
+            "reason": "reason:plant_eligibility:abundance_memory_only"
+          },
+          "access": {
+            "status": "pass",
+            "score": 0.65,
+            "reason": "reason:plant_eligibility:access_known_enough"
+          },
+          "safety": {
+            "status": "weak",
+            "score": 0.35,
+            "reason": "reason:plant_eligibility:safety_cautious_only"
+          },
+          "processing": {
+            "status": "weak",
+            "score": 0.44,
+            "reason": "reason:plant_eligibility:processing_not_suspected_but_skill_unknown"
+          },
+          "labor": {
+            "status": "pass",
+            "score": 0.76,
+            "reason": "reason:plant_eligibility:labor_plausible_debug_gate"
+          },
+          "fallback": {
+            "status": "pass",
+            "score": 1,
+            "reason": "reason:plant_eligibility:fallback_not_required"
+          }
+        },
+        "confidenceUsed": {
+          "source": "direct",
+          "memoryState": "reliable",
+          "stalenessTicks": 0,
+          "stalenessLabel": "fresh",
+          "presence": 0.85,
+          "season": 0.84,
+          "yield": 0.62,
+          "safety": 0.35,
+          "processing": 0,
+          "access": 0.65,
+          "recovery": 0,
+          "observationCount": 0,
+          "contradictionCount": 0,
+          "falseInferenceCount": 0
+        },
+        "currentSeason": "spring",
+        "fallbackRoleHint": "none",
+        "fallbackRankHint": 0,
+        "processingNeedSuspected": false,
+        "safetyRiskSuspected": false,
+        "storagePotentialSuspected": false,
+        "knownVsTruthLabel": "band_known_or_scouted_only",
+        "noYieldStressRelocationCoupling": true,
+        "trueValueHiddenFromBand": true
+      },
+      {
+        "band": "band:delta-coastal-foragers",
+        "patchId": "patch:tile:125:61:generic_plant_food",
+        "tileId": "tile:125:61",
+        "linkedResourceClassId": "generic_plant_food",
+        "eligibilityState": "not_known",
+        "eligibilityScore": 0.5,
+        "dietBreadthReadiness": "fallback_resource_candidate",
+        "failedGates": [
+          "knowledge"
+        ],
+        "gates": {
+          "knowledge": {
+            "status": "fail",
+            "score": 0.12,
+            "reason": "reason:plant_eligibility:knowledge_no_plant_patch_observation"
+          },
+          "season": {
+            "status": "weak",
+            "score": 0.89,
+            "reason": "reason:plant_eligibility:season_memory_only"
+          },
+          "abundance": {
+            "status": "weak",
+            "score": 0.49,
+            "reason": "reason:plant_eligibility:abundance_memory_only"
+          },
+          "access": {
+            "status": "pass",
+            "score": 0.61,
+            "reason": "reason:plant_eligibility:access_known_enough"
+          },
+          "safety": {
+            "status": "weak",
+            "score": 0.42,
+            "reason": "reason:plant_eligibility:safety_cautious_only"
+          },
+          "processing": {
+            "status": "weak",
+            "score": 0.44,
+            "reason": "reason:plant_eligibility:processing_not_suspected_but_skill_unknown"
+          },
+          "labor": {
+            "status": "pass",
+            "score": 0.76,
+            "reason": "reason:plant_eligibility:labor_plausible_debug_gate"
+          },
+          "fallback": {
+            "status": "pass",
+            "score": 1,
+            "reason": "reason:plant_eligibility:fallback_not_required"
+          }
+        },
+        "confidenceUsed": {
+          "source": "direct",
+          "memoryState": "used",
+          "stalenessTicks": 1,
+          "stalenessLabel": "fresh",
+          "presence": 0.58,
+          "season": 0.89,
+          "yield": 0.49,
+          "safety": 0.42,
+          "processing": 0,
+          "access": 0.61,
+          "recovery": 0,
+          "observationCount": 0,
+          "contradictionCount": 11,
+          "falseInferenceCount": 0
+        },
+        "currentSeason": "spring",
+        "fallbackRoleHint": "none",
+        "fallbackRankHint": 0,
+        "processingNeedSuspected": false,
+        "safetyRiskSuspected": false,
+        "storagePotentialSuspected": false,
+        "knownVsTruthLabel": "band_known_or_scouted_only",
+        "noYieldStressRelocationCoupling": true,
+        "trueValueHiddenFromBand": true
+      },
+      {
+        "band": "band:dry-margin-foragers",
+        "patchId": "patch:tile:113:58:fallback_food",
+        "tileId": "tile:113:58",
+        "linkedResourceClassId": "fallback_food",
+        "eligibilityState": "not_known",
+        "eligibilityScore": 0.5,
+        "dietBreadthReadiness": "preferred_resource_candidate",
+        "failedGates": [
+          "knowledge"
+        ],
+        "gates": {
+          "knowledge": {
+            "status": "fail",
+            "score": 0.12,
+            "reason": "reason:plant_eligibility:knowledge_no_plant_patch_observation"
+          },
+          "season": {
+            "status": "weak",
+            "score": 0.84,
+            "reason": "reason:plant_eligibility:season_memory_only"
+          },
+          "abundance": {
+            "status": "weak",
+            "score": 0.56,
+            "reason": "reason:plant_eligibility:abundance_memory_only"
+          },
+          "access": {
+            "status": "pass",
+            "score": 0.65,
+            "reason": "reason:plant_eligibility:access_known_enough"
+          },
+          "safety": {
+            "status": "weak",
+            "score": 0.35,
+            "reason": "reason:plant_eligibility:safety_cautious_only"
+          },
+          "processing": {
+            "status": "weak",
+            "score": 0.44,
+            "reason": "reason:plant_eligibility:processing_not_suspected_but_skill_unknown"
+          },
+          "labor": {
+            "status": "pass",
+            "score": 0.76,
+            "reason": "reason:plant_eligibility:labor_plausible_debug_gate"
+          },
+          "fallback": {
+            "status": "pass",
+            "score": 1,
+            "reason": "reason:plant_eligibility:fallback_not_required"
+          }
+        },
+        "confidenceUsed": {
+          "source": "direct",
+          "memoryState": "reliable",
+          "stalenessTicks": 0,
+          "stalenessLabel": "fresh",
+          "presence": 0.85,
+          "season": 0.84,
+          "yield": 0.56,
+          "safety": 0.35,
+          "processing": 0,
+          "access": 0.65,
+          "recovery": 0,
+          "observationCount": 0,
+          "contradictionCount": 0,
+          "falseInferenceCount": 0
+        },
+        "currentSeason": "spring",
+        "fallbackRoleHint": "none",
+        "fallbackRankHint": 0,
+        "processingNeedSuspected": false,
+        "safetyRiskSuspected": false,
+        "storagePotentialSuspected": false,
+        "knownVsTruthLabel": "band_known_or_scouted_only",
+        "noYieldStressRelocationCoupling": true,
+        "trueValueHiddenFromBand": true
+      },
+      {
+        "band": "band:dry-margin-foragers",
+        "patchId": "patch:tile:113:58:generic_plant_food",
+        "tileId": "tile:113:58",
+        "linkedResourceClassId": "generic_plant_food",
+        "eligibilityState": "not_known",
+        "eligibilityScore": 0.5,
+        "dietBreadthReadiness": "preferred_resource_candidate",
+        "failedGates": [
+          "knowledge"
+        ],
+        "gates": {
+          "knowledge": {
+            "status": "fail",
+            "score": 0.12,
+            "reason": "reason:plant_eligibility:knowledge_no_plant_patch_observation"
+          },
+          "season": {
+            "status": "weak",
+            "score": 0.84,
+            "reason": "reason:plant_eligibility:season_memory_only"
+          },
+          "abundance": {
+            "status": "weak",
+            "score": 0.61,
+            "reason": "reason:plant_eligibility:abundance_memory_only"
+          },
+          "access": {
+            "status": "pass",
+            "score": 0.65,
+            "reason": "reason:plant_eligibility:access_known_enough"
+          },
+          "safety": {
+            "status": "weak",
+            "score": 0.35,
+            "reason": "reason:plant_eligibility:safety_cautious_only"
+          },
+          "processing": {
+            "status": "weak",
+            "score": 0.44,
+            "reason": "reason:plant_eligibility:processing_not_suspected_but_skill_unknown"
+          },
+          "labor": {
+            "status": "pass",
+            "score": 0.76,
+            "reason": "reason:plant_eligibility:labor_plausible_debug_gate"
+          },
+          "fallback": {
+            "status": "pass",
+            "score": 1,
+            "reason": "reason:plant_eligibility:fallback_not_required"
+          }
+        },
+        "confidenceUsed": {
+          "source": "direct",
+          "memoryState": "reliable",
+          "stalenessTicks": 0,
+          "stalenessLabel": "fresh",
+          "presence": 0.85,
+          "season": 0.84,
+          "yield": 0.61,
+          "safety": 0.35,
+          "processing": 0,
+          "access": 0.65,
+          "recovery": 0,
+          "observationCount": 0,
+          "contradictionCount": 0,
+          "falseInferenceCount": 0
+        },
+        "currentSeason": "spring",
+        "fallbackRoleHint": "none",
+        "fallbackRankHint": 0,
+        "processingNeedSuspected": false,
+        "safetyRiskSuspected": false,
+        "storagePotentialSuspected": false,
+        "knownVsTruthLabel": "band_known_or_scouted_only",
+        "noYieldStressRelocationCoupling": true,
+        "trueValueHiddenFromBand": true
+      }
+    ],
+    "boundedDerivation": "active bands' existing resource patch memories only; no tile truth scan",
+    "denseBandTables": false,
+    "behaviorCoupling": {
+      "yield": false,
+      "stress": false,
+      "mortality": false,
+      "relocation": false,
+      "carryingCapacity": false
+    }
+  },
+  "patchReturnAudit": {
+    "note": "2K.4 observed patch return / exploitation knowledge — derived-only, knowledge only / future exploitation hook",
+    "estimateCount": 240,
+    "bandsWithEstimates": 5,
+    "readinessCounts": {
+      "locally_promising_unproven": 33,
+      "observation_only": 113,
+      "locally_usable_placeholder": 90,
+      "processing_required_unknown": 3,
+      "cautious_testing": 1
+    },
+    "riskCounts": {
+      "none_observed": 236,
+      "safety_uncertain": 4
+    },
+    "sourceCounts": {
+      "repeated_observation": 222,
+      "scout_observation": 12,
+      "processing_hint": 3,
+      "cautious_sample": 3
+    },
+    "expectedReturnCounts": {
+      "unknown": 236,
+      "trace": 4
+    },
+    "allGuardFlagsTrue": true,
+    "behaviorCoupling": {
+      "yield": false,
+      "stress": false,
+      "mortality": false,
+      "population": false,
+      "relocation": false,
+      "fission": false,
+      "carryingCapacity": false
+    }
+  },
+  "tickSemanticsAudit": {
+    "currentScale": "WorldTime.tick = compatibility seasonal decision tick; WorldTime.day = explicit calendar day",
+    "unchangedInThisCheckpoint": false,
+    "compatibilityLayer": true,
+    "seasonalTickAsSingleActionCandidates": [
+      "residential_move",
+      "scouting_or_explore",
+      "river_crossing",
+      "encounter_or_contact",
+      "hunting_or_foraging_pressure"
+    ],
+    "futureWork": "Convert these into elapsed-day or intra-season summarized activity before enabling true daily decision resolution."
+  }
+}
+deterministic=true

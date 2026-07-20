@@ -1,0 +1,358 @@
+{
+  "check": "DEMOGRAPHIC-PERSISTENCE-1",
+  "verdict": "PASS",
+  "years": 50,
+  "checks": {
+    "healthyPhysicallySupported": true,
+    "healthyPersists": true,
+    "moderatePhysicalBand": true,
+    "moderateNotPinnedAtDeclineCap": true,
+    "marginalCausallyVariable": true,
+    "recoveryIsPhysical": true,
+    "recoverySurvives": true,
+    "nonviableHasNoFoodFloor": true,
+    "nonviableTerminates": true,
+    "populationReconciles": true,
+    "birthsAndDeathsVisible": true,
+    "observerParity": true,
+    "deterministic": true,
+    "boundedState": true
+  },
+  "scenarios": {
+    "healthy": {
+      "id": "healthy",
+      "years": 50,
+      "startPopulation": 24,
+      "endPopulation": 24,
+      "births": 21,
+      "recordedDeaths": 21,
+      "terminalDeaths": 0,
+      "uniqueDeaths": 21,
+      "accounting": {
+        "equation": "24 + 21 - 21 = 24",
+        "reconciles": true
+      },
+      "checkpoints": [
+        {
+          "year": 0,
+          "population": 24
+        },
+        {
+          "year": 10,
+          "population": 24
+        },
+        {
+          "year": 20,
+          "population": 24
+        },
+        {
+          "year": 30,
+          "population": 24
+        },
+        {
+          "year": 40,
+          "population": 24
+        },
+        {
+          "year": 50,
+          "population": 24
+        }
+      ],
+      "meanUsableSupport": 29.0597,
+      "meanDemand": 21.27,
+      "meanSupportRatio": 1.3662,
+      "meanFoodStress": 0.2477,
+      "earlySupportRatio": 1.2757,
+      "lateSupportRatio": 1.5743,
+      "declineCapShare": 0,
+      "movements": 124,
+      "adaptationsAttempted": 4,
+      "adaptationsEffective": 0,
+      "fertilityPressure": 0.37,
+      "mortalityPressure": 0.23,
+      "foodFertilitySuppression": 0.07,
+      "foodMortalityContribution": 0.11,
+      "severeChronicFoodHazard": 0,
+      "growthAccumulator": 0.598,
+      "mortalityAccumulator": 0.2435,
+      "renewal": "replacing_losses",
+      "lifecycle": "viable",
+      "initialDepletionApplied": false,
+      "stateCapsHeld": true,
+      "runtimeMs": 9662.9905,
+      "fingerprint": "33c2ce58c51715424b7391b3da8e0f1b4684b8fea7cf5b9b8ce8724eb765bbb5",
+      "observerParity": true,
+      "repeatedFingerprint": "33c2ce58c51715424b7391b3da8e0f1b4684b8fea7cf5b9b8ce8724eb765bbb5"
+    },
+    "moderate": {
+      "id": "moderate",
+      "years": 50,
+      "startPopulation": 34,
+      "endPopulation": 33,
+      "births": 29,
+      "recordedDeaths": 30,
+      "terminalDeaths": 0,
+      "uniqueDeaths": 30,
+      "accounting": {
+        "equation": "34 + 29 - 30 = 33",
+        "reconciles": true
+      },
+      "checkpoints": [
+        {
+          "year": 0,
+          "population": 34
+        },
+        {
+          "year": 10,
+          "population": 34
+        },
+        {
+          "year": 20,
+          "population": 34
+        },
+        {
+          "year": 30,
+          "population": 34
+        },
+        {
+          "year": 40,
+          "population": 33
+        },
+        {
+          "year": 50,
+          "population": 33
+        }
+      ],
+      "meanUsableSupport": 27.8866,
+      "meanDemand": 29.856,
+      "meanSupportRatio": 0.9346,
+      "meanFoodStress": 0.2978,
+      "earlySupportRatio": 0.8062,
+      "lateSupportRatio": 1.0664,
+      "declineCapShare": 0,
+      "movements": 152,
+      "adaptationsAttempted": 4,
+      "adaptationsEffective": 0,
+      "fertilityPressure": 0.28,
+      "mortalityPressure": 0.38,
+      "foodFertilitySuppression": 0.11,
+      "foodMortalityContribution": 0.19,
+      "severeChronicFoodHazard": 0,
+      "growthAccumulator": 0.4894,
+      "mortalityAccumulator": 0.15,
+      "renewal": "critical_remnant",
+      "lifecycle": "fragile",
+      "initialDepletionApplied": false,
+      "stateCapsHeld": true,
+      "runtimeMs": 8902.08,
+      "fingerprint": "56234effac4e4fb6a797aec05e119ab24b2d3d2b76c4995d236d70c3fdd77d35",
+      "observerParity": true,
+      "repeatedFingerprint": "56234effac4e4fb6a797aec05e119ab24b2d3d2b76c4995d236d70c3fdd77d35"
+    },
+    "marginal": {
+      "id": "marginal",
+      "years": 50,
+      "startPopulation": 27,
+      "endPopulation": 18,
+      "births": 19,
+      "recordedDeaths": 28,
+      "terminalDeaths": 0,
+      "uniqueDeaths": 28,
+      "accounting": {
+        "equation": "27 + 19 - 28 = 18",
+        "reconciles": true
+      },
+      "checkpoints": [
+        {
+          "year": 0,
+          "population": 27
+        },
+        {
+          "year": 10,
+          "population": 26
+        },
+        {
+          "year": 20,
+          "population": 23
+        },
+        {
+          "year": 30,
+          "population": 21
+        },
+        {
+          "year": 40,
+          "population": 19
+        },
+        {
+          "year": 50,
+          "population": 18
+        }
+      ],
+      "meanUsableSupport": 9.4806,
+      "meanDemand": 19.797,
+      "meanSupportRatio": 0.4781,
+      "meanFoodStress": 0.5744,
+      "earlySupportRatio": 0.6358,
+      "lateSupportRatio": 0.5773,
+      "declineCapShare": 0,
+      "movements": 139,
+      "adaptationsAttempted": 2,
+      "adaptationsEffective": 1,
+      "fertilityPressure": 0.13,
+      "mortalityPressure": 0.57,
+      "foodFertilitySuppression": 0.16,
+      "foodMortalityContribution": 0.26,
+      "severeChronicFoodHazard": 0,
+      "growthAccumulator": 0,
+      "mortalityAccumulator": 0.2146,
+      "renewal": "declining",
+      "lifecycle": "fragile",
+      "initialDepletionApplied": false,
+      "stateCapsHeld": true,
+      "runtimeMs": 8154.8852,
+      "fingerprint": "a5c057b0eea237643f0f058fc1ea0db92ff6134d486493eb809ad556e5da4db7",
+      "observerParity": true,
+      "repeatedFingerprint": "a5c057b0eea237643f0f058fc1ea0db92ff6134d486493eb809ad556e5da4db7"
+    },
+    "recovery": {
+      "id": "recovery",
+      "years": 50,
+      "startPopulation": 24,
+      "endPopulation": 24,
+      "births": 21,
+      "recordedDeaths": 21,
+      "terminalDeaths": 0,
+      "uniqueDeaths": 21,
+      "accounting": {
+        "equation": "24 + 21 - 21 = 24",
+        "reconciles": true
+      },
+      "checkpoints": [
+        {
+          "year": 0,
+          "population": 24
+        },
+        {
+          "year": 10,
+          "population": 24
+        },
+        {
+          "year": 20,
+          "population": 24
+        },
+        {
+          "year": 30,
+          "population": 24
+        },
+        {
+          "year": 40,
+          "population": 24
+        },
+        {
+          "year": 50,
+          "population": 24
+        }
+      ],
+      "meanUsableSupport": 29.4206,
+      "meanDemand": 21.27,
+      "meanSupportRatio": 1.3825,
+      "meanFoodStress": 0.2512,
+      "earlySupportRatio": 1.0577,
+      "lateSupportRatio": 1.6115,
+      "declineCapShare": 0,
+      "movements": 106,
+      "adaptationsAttempted": 4,
+      "adaptationsEffective": 0,
+      "fertilityPressure": 0.28,
+      "mortalityPressure": 0.37,
+      "foodFertilitySuppression": 0.11,
+      "foodMortalityContribution": 0.18,
+      "severeChronicFoodHazard": 0,
+      "growthAccumulator": 0.3319,
+      "mortalityAccumulator": 0.2628,
+      "renewal": "critical_remnant",
+      "lifecycle": "fragile",
+      "initialDepletionApplied": true,
+      "stateCapsHeld": true,
+      "runtimeMs": 8630.3335,
+      "fingerprint": "491b707172eb078d48f6dc0e67443a566915a70c56f3708a52699e9595423d7a",
+      "observerParity": true,
+      "repeatedFingerprint": "491b707172eb078d48f6dc0e67443a566915a70c56f3708a52699e9595423d7a"
+    },
+    "nonviable": {
+      "id": "nonviable",
+      "years": 60,
+      "startPopulation": 24,
+      "endPopulation": 0,
+      "births": 19,
+      "recordedDeaths": 35,
+      "terminalDeaths": 8,
+      "uniqueDeaths": 43,
+      "accounting": {
+        "equation": "24 + 19 - 43 = 0",
+        "reconciles": true
+      },
+      "checkpoints": [
+        {
+          "year": 0,
+          "population": 24
+        },
+        {
+          "year": 10,
+          "population": 21
+        },
+        {
+          "year": 20,
+          "population": 17
+        },
+        {
+          "year": 30,
+          "population": 14
+        },
+        {
+          "year": 40,
+          "population": 12
+        },
+        {
+          "year": 50,
+          "population": 10
+        },
+        {
+          "year": 60,
+          "population": 0
+        }
+      ],
+      "meanUsableSupport": 0,
+      "meanDemand": 14.0178,
+      "meanSupportRatio": 0,
+      "meanFoodStress": 1,
+      "earlySupportRatio": 0,
+      "lateSupportRatio": 0,
+      "declineCapShare": 0.9828,
+      "movements": 0,
+      "adaptationsAttempted": 3,
+      "adaptationsEffective": 0,
+      "fertilityPressure": 0,
+      "mortalityPressure": 1,
+      "foodFertilitySuppression": 0.44,
+      "foodMortalityContribution": 0.36,
+      "severeChronicFoodHazard": 1,
+      "growthAccumulator": 0,
+      "mortalityAccumulator": 0,
+      "renewal": "extinct",
+      "lifecycle": "extinct",
+      "initialDepletionApplied": false,
+      "stateCapsHeld": true,
+      "runtimeMs": 7009.0874,
+      "fingerprint": "e7e144e4e4d53c2514b79314b2870cb14e268a44e3dbadd45b61f16a28e9a41d",
+      "observerParity": true,
+      "repeatedFingerprint": "e7e144e4e4d53c2514b79314b2870cb14e268a44e3dbadd45b61f16a28e9a41d"
+    }
+  },
+  "structuralEvaluation": {
+    "retainedNetRate": "Fast and snapshot-compatible, but gross replacement births are aggregate churn and working-adult cohorts do not cause fertility.",
+    "separateGrossAccumulators": "Would make births, ordinary deaths, age hazards, and reproductive capacity independently causal; migration/cohort reconciliation and snapshot migration make it a follow-up, not a safe calibration patch.",
+    "hybridRecommendation": "Follow with separate bounded birth potential, ordinary mortality, and crisis mortality accumulators over aggregate cohorts; retain deterministic integer realization and terminal lifecycle accounting.",
+    "implementedNow": "No structural rewrite. This checkpoint de-stacks food pressure and exposes the current aggregate limitation explicitly."
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "check": "EXPEDITION-ADAPTATION-EFFICACY-1",
+  "verdict": "PASS",
+  "checks": {
+    "responseGivesActiveRelief_15": true,
+    "noResponseNoRelief_15": true,
+    "abandonedEvidenceKillsEffect_15": true,
+    "carryCeilingDiffers_15": true,
+    "carryLiftBounded_15": true,
+    "bothArmsPhysicallyComplete_15": true,
+    "adaptedPartyMeasurablyBetter_15": true,
+    "adaptedPartyNoSlower_15": true,
+    "noGenericMultiplier_15": true,
+    "evaluatorCreditsRealSuccess_15": true,
+    "evaluatorFlagsRealFailure_15": true,
+    "boundaryOnlyAccess_15": true
+  },
+  "ab": {
+    "relief": {
+      "withResponse": 0.27,
+      "withoutResponse": 0,
+      "afterAbandonment": 0
+    },
+    "carryCapacityUnits": {
+      "withResponse": 0.2976,
+      "withoutResponse": 0.24
+    },
+    "delivered": {
+      "withResponse": 0.0376,
+      "withoutResponse": 0.0376
+    },
+    "totalDays": {
+      "withResponse": 7,
+      "withoutResponse": 8
+    },
+    "outcomes": {
+      "withResponse": {
+        "reason": "returned_with_cargo",
+        "lost": 0,
+        "provisions": 0.0152
+      },
+      "withoutResponse": {
+        "reason": "returned_with_cargo",
+        "lost": 0,
+        "provisions": 0.0168
+      }
+    },
+    "site": "tile:131:61"
+  },
+  "efficacy": {
+    "successClassification": "clear_success_specific",
+    "failureClassification": "failure_or_danger_specific"
+  }
+}

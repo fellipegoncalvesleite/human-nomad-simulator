@@ -1,0 +1,62 @@
+{
+  "check": "DECISION-BOUNDARY-1",
+  "verdict": "PASS",
+  "checks": {
+    "allFamiliesExtracted": true,
+    "noFamilyCycleBackToOrchestrator": true,
+    "noSharedKitCycleBackToOrchestrator": true,
+    "deterministicSelectionOwnedByScoringKit": true,
+    "atLeastThreeFamiliesExtracted": true
+  },
+  "orchestratorLines": 6086,
+  "results": {
+    "families": [
+      {
+        "module": "candidates/visibleLandscapeCandidate.ts",
+        "exists": true,
+        "ownsBuilders": true,
+        "orchestratorNoLongerDefines": true,
+        "orchestratorImports": true,
+        "familyNoCycle": true
+      },
+      {
+        "module": "candidates/resourceScoutCandidate.ts",
+        "exists": true,
+        "ownsBuilders": true,
+        "orchestratorNoLongerDefines": true,
+        "orchestratorImports": true,
+        "familyNoCycle": true
+      },
+      {
+        "module": "candidates/pressureReliefCandidate.ts",
+        "exists": true,
+        "ownsBuilders": true,
+        "orchestratorNoLongerDefines": true,
+        "orchestratorImports": true,
+        "familyNoCycle": true
+      }
+    ],
+    "sharedKit": [
+      {
+        "module": "decisionCandidateTypes.ts",
+        "exists": true,
+        "noCycle": true
+      },
+      {
+        "module": "decisionScoring.ts",
+        "exists": true,
+        "noCycle": true
+      },
+      {
+        "module": "decisionEdgeContext.ts",
+        "exists": true,
+        "noCycle": true
+      },
+      {
+        "module": "decisionConstants.ts",
+        "exists": true,
+        "noCycle": true
+      }
+    ]
+  }
+}

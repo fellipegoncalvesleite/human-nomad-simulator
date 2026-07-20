@@ -1,0 +1,345 @@
+WebSocket server error: Port 24678 is already in use
+{
+  "check": "LIVING-ECOLOGY-FOOD-PIPELINE-A",
+  "verdict": "PASS",
+  "checks": {
+    "plantHarvestBounded": true,
+    "plantActuallyDepleted": true,
+    "plantAbsentZero": true,
+    "plantExhaustedZero": true,
+    "faunaHarvestBounded": true,
+    "faunaActuallyDepleted": true,
+    "faunaAbsentZeroEvenHugeRequest": true,
+    "faunaExhaustedZero": true,
+    "plantAbsenceLedgerZero": true,
+    "faunaAbsenceLedgerZero": true,
+    "totalAbsenceVisibleDeficit": true,
+    "noGenericDoubleCount": true,
+    "receiptCountedOnce": true,
+    "downstreamStressRaised": true,
+    "residualAndStorageExplicitZero": true,
+    "liveProductionReceiptsExist": true,
+    "liveProductionConsumesPhysicalFood": true,
+    "normalPlantViewDoesNotReadHiddenDepletion": true,
+    "normalFaunaViewDoesNotReadCurrentHiddenStock": true,
+    "deterministic": true
+  },
+  "plant": {
+    "sourceId": "plant:tile:0:0:wild_grain_seed",
+    "sourceClass": "wild_grain_seed",
+    "availableBefore": 0.013,
+    "harvested": 0.013,
+    "depletion": 0.013,
+    "availableAfter": 0,
+    "absentHarvest": 0,
+    "absentReason": "physical_source_absent",
+    "exhaustedHarvest": 0,
+    "exhaustedReason": "physically_exhausted"
+  },
+  "fauna": {
+    "sourceId": "fauna:small_game:tile:0:0",
+    "sourceClass": "small_game",
+    "availableBefore": 1.0466,
+    "harvested": 0.35,
+    "depletion": 0.35,
+    "availableAfter": 0.6965,
+    "absentHarvest": 0,
+    "absentReason": "physical_source_absent",
+    "exhaustedHarvest": 0,
+    "exhaustedReason": "physically_exhausted"
+  },
+  "absence": {
+    "plant": {
+      "plant": 0,
+      "fauna": 0,
+      "aquatic": 0,
+      "residual": 0,
+      "usable": 0,
+      "demand": 20,
+      "ratio": 0,
+      "foodStress": 1,
+      "genericConsumed": false
+    },
+    "fauna": {
+      "plant": 0,
+      "fauna": 0,
+      "aquatic": 0,
+      "residual": 0,
+      "usable": 0,
+      "demand": 20,
+      "ratio": 0,
+      "foodStress": 1,
+      "genericConsumed": false
+    },
+    "total": {
+      "plant": 0,
+      "fauna": 0,
+      "aquatic": 0,
+      "residual": 0,
+      "usable": 0,
+      "demand": 20,
+      "ratio": 0,
+      "foodStress": 1,
+      "genericConsumed": false
+    },
+    "seasonalFoodStress": 1
+  },
+  "ledger": {
+    "positive": {
+      "plant": 0,
+      "fauna": 0.35,
+      "aquatic": 0,
+      "residual": 0,
+      "usable": 25,
+      "demand": 20,
+      "ratio": 1.25,
+      "foodStress": 0,
+      "genericConsumed": false
+    },
+    "none": {
+      "plant": 0,
+      "fauna": 0,
+      "aquatic": 0,
+      "residual": 0,
+      "usable": 0,
+      "demand": 20,
+      "ratio": 0,
+      "foodStress": 1,
+      "genericConsumed": false
+    },
+    "carryingWithNoReceipts": {
+      "projectedGeneric": 24.63,
+      "canonicalUsable": 0
+    },
+    "carryingWithReceipts": 25
+  },
+  "liveProduction": {
+    "receiptCount": 216,
+    "consumedCount": 130,
+    "examples": [
+      {
+        "kind": "plant_patch",
+        "id": "absent",
+        "found": false,
+        "available": 0,
+        "harvested": 0,
+        "usable": 0,
+        "failure": "physical_source_absent"
+      },
+      {
+        "kind": "plant_patch",
+        "id": "plant:tile:76:110:wetland_plant",
+        "found": true,
+        "available": 0.0969,
+        "harvested": 0.0257,
+        "usable": 0.0224,
+        "failure": "none"
+      },
+      {
+        "kind": "plant_patch",
+        "id": "absent",
+        "found": false,
+        "available": 0,
+        "harvested": 0,
+        "usable": 0,
+        "failure": "physical_source_absent"
+      },
+      {
+        "kind": "plant_patch",
+        "id": "plant:tile:74:111:roots_tubers_uso",
+        "found": true,
+        "available": 0,
+        "harvested": 0,
+        "usable": 0,
+        "failure": "physically_exhausted"
+      },
+      {
+        "kind": "plant_patch",
+        "id": "plant:tile:77:111:roots_tubers_uso",
+        "found": true,
+        "available": 0,
+        "harvested": 0,
+        "usable": 0,
+        "failure": "physically_exhausted"
+      },
+      {
+        "kind": "plant_patch",
+        "id": "absent",
+        "found": false,
+        "available": 0,
+        "harvested": 0,
+        "usable": 0,
+        "failure": "physical_source_absent"
+      }
+    ]
+  },
+  "fingerprint": {
+    "plant": {
+      "sourceId": "plant:tile:0:0:wild_grain_seed",
+      "sourceClass": "wild_grain_seed",
+      "availableBefore": 0.013,
+      "harvested": 0.013,
+      "depletion": 0.013,
+      "availableAfter": 0,
+      "absentHarvest": 0,
+      "absentReason": "physical_source_absent",
+      "exhaustedHarvest": 0,
+      "exhaustedReason": "physically_exhausted"
+    },
+    "fauna": {
+      "sourceId": "fauna:small_game:tile:0:0",
+      "sourceClass": "small_game",
+      "availableBefore": 1.0466,
+      "harvested": 0.35,
+      "depletion": 0.35,
+      "availableAfter": 0.6965,
+      "absentHarvest": 0,
+      "absentReason": "physical_source_absent",
+      "exhaustedHarvest": 0,
+      "exhaustedReason": "physically_exhausted"
+    },
+    "ledger": {
+      "positive": {
+        "plant": 0,
+        "fauna": 0.35,
+        "aquatic": 0,
+        "residual": 0,
+        "usable": 25,
+        "demand": 20,
+        "ratio": 1.25,
+        "foodStress": 0,
+        "genericConsumed": false
+      },
+      "none": {
+        "plant": 0,
+        "fauna": 0,
+        "aquatic": 0,
+        "residual": 0,
+        "usable": 0,
+        "demand": 20,
+        "ratio": 0,
+        "foodStress": 1,
+        "genericConsumed": false
+      },
+      "carryingWithNoReceipts": {
+        "projectedGeneric": 24.63,
+        "canonicalUsable": 0
+      },
+      "carryingWithReceipts": 25
+    },
+    "live": {
+      "count": 216,
+      "consumed": 130,
+      "sample": [
+        {
+          "kind": "aquatic_stock",
+          "id": "absent",
+          "found": false,
+          "available": 0,
+          "harvested": 0,
+          "usable": 0,
+          "failure": "physical_source_absent"
+        },
+        {
+          "kind": "aquatic_stock",
+          "id": "absent",
+          "found": false,
+          "available": 0,
+          "harvested": 0,
+          "usable": 0,
+          "failure": "physical_source_absent"
+        },
+        {
+          "kind": "aquatic_stock",
+          "id": "absent",
+          "found": false,
+          "available": 0,
+          "harvested": 0,
+          "usable": 0,
+          "failure": "physical_source_absent"
+        },
+        {
+          "kind": "aquatic_stock",
+          "id": "absent",
+          "found": false,
+          "available": 0,
+          "harvested": 0,
+          "usable": 0,
+          "failure": "physical_source_absent"
+        },
+        {
+          "kind": "aquatic_stock",
+          "id": "absent",
+          "found": false,
+          "available": 0,
+          "harvested": 0,
+          "usable": 0,
+          "failure": "physical_source_absent"
+        },
+        {
+          "kind": "aquatic_stock",
+          "id": "absent",
+          "found": false,
+          "available": 0,
+          "harvested": 0,
+          "usable": 0,
+          "failure": "physical_source_absent"
+        },
+        {
+          "kind": "aquatic_stock",
+          "id": "absent",
+          "found": false,
+          "available": 0,
+          "harvested": 0,
+          "usable": 0,
+          "failure": "physical_source_absent"
+        },
+        {
+          "kind": "aquatic_stock",
+          "id": "absent",
+          "found": false,
+          "available": 0,
+          "harvested": 0,
+          "usable": 0,
+          "failure": "physical_source_absent"
+        },
+        {
+          "kind": "aquatic_stock",
+          "id": "absent",
+          "found": false,
+          "available": 0,
+          "harvested": 0,
+          "usable": 0,
+          "failure": "physical_source_absent"
+        },
+        {
+          "kind": "aquatic_stock",
+          "id": "absent",
+          "found": false,
+          "available": 0,
+          "harvested": 0,
+          "usable": 0,
+          "failure": "physical_source_absent"
+        },
+        {
+          "kind": "aquatic_stock",
+          "id": "absent",
+          "found": false,
+          "available": 0,
+          "harvested": 0,
+          "usable": 0,
+          "failure": "physical_source_absent"
+        },
+        {
+          "kind": "fauna_stock",
+          "id": "absent",
+          "found": false,
+          "available": 0,
+          "harvested": 0,
+          "usable": 0,
+          "failure": "physical_source_absent"
+        }
+      ]
+    }
+  }
+}

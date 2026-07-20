@@ -1,0 +1,3076 @@
+{
+  "probe": "sameDayFailureGate",
+  "years": 40,
+  "breakEvenUnitsPerSeason": 0.1875,
+  "cases": {
+    "rich": {
+      "site": {
+        "tileId": "tile:192:96",
+        "stock": 35.86,
+        "meanWater": 0.8016057407923315,
+        "waterTiles": 171
+      },
+      "seasonsAlive": 160,
+      "attemptedTrips": 3679,
+      "unitsTotal": 49.5826,
+      "unitsPerSeason": 0.3099,
+      "productiveRate": 0.3922,
+      "availableButRefused": 312,
+      "availableButRefusedShare": 0.0848,
+      "meanStockWhenRefused": 0.1282,
+      "nonPhysicalTrips": 1,
+      "nonPhysicalShare": 0.0003,
+      "nonPhysicalByCause": [
+        [
+          "memory_refresh",
+          1
+        ]
+      ],
+      "nonPhysicalByResourceClass": [
+        [
+          "water_resource",
+          1
+        ]
+      ],
+      "terminalDistribution": [
+        {
+          "code": "depleted_below_threshold",
+          "count": 1514,
+          "share": 0.4115
+        },
+        {
+          "code": "productive_harvest",
+          "count": 1443,
+          "share": 0.3922
+        },
+        {
+          "code": "target_absent",
+          "count": 369,
+          "share": 0.1003
+        },
+        {
+          "code": "activity_ineligible_despite_stock",
+          "count": 312,
+          "share": 0.0848
+        },
+        {
+          "code": "activity_ineligible_no_stock",
+          "count": 40,
+          "share": 0.0109
+        },
+        {
+          "code": "never_attempted_physical:memory_refresh_group",
+          "count": 1,
+          "share": 0.0003
+        }
+      ],
+      "samples": [
+        {
+          "day": 87,
+          "season": "spring",
+          "target": "tile:192:97",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "partial_success",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.5812,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.1867,
+          "harvestedAmount": 0.0504,
+          "usableSupport": 0.0439,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:87:partial_success:tile:192:97"
+          ]
+        },
+        {
+          "day": 84,
+          "season": "spring",
+          "target": "tile:192:95",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "partial_success",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.5812,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.2878,
+          "harvestedAmount": 0.0637,
+          "usableSupport": 0.0555,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:84:partial_success:tile:192:95"
+          ]
+        },
+        {
+          "day": 81,
+          "season": "spring",
+          "target": "tile:191:96",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "partial_success",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.5812,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.2734,
+          "harvestedAmount": 0.0597,
+          "usableSupport": 0.052,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:81:partial_success:tile:191:96"
+          ]
+        },
+        {
+          "day": 78,
+          "season": "spring",
+          "target": "tile:190:96",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.5588,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.1646,
+          "harvestedAmount": 0.0272,
+          "usableSupport": 0.0231,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:78:target_found:tile:190:96"
+          ]
+        },
+        {
+          "day": 75,
+          "season": "spring",
+          "target": "tile:193:96",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.5588,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.3633,
+          "harvestedAmount": 0.0379,
+          "usableSupport": 0.033,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:75:target_found:tile:193:96"
+          ]
+        },
+        {
+          "day": 72,
+          "season": "spring",
+          "target": "tile:192:97",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.5588,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.2139,
+          "harvestedAmount": 0.0272,
+          "usableSupport": 0.0237,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:72:target_found:tile:192:97"
+          ]
+        },
+        {
+          "day": 69,
+          "season": "spring",
+          "target": "tile:192:95",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.5588,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.3268,
+          "harvestedAmount": 0.039,
+          "usableSupport": 0.034,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:69:target_found:tile:192:95"
+          ]
+        },
+        {
+          "day": 66,
+          "season": "spring",
+          "target": "tile:191:96",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.5588,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.3098,
+          "harvestedAmount": 0.0364,
+          "usableSupport": 0.0317,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:66:target_found:tile:191:96"
+          ]
+        },
+        {
+          "day": 63,
+          "season": "spring",
+          "target": "tile:190:96",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.5364,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.1913,
+          "harvestedAmount": 0.0267,
+          "usableSupport": 0.0227,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:63:target_found:tile:190:96"
+          ]
+        },
+        {
+          "day": 60,
+          "season": "spring",
+          "target": "tile:193:96",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.5364,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.4048,
+          "harvestedAmount": 0.0415,
+          "usableSupport": 0.0361,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:60:target_found:tile:193:96"
+          ]
+        },
+        {
+          "day": 57,
+          "season": "spring",
+          "target": "tile:192:97",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.5364,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.2406,
+          "harvestedAmount": 0.0267,
+          "usableSupport": 0.0233,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:57:target_found:tile:192:97"
+          ]
+        },
+        {
+          "day": 54,
+          "season": "spring",
+          "target": "tile:192:95",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.5364,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.3703,
+          "harvestedAmount": 0.0435,
+          "usableSupport": 0.0379,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:54:target_found:tile:192:95"
+          ]
+        },
+        {
+          "day": 51,
+          "season": "spring",
+          "target": "tile:191:96",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.5364,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.3504,
+          "harvestedAmount": 0.0406,
+          "usableSupport": 0.0354,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:51:target_found:tile:191:96"
+          ]
+        },
+        {
+          "day": 48,
+          "season": "spring",
+          "target": "tile:190:96",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.514,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.2175,
+          "harvestedAmount": 0.0262,
+          "usableSupport": 0.0223,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:48:target_found:tile:190:96"
+          ]
+        },
+        {
+          "day": 45,
+          "season": "spring",
+          "target": "tile:193:96",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.514,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.4501,
+          "harvestedAmount": 0.0453,
+          "usableSupport": 0.0395,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:45:target_found:tile:193:96"
+          ]
+        },
+        {
+          "day": 42,
+          "season": "spring",
+          "target": "tile:192:97",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.514,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.2686,
+          "harvestedAmount": 0.028,
+          "usableSupport": 0.0244,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:42:target_found:tile:192:97"
+          ]
+        },
+        {
+          "day": 39,
+          "season": "spring",
+          "target": "tile:192:95",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.514,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.4185,
+          "harvestedAmount": 0.0482,
+          "usableSupport": 0.042,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:39:target_found:tile:192:95"
+          ]
+        },
+        {
+          "day": 36,
+          "season": "spring",
+          "target": "tile:191:96",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.514,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.3953,
+          "harvestedAmount": 0.0449,
+          "usableSupport": 0.0391,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:36:target_found:tile:191:96"
+          ]
+        },
+        {
+          "day": 33,
+          "season": "spring",
+          "target": "tile:190:96",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.4916,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.2464,
+          "harvestedAmount": 0.0289,
+          "usableSupport": 0.0246,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:33:target_found:tile:190:96"
+          ]
+        },
+        {
+          "day": 30,
+          "season": "spring",
+          "target": "tile:193:96",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.4916,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.4994,
+          "harvestedAmount": 0.0493,
+          "usableSupport": 0.0429,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:30:target_found:tile:193:96"
+          ]
+        },
+        {
+          "day": 27,
+          "season": "spring",
+          "target": "tile:192:97",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.4916,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.2993,
+          "harvestedAmount": 0.0307,
+          "usableSupport": 0.0267,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:27:target_found:tile:192:97"
+          ]
+        },
+        {
+          "day": 24,
+          "season": "spring",
+          "target": "tile:192:95",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.4916,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.4718,
+          "harvestedAmount": 0.0533,
+          "usableSupport": 0.0464,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:24:target_found:tile:192:95"
+          ]
+        },
+        {
+          "day": 21,
+          "season": "spring",
+          "target": "tile:191:96",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.4916,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.4447,
+          "harvestedAmount": 0.0494,
+          "usableSupport": 0.043,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:21:target_found:tile:191:96"
+          ]
+        },
+        {
+          "day": 18,
+          "season": "spring",
+          "target": "tile:190:96",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.4692,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.2784,
+          "harvestedAmount": 0.032,
+          "usableSupport": 0.0272,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:18:target_found:tile:190:96"
+          ]
+        },
+        {
+          "day": 177,
+          "season": "summer",
+          "target": "tile:191:96",
+          "resourceClass": "generic_plant_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "partial_success",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.7632,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.0961,
+          "harvestedAmount": 0.0592,
+          "usableSupport": 0.0535,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:177:partial_success:tile:191:96"
+          ]
+        },
+        {
+          "day": 174,
+          "season": "summer",
+          "target": "tile:192:97",
+          "resourceClass": "generic_plant_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "partial_success",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.7456,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.1018,
+          "harvestedAmount": 0.0577,
+          "usableSupport": 0.0503,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:174:partial_success:tile:192:97"
+          ]
+        },
+        {
+          "day": 171,
+          "season": "summer",
+          "target": "tile:192:95",
+          "resourceClass": "generic_plant_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "partial_success",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.7456,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.113,
+          "harvestedAmount": 0.0577,
+          "usableSupport": 0.0503,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:171:partial_success:tile:192:95"
+          ]
+        },
+        {
+          "day": 168,
+          "season": "summer",
+          "target": "tile:191:96",
+          "resourceClass": "generic_plant_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "partial_success",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.7456,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.1356,
+          "harvestedAmount": 0.0577,
+          "usableSupport": 0.0503,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:168:partial_success:tile:191:96"
+          ]
+        },
+        {
+          "day": 165,
+          "season": "summer",
+          "target": "tile:192:97",
+          "resourceClass": "generic_plant_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "partial_success",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.7156,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.1286,
+          "harvestedAmount": 0.0559,
+          "usableSupport": 0.0505,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:165:partial_success:tile:192:97"
+          ]
+        },
+        {
+          "day": 162,
+          "season": "summer",
+          "target": "tile:192:95",
+          "resourceClass": "generic_plant_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "partial_success",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.7156,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.1395,
+          "harvestedAmount": 0.0559,
+          "usableSupport": 0.0505,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:162:partial_success:tile:192:95"
+          ]
+        },
+        {
+          "day": 159,
+          "season": "summer",
+          "target": "tile:191:96",
+          "resourceClass": "generic_plant_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "partial_success",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.7156,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.152,
+          "harvestedAmount": 0.0559,
+          "usableSupport": 0.0505,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:159:partial_success:tile:191:96"
+          ]
+        },
+        {
+          "day": 156,
+          "season": "summer",
+          "target": "tile:192:97",
+          "resourceClass": "generic_plant_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "partial_success",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.6856,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.1559,
+          "harvestedAmount": 0.0541,
+          "usableSupport": 0.0471,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:156:partial_success:tile:192:97"
+          ]
+        },
+        {
+          "day": 153,
+          "season": "summer",
+          "target": "tile:192:95",
+          "resourceClass": "generic_plant_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "partial_success",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.6856,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.1671,
+          "harvestedAmount": 0.0541,
+          "usableSupport": 0.0471,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:153:partial_success:tile:192:95"
+          ]
+        },
+        {
+          "day": 150,
+          "season": "summer",
+          "target": "tile:191:96",
+          "resourceClass": "generic_plant_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "partial_success",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.6856,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.1897,
+          "harvestedAmount": 0.0541,
+          "usableSupport": 0.0471,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:150:partial_success:tile:191:96"
+          ]
+        },
+        {
+          "day": 147,
+          "season": "summer",
+          "target": "tile:192:97",
+          "resourceClass": "generic_plant_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "partial_success",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.6556,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.1809,
+          "harvestedAmount": 0.0523,
+          "usableSupport": 0.0472,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:147:partial_success:tile:192:97"
+          ]
+        },
+        {
+          "day": 144,
+          "season": "summer",
+          "target": "tile:192:95",
+          "resourceClass": "generic_plant_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "partial_success",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.6556,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.1918,
+          "harvestedAmount": 0.0523,
+          "usableSupport": 0.0472,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:144:partial_success:tile:192:95"
+          ]
+        },
+        {
+          "day": 141,
+          "season": "summer",
+          "target": "tile:191:96",
+          "resourceClass": "generic_plant_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "partial_success",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.6556,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.2043,
+          "harvestedAmount": 0.0523,
+          "usableSupport": 0.0472,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:141:partial_success:tile:191:96"
+          ]
+        },
+        {
+          "day": 138,
+          "season": "summer",
+          "target": "tile:192:97",
+          "resourceClass": "generic_plant_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.6332,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.2091,
+          "harvestedAmount": 0.0282,
+          "usableSupport": 0.0255,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:138:target_found:tile:192:97"
+          ]
+        },
+        {
+          "day": 135,
+          "season": "summer",
+          "target": "tile:192:95",
+          "resourceClass": "generic_plant_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.6332,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.1953,
+          "harvestedAmount": 0.0282,
+          "usableSupport": 0.0246,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:135:target_found:tile:192:95"
+          ]
+        },
+        {
+          "day": 132,
+          "season": "summer",
+          "target": "tile:191:96",
+          "resourceClass": "generic_plant_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.6332,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.2179,
+          "harvestedAmount": 0.0282,
+          "usableSupport": 0.0246,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:132:target_found:tile:191:96"
+          ]
+        }
+      ],
+      "nonPhysicalSamples": [
+        {
+          "day": 12585,
+          "season": "winter",
+          "target": "tile:192:97",
+          "cause": "memory_refresh",
+          "taskGroupType": "memory_refresh_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "failed_due_to_low_memory_confidence",
+          "returnedKind": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:12585:failed_due_to_low_memory_confidence:tile:192:97",
+            "reason:activity-memory:band:custom:0:12585:low-confidence:tile:192:97"
+          ]
+        }
+      ]
+    },
+    "ordinary": {
+      "site": {
+        "tileId": "tile:24:120",
+        "stock": 7.51,
+        "meanWater": 0.25910282121863887,
+        "waterTiles": 23
+      },
+      "seasonsAlive": 160,
+      "attemptedTrips": 3840,
+      "unitsTotal": 2.5145,
+      "unitsPerSeason": 0.0157,
+      "productiveRate": 0.0286,
+      "availableButRefused": 158,
+      "availableButRefusedShare": 0.0411,
+      "meanStockWhenRefused": 0.0992,
+      "nonPhysicalTrips": 3434,
+      "nonPhysicalShare": 0.8943,
+      "nonPhysicalByCause": [
+        [
+          "water_check",
+          3434
+        ]
+      ],
+      "nonPhysicalByResourceClass": [
+        [
+          "water_resource",
+          3434
+        ]
+      ],
+      "terminalDistribution": [
+        {
+          "code": "never_attempted_physical:water_group",
+          "count": 3434,
+          "share": 0.8943
+        },
+        {
+          "code": "activity_ineligible_despite_stock",
+          "count": 131,
+          "share": 0.0341
+        },
+        {
+          "code": "productive_harvest",
+          "count": 110,
+          "share": 0.0286
+        },
+        {
+          "code": "depleted_below_threshold",
+          "count": 108,
+          "share": 0.0281
+        },
+        {
+          "code": "route_time_infeasible",
+          "count": 29,
+          "share": 0.0076
+        },
+        {
+          "code": "activity_ineligible_no_stock",
+          "count": 22,
+          "share": 0.0057
+        },
+        {
+          "code": "target_absent",
+          "count": 6,
+          "share": 0.0016
+        }
+      ],
+      "samples": [
+        {
+          "day": 87,
+          "season": "spring",
+          "target": "tile:24:121",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.3964,
+          "terminal": "depleted_below_threshold",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physically_exhausted",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:87:target_found:tile:24:121"
+          ]
+        },
+        {
+          "day": 84,
+          "season": "spring",
+          "target": "tile:24:119",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.5584,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.0083,
+          "harvestedAmount": 0.0083,
+          "usableSupport": 0.007,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:84:target_found:tile:24:119"
+          ]
+        },
+        {
+          "day": 81,
+          "season": "spring",
+          "target": "tile:23:120",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.3964,
+          "terminal": "depleted_below_threshold",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physically_exhausted",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:81:target_found:tile:23:120"
+          ]
+        },
+        {
+          "day": 78,
+          "season": "spring",
+          "target": "tile:22:120",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.536,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.0158,
+          "harvestedAmount": 0.0158,
+          "usableSupport": 0.0139,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:78:target_found:tile:22:120"
+          ]
+        },
+        {
+          "day": 75,
+          "season": "spring",
+          "target": "tile:25:120",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.4464,
+          "terminal": "depleted_below_threshold",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physically_exhausted",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:75:target_found:tile:25:120"
+          ]
+        },
+        {
+          "day": 72,
+          "season": "spring",
+          "target": "tile:24:121",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.4178,
+          "terminal": "depleted_below_threshold",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physically_exhausted",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:72:target_found:tile:24:121"
+          ]
+        },
+        {
+          "day": 69,
+          "season": "spring",
+          "target": "tile:24:119",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.536,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.0163,
+          "harvestedAmount": 0.0163,
+          "usableSupport": 0.0147,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:69:target_found:tile:24:119"
+          ]
+        },
+        {
+          "day": 66,
+          "season": "spring",
+          "target": "tile:23:120",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.4178,
+          "terminal": "depleted_below_threshold",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physically_exhausted",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:66:target_found:tile:23:120"
+          ]
+        },
+        {
+          "day": 63,
+          "season": "spring",
+          "target": "tile:22:120",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.5136,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.0241,
+          "harvestedAmount": 0.0241,
+          "usableSupport": 0.0198,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:63:target_found:tile:22:120"
+          ]
+        },
+        {
+          "day": 60,
+          "season": "spring",
+          "target": "tile:25:120",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.4626,
+          "terminal": "depleted_below_threshold",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physically_exhausted",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:60:target_found:tile:25:120"
+          ]
+        },
+        {
+          "day": 57,
+          "season": "spring",
+          "target": "tile:24:121",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.4326,
+          "terminal": "depleted_below_threshold",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physically_exhausted",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:57:target_found:tile:24:121"
+          ]
+        },
+        {
+          "day": 54,
+          "season": "spring",
+          "target": "tile:24:119",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.5136,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.0335,
+          "harvestedAmount": 0.0252,
+          "usableSupport": 0.0212,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:54:target_found:tile:24:119"
+          ]
+        },
+        {
+          "day": 51,
+          "season": "spring",
+          "target": "tile:23:120",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.4326,
+          "terminal": "depleted_below_threshold",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physically_exhausted",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:51:target_found:tile:23:120"
+          ]
+        },
+        {
+          "day": 48,
+          "season": "spring",
+          "target": "tile:22:120",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.4912,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.0488,
+          "harvestedAmount": 0.0247,
+          "usableSupport": 0.0203,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:48:target_found:tile:22:120"
+          ]
+        },
+        {
+          "day": 45,
+          "season": "spring",
+          "target": "tile:25:120",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.4988,
+          "terminal": "depleted_below_threshold",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physically_exhausted",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:45:target_found:tile:25:120"
+          ]
+        },
+        {
+          "day": 42,
+          "season": "spring",
+          "target": "tile:24:121",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.454,
+          "terminal": "depleted_below_threshold",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physically_exhausted",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:42:target_found:tile:24:121"
+          ]
+        },
+        {
+          "day": 39,
+          "season": "spring",
+          "target": "tile:24:119",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.4912,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.0582,
+          "harvestedAmount": 0.0247,
+          "usableSupport": 0.0208,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:39:target_found:tile:24:119"
+          ]
+        },
+        {
+          "day": 36,
+          "season": "spring",
+          "target": "tile:23:120",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.454,
+          "terminal": "depleted_below_threshold",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physically_exhausted",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:36:target_found:tile:23:120"
+          ]
+        },
+        {
+          "day": 33,
+          "season": "spring",
+          "target": "tile:22:120",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.4688,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.073,
+          "harvestedAmount": 0.0242,
+          "usableSupport": 0.0199,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:33:target_found:tile:22:120"
+          ]
+        },
+        {
+          "day": 30,
+          "season": "spring",
+          "target": "tile:25:120",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.4764,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.0003,
+          "harvestedAmount": 0.0003,
+          "usableSupport": 0.0003,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:30:target_found:tile:25:120"
+          ]
+        },
+        {
+          "day": 27,
+          "season": "spring",
+          "target": "tile:24:121",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.4688,
+          "terminal": "depleted_below_threshold",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physically_exhausted",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:27:target_found:tile:24:121"
+          ]
+        },
+        {
+          "day": 24,
+          "season": "spring",
+          "target": "tile:24:119",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.4688,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.0824,
+          "harvestedAmount": 0.0242,
+          "usableSupport": 0.0204,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:24:target_found:tile:24:119"
+          ]
+        },
+        {
+          "day": 21,
+          "season": "spring",
+          "target": "tile:23:120",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.4688,
+          "terminal": "depleted_below_threshold",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physically_exhausted",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:21:target_found:tile:23:120"
+          ]
+        },
+        {
+          "day": 18,
+          "season": "spring",
+          "target": "tile:22:120",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.4464,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.0967,
+          "harvestedAmount": 0.0237,
+          "usableSupport": 0.0195,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:18:target_found:tile:22:120"
+          ]
+        },
+        {
+          "day": 174,
+          "season": "summer",
+          "target": "tile:24:120",
+          "resourceClass": "generic_plant_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.4488,
+          "terminal": "depleted_below_threshold",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physically_exhausted",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:174:target_found:tile:24:120"
+          ]
+        },
+        {
+          "day": 171,
+          "season": "summer",
+          "target": "tile:24:119",
+          "resourceClass": "fallback_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "failed_due_to_low_memory_confidence",
+          "returnedKind": "none",
+          "returnConfidence": 0.458,
+          "terminal": "activity_ineligible_no_stock",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "activity_failed",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:171:failed_due_to_low_memory_confidence:tile:24:119",
+            "reason:activity-memory:band:custom:0:171:low-confidence:tile:24:119"
+          ]
+        },
+        {
+          "day": 165,
+          "season": "summer",
+          "target": "tile:24:120",
+          "resourceClass": "generic_plant_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.485,
+          "terminal": "depleted_below_threshold",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physically_exhausted",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:165:target_found:tile:24:120"
+          ]
+        },
+        {
+          "day": 162,
+          "season": "summer",
+          "target": "tile:24:119",
+          "resourceClass": "fallback_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "failed_due_to_low_memory_confidence",
+          "returnedKind": "none",
+          "returnConfidence": 0.4942,
+          "terminal": "activity_ineligible_no_stock",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "activity_failed",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:162:failed_due_to_low_memory_confidence:tile:24:119",
+            "reason:activity-memory:band:custom:0:162:low-confidence:tile:24:119"
+          ]
+        },
+        {
+          "day": 156,
+          "season": "summer",
+          "target": "tile:24:120",
+          "resourceClass": "generic_plant_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.5212,
+          "terminal": "depleted_below_threshold",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physically_exhausted",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:156:target_found:tile:24:120"
+          ]
+        },
+        {
+          "day": 153,
+          "season": "summer",
+          "target": "tile:24:119",
+          "resourceClass": "fallback_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.5304,
+          "terminal": "depleted_below_threshold",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physically_exhausted",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:153:target_found:tile:24:119"
+          ]
+        },
+        {
+          "day": 147,
+          "season": "summer",
+          "target": "tile:24:120",
+          "resourceClass": "generic_plant_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.4988,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.0066,
+          "harvestedAmount": 0.0066,
+          "usableSupport": 0.0058,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:147:target_found:tile:24:120"
+          ]
+        },
+        {
+          "day": 144,
+          "season": "summer",
+          "target": "tile:24:119",
+          "resourceClass": "fallback_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.5666,
+          "terminal": "depleted_below_threshold",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physically_exhausted",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:144:target_found:tile:24:119"
+          ]
+        },
+        {
+          "day": 138,
+          "season": "summer",
+          "target": "tile:24:120",
+          "resourceClass": "generic_plant_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.4764,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.0313,
+          "harvestedAmount": 0.0247,
+          "usableSupport": 0.0218,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:138:target_found:tile:24:120"
+          ]
+        },
+        {
+          "day": 135,
+          "season": "summer",
+          "target": "tile:24:119",
+          "resourceClass": "fallback_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.6028,
+          "terminal": "depleted_below_threshold",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physically_exhausted",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:135:target_found:tile:24:119"
+          ]
+        },
+        {
+          "day": 129,
+          "season": "summer",
+          "target": "tile:24:120",
+          "resourceClass": "generic_plant_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.454,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.0555,
+          "harvestedAmount": 0.0242,
+          "usableSupport": 0.0213,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:129:target_found:tile:24:120"
+          ]
+        },
+        {
+          "day": 126,
+          "season": "summer",
+          "target": "tile:24:119",
+          "resourceClass": "fallback_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.5804,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.019,
+          "harvestedAmount": 0.019,
+          "usableSupport": 0.0152,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:126:target_found:tile:24:119"
+          ]
+        },
+        {
+          "day": 120,
+          "season": "summer",
+          "target": "tile:25:120",
+          "resourceClass": "fallback_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.3964,
+          "terminal": "depleted_below_threshold",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physically_exhausted",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:120:target_found:tile:25:120"
+          ]
+        },
+        {
+          "day": 117,
+          "season": "summer",
+          "target": "tile:24:119",
+          "resourceClass": "fallback_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "target_found",
+          "returnedKind": "gathered_plant_food",
+          "returnConfidence": 0.558,
+          "terminal": "productive_harvest",
+          "hiddenPhysicalAvailability": 0.0221,
+          "harvestedAmount": 0.0221,
+          "usableSupport": 0.019,
+          "failureReason": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:117:target_found:tile:24:119"
+          ]
+        },
+        {
+          "day": 111,
+          "season": "summer",
+          "target": "tile:25:120",
+          "resourceClass": "fallback_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.4326,
+          "terminal": "depleted_below_threshold",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physically_exhausted",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:111:target_found:tile:25:120"
+          ]
+        },
+        {
+          "day": 108,
+          "season": "summer",
+          "target": "tile:24:119",
+          "resourceClass": "fallback_food",
+          "cause": "local_resource_use",
+          "activityOutcome": "failed_due_to_season_mismatch",
+          "returnedKind": "none",
+          "returnConfidence": 0.5694,
+          "terminal": "activity_ineligible_despite_stock",
+          "hiddenPhysicalAvailability": 0.0221,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "activity_failed",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:108:failed_due_to_season_mismatch:tile:24:119",
+            "reason:activity-season:band:custom:0:108:mismatch:tile:24:119"
+          ]
+        }
+      ],
+      "nonPhysicalSamples": [
+        {
+          "day": 177,
+          "season": "summer",
+          "target": "tile:26:119",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:177:target_not_found:tile:26:119",
+            "reason:activity-memory:band:custom:0:177:low-confidence:tile:26:119"
+          ]
+        },
+        {
+          "day": 168,
+          "season": "summer",
+          "target": "tile:26:119",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:168:target_not_found:tile:26:119",
+            "reason:activity-memory:band:custom:0:168:low-confidence:tile:26:119"
+          ]
+        },
+        {
+          "day": 159,
+          "season": "summer",
+          "target": "tile:26:119",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:159:target_not_found:tile:26:119",
+            "reason:activity-memory:band:custom:0:159:low-confidence:tile:26:119"
+          ]
+        },
+        {
+          "day": 150,
+          "season": "summer",
+          "target": "tile:26:119",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:150:target_not_found:tile:26:119",
+            "reason:activity-memory:band:custom:0:150:low-confidence:tile:26:119"
+          ]
+        },
+        {
+          "day": 141,
+          "season": "summer",
+          "target": "tile:26:119",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:141:target_not_found:tile:26:119",
+            "reason:activity-memory:band:custom:0:141:low-confidence:tile:26:119"
+          ]
+        },
+        {
+          "day": 132,
+          "season": "summer",
+          "target": "tile:26:119",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:132:target_not_found:tile:26:119",
+            "reason:activity-memory:band:custom:0:132:low-confidence:tile:26:119"
+          ]
+        },
+        {
+          "day": 123,
+          "season": "summer",
+          "target": "tile:26:119",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:123:target_not_found:tile:26:119",
+            "reason:activity-memory:band:custom:0:123:low-confidence:tile:26:119"
+          ]
+        },
+        {
+          "day": 114,
+          "season": "summer",
+          "target": "tile:26:119",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:114:target_not_found:tile:26:119",
+            "reason:activity-memory:band:custom:0:114:low-confidence:tile:26:119"
+          ]
+        },
+        {
+          "day": 267,
+          "season": "autumn",
+          "target": "tile:26:120",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:267:returned_with_information:tile:26:120"
+          ]
+        },
+        {
+          "day": 258,
+          "season": "autumn",
+          "target": "tile:26:120",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:258:returned_with_information:tile:26:120"
+          ]
+        },
+        {
+          "day": 249,
+          "season": "autumn",
+          "target": "tile:26:120",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:249:returned_with_information:tile:26:120"
+          ]
+        },
+        {
+          "day": 240,
+          "season": "autumn",
+          "target": "tile:26:120",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:240:returned_with_information:tile:26:120"
+          ]
+        },
+        {
+          "day": 231,
+          "season": "autumn",
+          "target": "tile:26:120",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:231:returned_with_information:tile:26:120"
+          ]
+        },
+        {
+          "day": 222,
+          "season": "autumn",
+          "target": "tile:26:120",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:222:returned_with_information:tile:26:120"
+          ]
+        },
+        {
+          "day": 213,
+          "season": "autumn",
+          "target": "tile:26:120",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:213:returned_with_information:tile:26:120"
+          ]
+        },
+        {
+          "day": 204,
+          "season": "autumn",
+          "target": "tile:26:120",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:204:returned_with_information:tile:26:120"
+          ]
+        },
+        {
+          "day": 357,
+          "season": "winter",
+          "target": "tile:26:120",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "failed_due_to_low_memory_confidence",
+          "returnedKind": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:357:failed_due_to_low_memory_confidence:tile:26:120",
+            "reason:activity-memory:band:custom:0:357:low-confidence:tile:26:120"
+          ]
+        },
+        {
+          "day": 351,
+          "season": "winter",
+          "target": "tile:27:120",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:351:returned_with_information:tile:27:120"
+          ]
+        },
+        {
+          "day": 348,
+          "season": "winter",
+          "target": "tile:26:120",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "failed_due_to_low_memory_confidence",
+          "returnedKind": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:348:failed_due_to_low_memory_confidence:tile:26:120",
+            "reason:activity-memory:band:custom:0:348:low-confidence:tile:26:120"
+          ]
+        },
+        {
+          "day": 345,
+          "season": "winter",
+          "target": "tile:26:119",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:345:target_not_found:tile:26:119",
+            "reason:activity-memory:band:custom:0:345:low-confidence:tile:26:119"
+          ]
+        },
+        {
+          "day": 342,
+          "season": "winter",
+          "target": "tile:27:120",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:342:returned_with_information:tile:27:120"
+          ]
+        },
+        {
+          "day": 339,
+          "season": "winter",
+          "target": "tile:26:120",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "failed_due_to_low_memory_confidence",
+          "returnedKind": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:339:failed_due_to_low_memory_confidence:tile:26:120",
+            "reason:activity-memory:band:custom:0:339:low-confidence:tile:26:120"
+          ]
+        },
+        {
+          "day": 333,
+          "season": "winter",
+          "target": "tile:27:120",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:333:returned_with_information:tile:27:120"
+          ]
+        },
+        {
+          "day": 330,
+          "season": "winter",
+          "target": "tile:26:120",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "failed_due_to_low_memory_confidence",
+          "returnedKind": "none",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:330:failed_due_to_low_memory_confidence:tile:26:120",
+            "reason:activity-memory:band:custom:0:330:low-confidence:tile:26:120"
+          ]
+        },
+        {
+          "day": 324,
+          "season": "winter",
+          "target": "tile:27:120",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:324:returned_with_information:tile:27:120"
+          ]
+        }
+      ]
+    },
+    "marginal": {
+      "site": {
+        "tileId": "tile:66:114",
+        "stock": 2.1,
+        "meanWater": 0.10351546511914983,
+        "waterTiles": 12
+      },
+      "seasonsAlive": 160,
+      "attemptedTrips": 3554,
+      "unitsTotal": 0.31,
+      "unitsPerSeason": 0.0019,
+      "productiveRate": 0.007,
+      "availableButRefused": 24,
+      "availableButRefusedShare": 0.0068,
+      "meanStockWhenRefused": 0.0295,
+      "nonPhysicalTrips": 3222,
+      "nonPhysicalShare": 0.9066,
+      "nonPhysicalByCause": [
+        [
+          "water_check",
+          3222
+        ]
+      ],
+      "nonPhysicalByResourceClass": [
+        [
+          "water_resource",
+          3222
+        ]
+      ],
+      "terminalDistribution": [
+        {
+          "code": "never_attempted_physical:water_group",
+          "count": 3222,
+          "share": 0.9066
+        },
+        {
+          "code": "target_absent",
+          "count": 216,
+          "share": 0.0608
+        },
+        {
+          "code": "depleted_below_threshold",
+          "count": 64,
+          "share": 0.018
+        },
+        {
+          "code": "productive_harvest",
+          "count": 25,
+          "share": 0.007
+        },
+        {
+          "code": "route_time_infeasible",
+          "count": 15,
+          "share": 0.0042
+        },
+        {
+          "code": "activity_ineligible_despite_stock",
+          "count": 12,
+          "share": 0.0034
+        }
+      ],
+      "samples": [
+        {
+          "day": 87,
+          "season": "spring",
+          "target": "tile:66:115",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "failed_due_to_low_memory_confidence",
+          "returnedKind": "none",
+          "returnConfidence": 0.3702,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:87:failed_due_to_low_memory_confidence:tile:66:115",
+            "reason:activity-memory:band:custom:0:87:low-confidence:tile:66:115"
+          ]
+        },
+        {
+          "day": 84,
+          "season": "spring",
+          "target": "tile:66:113",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "failed_due_to_low_memory_confidence",
+          "returnedKind": "none",
+          "returnConfidence": 0.3702,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:84:failed_due_to_low_memory_confidence:tile:66:113",
+            "reason:activity-memory:band:custom:0:84:low-confidence:tile:66:113"
+          ]
+        },
+        {
+          "day": 81,
+          "season": "spring",
+          "target": "tile:65:114",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "failed_due_to_low_memory_confidence",
+          "returnedKind": "none",
+          "returnConfidence": 0.3702,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:81:failed_due_to_low_memory_confidence:tile:65:114",
+            "reason:activity-memory:band:custom:0:81:low-confidence:tile:65:114"
+          ]
+        },
+        {
+          "day": 78,
+          "season": "spring",
+          "target": "tile:64:114",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.4064,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:78:target_found:tile:64:114"
+          ]
+        },
+        {
+          "day": 75,
+          "season": "spring",
+          "target": "tile:67:114",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "failed_due_to_low_memory_confidence",
+          "returnedKind": "none",
+          "returnConfidence": 0.3702,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:75:failed_due_to_low_memory_confidence:tile:67:114",
+            "reason:activity-memory:band:custom:0:75:low-confidence:tile:67:114"
+          ]
+        },
+        {
+          "day": 72,
+          "season": "spring",
+          "target": "tile:66:115",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "failed_due_to_low_memory_confidence",
+          "returnedKind": "none",
+          "returnConfidence": 0.3702,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:72:failed_due_to_low_memory_confidence:tile:66:115",
+            "reason:activity-memory:band:custom:0:72:low-confidence:tile:66:115"
+          ]
+        },
+        {
+          "day": 69,
+          "season": "spring",
+          "target": "tile:66:113",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "failed_due_to_low_memory_confidence",
+          "returnedKind": "none",
+          "returnConfidence": 0.3702,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:69:failed_due_to_low_memory_confidence:tile:66:113",
+            "reason:activity-memory:band:custom:0:69:low-confidence:tile:66:113"
+          ]
+        },
+        {
+          "day": 66,
+          "season": "spring",
+          "target": "tile:65:114",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "failed_due_to_low_memory_confidence",
+          "returnedKind": "none",
+          "returnConfidence": 0.3702,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:66:failed_due_to_low_memory_confidence:tile:65:114",
+            "reason:activity-memory:band:custom:0:66:low-confidence:tile:65:114"
+          ]
+        },
+        {
+          "day": 63,
+          "season": "spring",
+          "target": "tile:65:113",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.4426,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:63:target_found:tile:65:113"
+          ]
+        },
+        {
+          "day": 60,
+          "season": "spring",
+          "target": "tile:67:114",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.4064,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:60:target_found:tile:67:114"
+          ]
+        },
+        {
+          "day": 57,
+          "season": "spring",
+          "target": "tile:66:115",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.4064,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:57:target_found:tile:66:115"
+          ]
+        },
+        {
+          "day": 54,
+          "season": "spring",
+          "target": "tile:66:113",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.4064,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:54:target_found:tile:66:113"
+          ]
+        },
+        {
+          "day": 51,
+          "season": "spring",
+          "target": "tile:65:114",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.4064,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:51:target_found:tile:65:114"
+          ]
+        },
+        {
+          "day": 48,
+          "season": "spring",
+          "target": "tile:65:113",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.4426,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:48:target_found:tile:65:113"
+          ]
+        },
+        {
+          "day": 45,
+          "season": "spring",
+          "target": "tile:67:114",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.4064,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:45:target_found:tile:67:114"
+          ]
+        },
+        {
+          "day": 42,
+          "season": "spring",
+          "target": "tile:66:115",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.4064,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:42:target_found:tile:66:115"
+          ]
+        },
+        {
+          "day": 39,
+          "season": "spring",
+          "target": "tile:66:113",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.4064,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:39:target_found:tile:66:113"
+          ]
+        },
+        {
+          "day": 36,
+          "season": "spring",
+          "target": "tile:65:114",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.4064,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:36:target_found:tile:65:114"
+          ]
+        },
+        {
+          "day": 33,
+          "season": "spring",
+          "target": "tile:64:114",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.4426,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:33:target_found:tile:64:114"
+          ]
+        },
+        {
+          "day": 30,
+          "season": "spring",
+          "target": "tile:67:114",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.4426,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:30:target_found:tile:67:114"
+          ]
+        },
+        {
+          "day": 27,
+          "season": "spring",
+          "target": "tile:66:115",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.4426,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:27:target_found:tile:66:115"
+          ]
+        },
+        {
+          "day": 24,
+          "season": "spring",
+          "target": "tile:66:113",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.4426,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:24:target_found:tile:66:113"
+          ]
+        },
+        {
+          "day": 21,
+          "season": "spring",
+          "target": "tile:65:114",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.4426,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:21:target_found:tile:65:114"
+          ]
+        },
+        {
+          "day": 18,
+          "season": "spring",
+          "target": "tile:64:114",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "target_not_found",
+          "returnedKind": "none",
+          "returnConfidence": 0.4426,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:18:target_found:tile:64:114"
+          ]
+        },
+        {
+          "day": 177,
+          "season": "summer",
+          "target": "tile:66:115",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "no_effect_observed",
+          "returnedKind": "none",
+          "returnConfidence": 0.334,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:177:no_effect_observed:tile:66:115",
+            "reason:activity-adaptation:band:custom:0:177:desperation-risk-tolerance:tile:66:115"
+          ]
+        },
+        {
+          "day": 174,
+          "season": "summer",
+          "target": "tile:64:114",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "no_effect_observed",
+          "returnedKind": "none",
+          "returnConfidence": 0.334,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:174:no_effect_observed:tile:64:114",
+            "reason:activity-adaptation:band:custom:0:174:desperation-risk-tolerance:tile:64:114"
+          ]
+        },
+        {
+          "day": 171,
+          "season": "summer",
+          "target": "tile:67:114",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "no_effect_observed",
+          "returnedKind": "none",
+          "returnConfidence": 0.334,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:171:no_effect_observed:tile:67:114",
+            "reason:activity-adaptation:band:custom:0:171:desperation-risk-tolerance:tile:67:114"
+          ]
+        },
+        {
+          "day": 168,
+          "season": "summer",
+          "target": "tile:65:113",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "no_effect_observed",
+          "returnedKind": "none",
+          "returnConfidence": 0.334,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:168:no_effect_observed:tile:65:113",
+            "reason:activity-adaptation:band:custom:0:168:desperation-risk-tolerance:tile:65:113"
+          ]
+        },
+        {
+          "day": 165,
+          "season": "summer",
+          "target": "tile:65:114",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "failed_due_to_low_memory_confidence",
+          "returnedKind": "none",
+          "returnConfidence": 0.4306,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:165:failed_due_to_low_memory_confidence:tile:65:114",
+            "reason:activity-memory:band:custom:0:165:low-confidence:tile:65:114",
+            "reason:activity-adaptation:band:custom:0:165:desperation-risk-tolerance:tile:65:114"
+          ]
+        },
+        {
+          "day": 162,
+          "season": "summer",
+          "target": "tile:66:115",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "no_effect_observed",
+          "returnedKind": "none",
+          "returnConfidence": 0.334,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:162:no_effect_observed:tile:66:115",
+            "reason:activity-adaptation:band:custom:0:162:desperation-risk-tolerance:tile:66:115"
+          ]
+        },
+        {
+          "day": 159,
+          "season": "summer",
+          "target": "tile:64:114",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "no_effect_observed",
+          "returnedKind": "none",
+          "returnConfidence": 0.334,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:159:no_effect_observed:tile:64:114",
+            "reason:activity-adaptation:band:custom:0:159:desperation-risk-tolerance:tile:64:114"
+          ]
+        },
+        {
+          "day": 156,
+          "season": "summer",
+          "target": "tile:67:114",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "no_effect_observed",
+          "returnedKind": "none",
+          "returnConfidence": 0.334,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:156:no_effect_observed:tile:67:114",
+            "reason:activity-adaptation:band:custom:0:156:desperation-risk-tolerance:tile:67:114"
+          ]
+        },
+        {
+          "day": 153,
+          "season": "summer",
+          "target": "tile:65:113",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "no_effect_observed",
+          "returnedKind": "none",
+          "returnConfidence": 0.334,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:153:no_effect_observed:tile:65:113",
+            "reason:activity-adaptation:band:custom:0:153:desperation-risk-tolerance:tile:65:113"
+          ]
+        },
+        {
+          "day": 150,
+          "season": "summer",
+          "target": "tile:65:114",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "failed_due_to_low_memory_confidence",
+          "returnedKind": "none",
+          "returnConfidence": 0.4668,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:150:failed_due_to_low_memory_confidence:tile:65:114",
+            "reason:activity-memory:band:custom:0:150:low-confidence:tile:65:114",
+            "reason:activity-adaptation:band:custom:0:150:desperation-risk-tolerance:tile:65:114"
+          ]
+        },
+        {
+          "day": 147,
+          "season": "summer",
+          "target": "tile:66:115",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "no_effect_observed",
+          "returnedKind": "none",
+          "returnConfidence": 0.334,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:147:no_effect_observed:tile:66:115",
+            "reason:activity-adaptation:band:custom:0:147:desperation-risk-tolerance:tile:66:115"
+          ]
+        },
+        {
+          "day": 144,
+          "season": "summer",
+          "target": "tile:64:114",
+          "resourceClass": "generic_plant_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "no_effect_observed",
+          "returnedKind": "none",
+          "returnConfidence": 0.334,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:144:no_effect_observed:tile:64:114",
+            "reason:activity-adaptation:band:custom:0:144:desperation-risk-tolerance:tile:64:114"
+          ]
+        },
+        {
+          "day": 141,
+          "season": "summer",
+          "target": "tile:67:114",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "no_effect_observed",
+          "returnedKind": "none",
+          "returnConfidence": 0.334,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:141:no_effect_observed:tile:67:114",
+            "reason:activity-adaptation:band:custom:0:141:desperation-risk-tolerance:tile:67:114"
+          ]
+        },
+        {
+          "day": 138,
+          "season": "summer",
+          "target": "tile:65:113",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "no_effect_observed",
+          "returnedKind": "none",
+          "returnConfidence": 0.334,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:138:no_effect_observed:tile:65:113",
+            "reason:activity-adaptation:band:custom:0:138:desperation-risk-tolerance:tile:65:113"
+          ]
+        },
+        {
+          "day": 135,
+          "season": "summer",
+          "target": "tile:65:114",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "failed_due_to_low_memory_confidence",
+          "returnedKind": "none",
+          "returnConfidence": 0.503,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:135:failed_due_to_low_memory_confidence:tile:65:114",
+            "reason:activity-memory:band:custom:0:135:low-confidence:tile:65:114",
+            "reason:activity-adaptation:band:custom:0:135:desperation-risk-tolerance:tile:65:114"
+          ]
+        },
+        {
+          "day": 132,
+          "season": "summer",
+          "target": "tile:66:115",
+          "resourceClass": "fallback_food",
+          "cause": "food_resource_check",
+          "activityOutcome": "no_effect_observed",
+          "returnedKind": "none",
+          "returnConfidence": 0.334,
+          "terminal": "target_absent",
+          "hiddenPhysicalAvailability": 0,
+          "harvestedAmount": 0,
+          "usableSupport": 0,
+          "failureReason": "physical_source_absent",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:132:no_effect_observed:tile:66:115",
+            "reason:activity-adaptation:band:custom:0:132:desperation-risk-tolerance:tile:66:115"
+          ]
+        }
+      ],
+      "nonPhysicalSamples": [
+        {
+          "day": 261,
+          "season": "autumn",
+          "target": "tile:66:113",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:261:returned_with_information:tile:66:113"
+          ]
+        },
+        {
+          "day": 252,
+          "season": "autumn",
+          "target": "tile:66:113",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:252:returned_with_information:tile:66:113"
+          ]
+        },
+        {
+          "day": 243,
+          "season": "autumn",
+          "target": "tile:66:113",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:243:returned_with_information:tile:66:113"
+          ]
+        },
+        {
+          "day": 234,
+          "season": "autumn",
+          "target": "tile:66:113",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:234:returned_with_information:tile:66:113"
+          ]
+        },
+        {
+          "day": 225,
+          "season": "autumn",
+          "target": "tile:66:113",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:225:returned_with_information:tile:66:113"
+          ]
+        },
+        {
+          "day": 216,
+          "season": "autumn",
+          "target": "tile:66:113",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:216:returned_with_information:tile:66:113"
+          ]
+        },
+        {
+          "day": 207,
+          "season": "autumn",
+          "target": "tile:66:113",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:207:returned_with_information:tile:66:113"
+          ]
+        },
+        {
+          "day": 357,
+          "season": "winter",
+          "target": "tile:66:113",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:357:returned_with_information:tile:66:113"
+          ]
+        },
+        {
+          "day": 354,
+          "season": "winter",
+          "target": "tile:66:115",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:354:returned_with_information:tile:66:115"
+          ]
+        },
+        {
+          "day": 348,
+          "season": "winter",
+          "target": "tile:66:113",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:348:returned_with_information:tile:66:113"
+          ]
+        },
+        {
+          "day": 345,
+          "season": "winter",
+          "target": "tile:66:115",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:345:returned_with_information:tile:66:115"
+          ]
+        },
+        {
+          "day": 339,
+          "season": "winter",
+          "target": "tile:66:113",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:339:returned_with_information:tile:66:113"
+          ]
+        },
+        {
+          "day": 336,
+          "season": "winter",
+          "target": "tile:66:115",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:336:returned_with_information:tile:66:115"
+          ]
+        },
+        {
+          "day": 330,
+          "season": "winter",
+          "target": "tile:66:113",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:330:returned_with_information:tile:66:113"
+          ]
+        },
+        {
+          "day": 327,
+          "season": "winter",
+          "target": "tile:66:115",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:327:returned_with_information:tile:66:115"
+          ]
+        },
+        {
+          "day": 321,
+          "season": "winter",
+          "target": "tile:66:113",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:321:returned_with_information:tile:66:113"
+          ]
+        },
+        {
+          "day": 318,
+          "season": "winter",
+          "target": "tile:66:115",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:318:returned_with_information:tile:66:115"
+          ]
+        },
+        {
+          "day": 312,
+          "season": "winter",
+          "target": "tile:66:113",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:312:returned_with_information:tile:66:113"
+          ]
+        },
+        {
+          "day": 309,
+          "season": "winter",
+          "target": "tile:66:115",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:309:returned_with_information:tile:66:115"
+          ]
+        },
+        {
+          "day": 303,
+          "season": "winter",
+          "target": "tile:66:113",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:303:returned_with_information:tile:66:113"
+          ]
+        },
+        {
+          "day": 300,
+          "season": "winter",
+          "target": "tile:66:115",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:300:returned_with_information:tile:66:115"
+          ]
+        },
+        {
+          "day": 294,
+          "season": "winter",
+          "target": "tile:66:113",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:294:returned_with_information:tile:66:113"
+          ]
+        },
+        {
+          "day": 288,
+          "season": "winter",
+          "target": "tile:66:115",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:288:returned_with_information:tile:66:115"
+          ]
+        },
+        {
+          "day": 447,
+          "season": "spring",
+          "target": "tile:67:114",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:447:returned_with_information:tile:67:114"
+          ]
+        },
+        {
+          "day": 444,
+          "season": "spring",
+          "target": "tile:66:113",
+          "cause": "water_check",
+          "taskGroupType": "water_group",
+          "resourceClass": "water_resource",
+          "activityOutcome": "returned_with_information",
+          "returnedKind": "water_information",
+          "reasons": [
+            "reason:activity-outcome:band:custom:0:444:returned_with_information:tile:66:113"
+          ]
+        }
+      ]
+    }
+  }
+}

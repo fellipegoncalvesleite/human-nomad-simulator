@@ -1,0 +1,60 @@
+{
+  "check": "SEASON-ORDER-INVARIANCE-1",
+  "verdict": "PASS",
+  "years": 4,
+  "checks": {
+    "productionDeterministic": true,
+    "physicalOrderInvariant": true,
+    "residualDifferenceIsRecencyArtifactOnly": true
+  },
+  "interpretation": "Physical/causal season outcomes are identical under ascending/descending/permuted band processing order: no band gains priority from its id sort position (Hypothesis A's order-priority form REJECTED). The only order-sensitive state is the bounded decision-history archive (recentDecisionIds + retained decisions records + decisionArchive summary), a projection/history record not read to make causal decisions; production uses the canonical ascending order deterministically.",
+  "recencyArtifact": {
+    "fields": [
+      "decisionArchive.recentDecisionIds",
+      "decisions (retained recent records)",
+      "decisionArchive"
+    ],
+    "classification": "history/projection record; append order and bounded-window eviction reflect recording order; not read for causal decisions; physical outcome is order-invariant"
+  },
+  "results": {
+    "default_map1": {
+      "physicalMatch": true,
+      "fullMatch": false,
+      "soleDifferenceIsRecencyArtifact": true,
+      "ascendingDeterministic": true,
+      "totalPopulation": {
+        "ascending": 154,
+        "descending": 154,
+        "permuted": 154
+      },
+      "bandCount": 5,
+      "perBandDivergence": []
+    },
+    "default_map2": {
+      "physicalMatch": true,
+      "fullMatch": false,
+      "soleDifferenceIsRecencyArtifact": true,
+      "ascendingDeterministic": true,
+      "totalPopulation": {
+        "ascending": 234,
+        "descending": 234,
+        "permuted": 234
+      },
+      "bandCount": 9,
+      "perBandDivergence": []
+    },
+    "competing_cluster": {
+      "physicalMatch": true,
+      "fullMatch": false,
+      "soleDifferenceIsRecencyArtifact": true,
+      "ascendingDeterministic": true,
+      "totalPopulation": {
+        "ascending": 112,
+        "descending": 112,
+        "permuted": 112
+      },
+      "bandCount": 4,
+      "perBandDivergence": []
+    }
+  }
+}

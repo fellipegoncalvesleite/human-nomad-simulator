@@ -1,0 +1,60 @@
+{
+ "probe": "same-day-target-churn",
+ "years": 40,
+ "out": {
+  "rich": {
+   "site": "tile:192:96",
+   "seasonsAlive": 160,
+   "uniqueTrips": 3679,
+   "tripsPerSeason": 22.99,
+   "distinctTargets": 16,
+   "consecutiveRepeatTrips": 48,
+   "consecutiveRepeatRate": 0.013,
+   "productiveTrips": 1443,
+   "productiveRate": 0.392,
+   "totalUnits": 49.5826,
+   "unitsPerSeason": 0.3099,
+   "mostVisitedTarget": {
+    "tile": "tile:192:95",
+    "trips": 535
+   },
+   "inspectionTrips": 0
+  },
+  "ordinary": {
+   "site": "tile:24:120",
+   "seasonsAlive": 160,
+   "uniqueTrips": 3840,
+   "tripsPerSeason": 24,
+   "distinctTargets": 19,
+   "consecutiveRepeatTrips": 20,
+   "consecutiveRepeatRate": 0.005,
+   "productiveTrips": 110,
+   "productiveRate": 0.029,
+   "totalUnits": 2.5145,
+   "unitsPerSeason": 0.0157,
+   "mostVisitedTarget": {
+    "tile": "tile:27:122",
+    "trips": 1092
+   },
+   "inspectionTrips": 0
+  },
+  "marginal": {
+   "site": "tile:66:114",
+   "seasonsAlive": 160,
+   "uniqueTrips": 3554,
+   "tripsPerSeason": 22.21,
+   "distinctTargets": 29,
+   "consecutiveRepeatTrips": 83,
+   "consecutiveRepeatRate": 0.023,
+   "productiveTrips": 25,
+   "productiveRate": 0.007,
+   "totalUnits": 0.31,
+   "unitsPerSeason": 0.0019,
+   "mostVisitedTarget": {
+    "tile": "tile:66:107",
+    "trips": 473
+   },
+   "inspectionTrips": 0
+  }
+ }
+}

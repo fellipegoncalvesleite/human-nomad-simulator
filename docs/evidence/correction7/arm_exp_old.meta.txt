@@ -1,0 +1,14 @@
+arm:        exp_old
+descr:      expedition.ts@corr-3 (no value gate), trips@HEAD
+command:    node scripts/expeditionHabitatCasesAudit.mjs --years 100
+head:       4eca997
+base_ref:   0b119f2
+scenario:   map2 isolated 22-person founder, physically scored rich/ordinary/marginal
+seed:       runSeed per-case string (habitat-<case>); no jitter
+years:      100
+started:    2026-07-19T22:11:21-03:00
+finished:   2026-07-19T22:12:40-03:00
+exit_code:  0
+output:     docs/evidence/correction7/arm_exp_old.json
+expedition.ts: 135e7c908777c2a17df5c29a6f86b3c0089ac535
+intraSeasonTrips.ts: 1bdb36ada6a50f834b4e2415e28760fba9613c3e

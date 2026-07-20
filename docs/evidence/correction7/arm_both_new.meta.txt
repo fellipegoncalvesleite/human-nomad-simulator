@@ -1,0 +1,14 @@
+arm:        both_new
+descr:      HEAD: value gate ON, requireMultiDay ON
+command:    node scripts/expeditionHabitatCasesAudit.mjs --years 100
+head:       4eca997
+base_ref:   0b119f2
+scenario:   map2 isolated 22-person founder, physically scored rich/ordinary/marginal
+seed:       runSeed per-case string (habitat-<case>); no jitter
+years:      100
+started:    2026-07-19T22:10:04-03:00
+finished:   2026-07-19T22:11:21-03:00
+exit_code:  0
+output:     docs/evidence/correction7/arm_both_new.json
+expedition.ts: bd6ca111486c3445cd4d7976905c33a2a7ceba5c
+intraSeasonTrips.ts: 1bdb36ada6a50f834b4e2415e28760fba9613c3e

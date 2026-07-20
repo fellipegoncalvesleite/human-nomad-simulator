@@ -1,0 +1,379 @@
+{
+  "check": "EXPEDITION-HABITAT-CASES-1",
+  "verdict": "PASS",
+  "years": 100,
+  "caseArg": "all",
+  "checks": {
+    "allSpawned": true,
+    "reachableEcologyDiffers": true,
+    "casesBehaveDifferently": true,
+    "richConvertsOpportunity": true,
+    "richExpeditionsJustifiedNotConstant": true,
+    "ordinaryTradeoffsPresent": true,
+    "marginalHardshipReal": true,
+    "noGenericBucketAnywhere": true,
+    "infoTasksNeverFood": true,
+    "capsHoldEverywhere": true,
+    "extinctionRemainsPossible": true
+  },
+  "sites": {
+    "rich": {
+      "tileId": "tile:192:96",
+      "stock": 35.86,
+      "meanWater": 0.802,
+      "waterTiles": 171
+    },
+    "ordinary": {
+      "tileId": "tile:24:120",
+      "stock": 7.51,
+      "meanWater": 0.259,
+      "waterTiles": 23
+    },
+    "marginal": {
+      "tileId": "tile:66:114",
+      "stock": 2.1,
+      "meanWater": 0.104,
+      "waterTiles": 12
+    }
+  },
+  "results": {
+    "rich": {
+      "name": "rich",
+      "site": {
+        "tileId": "tile:192:96",
+        "stock": 35.86,
+        "meanWater": 0.802,
+        "waterTiles": 171
+      },
+      "startPopulation": 22,
+      "endPopulation": 21,
+      "finalStatus": "fragile",
+      "trajectory": [
+        {
+          "year": 0,
+          "population": 22,
+          "status": "viable"
+        },
+        {
+          "year": 10,
+          "population": 22,
+          "status": "viable"
+        },
+        {
+          "year": 20,
+          "population": 22,
+          "status": "viable"
+        },
+        {
+          "year": 30,
+          "population": 22,
+          "status": "viable"
+        },
+        {
+          "year": 40,
+          "population": 22,
+          "status": "viable"
+        },
+        {
+          "year": 50,
+          "population": 22,
+          "status": "viable"
+        },
+        {
+          "year": 60,
+          "population": 22,
+          "status": "viable"
+        },
+        {
+          "year": 70,
+          "population": 21,
+          "status": "viable"
+        },
+        {
+          "year": 80,
+          "population": 21,
+          "status": "viable"
+        },
+        {
+          "year": 90,
+          "population": 21,
+          "status": "viable"
+        },
+        {
+          "year": 99,
+          "population": 21,
+          "status": "fragile"
+        }
+      ],
+      "food": {
+        "physicalReceipts": 3055,
+        "receiptUnits": 92.2049,
+        "expeditionDeliveredUnits": 9.0418
+      },
+      "expeditions": {
+        "terminalOutcomes": 1332,
+        "taskKinds": {
+          "route_reconnaissance": 5,
+          "distant_plant_gathering": 1326,
+          "distant_patch_verification": 1
+        },
+        "outcomeReasons": {
+          "returned_information_only": 6,
+          "returned_with_cargo": 336,
+          "physically_exhausted": 822,
+          "seasonally_inactive": 30,
+          "target_absent": 84,
+          "evidence_stale": 53,
+          "cargo_return_failed": 1
+        },
+        "taskCampsUsed": 582,
+        "observationsReturned": 472,
+        "signalAttempts": 0,
+        "signalsUnderstood": 417,
+        "riskEpisodeStamps": 0,
+        "maxAdultsAway": 8
+      },
+      "walking": {
+        "activeDayMeanKm": 3.75,
+        "calendarDayMeanKm": 2.5,
+        "loadedMeanKm": 0,
+        "longestExpeditionKm": 24,
+        "conditioning": 0.876
+      },
+      "adaptation": {
+        "carryingReliefActive": true,
+        "carryingRelief": 0.08
+      },
+      "guards": {
+        "infoTaskFood": 0,
+        "genericBucket": 0,
+        "capViolations": 0
+      },
+      "fingerprint": "a10d198c72791bf5cfa7c99ecc6bc5263d3c29679f4fc0135b266ac721e89596"
+    },
+    "ordinary": {
+      "name": "ordinary",
+      "site": {
+        "tileId": "tile:24:120",
+        "stock": 7.51,
+        "meanWater": 0.259,
+        "waterTiles": 23
+      },
+      "startPopulation": 22,
+      "endPopulation": 0,
+      "finalStatus": "extinct",
+      "trajectory": [
+        {
+          "year": 0,
+          "population": 22,
+          "status": "viable"
+        },
+        {
+          "year": 10,
+          "population": 20,
+          "status": "fragile"
+        },
+        {
+          "year": 20,
+          "population": 17,
+          "status": "fragile"
+        },
+        {
+          "year": 30,
+          "population": 15,
+          "status": "fragile"
+        },
+        {
+          "year": 40,
+          "population": 14,
+          "status": "fragile"
+        },
+        {
+          "year": 50,
+          "population": 13,
+          "status": "fragile"
+        },
+        {
+          "year": 60,
+          "population": 11,
+          "status": "fragile"
+        },
+        {
+          "year": 70,
+          "population": 10,
+          "status": "nonviable"
+        },
+        {
+          "year": 80,
+          "population": 9,
+          "status": "nonviable"
+        },
+        {
+          "year": 90,
+          "population": 0,
+          "status": "extinct"
+        },
+        {
+          "year": 99,
+          "population": 0,
+          "status": "extinct"
+        }
+      ],
+      "food": {
+        "physicalReceipts": 266,
+        "receiptUnits": 6.4077,
+        "expeditionDeliveredUnits": 0.825
+      },
+      "expeditions": {
+        "terminalOutcomes": 297,
+        "taskKinds": {
+          "distant_plant_gathering": 274,
+          "route_reconnaissance": 9,
+          "distant_patch_verification": 14
+        },
+        "outcomeReasons": {
+          "physically_exhausted": 202,
+          "returned_with_cargo": 58,
+          "cargo_return_failed": 4,
+          "seasonally_inactive": 8,
+          "returned_information_only": 23,
+          "evidence_stale": 2
+        },
+        "taskCampsUsed": 297,
+        "observationsReturned": 93,
+        "signalAttempts": 0,
+        "signalsUnderstood": 425,
+        "riskEpisodeStamps": 0,
+        "maxAdultsAway": 8
+      },
+      "walking": {
+        "activeDayMeanKm": 3.115,
+        "calendarDayMeanKm": 1.688,
+        "loadedMeanKm": 1.731,
+        "longestExpeditionKm": 27,
+        "conditioning": 0.875
+      },
+      "adaptation": {
+        "carryingReliefActive": false,
+        "carryingRelief": 0
+      },
+      "guards": {
+        "infoTaskFood": 0,
+        "genericBucket": 0,
+        "capViolations": 0
+      },
+      "fingerprint": "b9a1d2a36d3801d10136baa66ca565de0eb00ff6ba7dae206ded159d30e56411"
+    },
+    "marginal": {
+      "name": "marginal",
+      "site": {
+        "tileId": "tile:66:114",
+        "stock": 2.1,
+        "meanWater": 0.104,
+        "waterTiles": 12
+      },
+      "startPopulation": 22,
+      "endPopulation": 0,
+      "finalStatus": "extinct",
+      "trajectory": [
+        {
+          "year": 0,
+          "population": 22,
+          "status": "fragile"
+        },
+        {
+          "year": 10,
+          "population": 19,
+          "status": "fragile"
+        },
+        {
+          "year": 20,
+          "population": 16,
+          "status": "fragile"
+        },
+        {
+          "year": 30,
+          "population": 14,
+          "status": "fragile"
+        },
+        {
+          "year": 40,
+          "population": 12,
+          "status": "fragile"
+        },
+        {
+          "year": 50,
+          "population": 10,
+          "status": "nonviable"
+        },
+        {
+          "year": 60,
+          "population": 9,
+          "status": "nonviable"
+        },
+        {
+          "year": 70,
+          "population": 0,
+          "status": "extinct"
+        },
+        {
+          "year": 80,
+          "population": 0,
+          "status": "extinct"
+        },
+        {
+          "year": 90,
+          "population": 0,
+          "status": "extinct"
+        },
+        {
+          "year": 99,
+          "population": 0,
+          "status": "extinct"
+        }
+      ],
+      "food": {
+        "physicalReceipts": 96,
+        "receiptUnits": 1.3463,
+        "expeditionDeliveredUnits": 0.0517
+      },
+      "expeditions": {
+        "terminalOutcomes": 71,
+        "taskKinds": {
+          "distant_plant_gathering": 33,
+          "distant_patch_verification": 38
+        },
+        "outcomeReasons": {
+          "evidence_stale": 9,
+          "target_absent": 4,
+          "physically_exhausted": 17,
+          "returned_information_only": 38,
+          "returned_with_cargo": 3
+        },
+        "taskCampsUsed": 71,
+        "observationsReturned": 83,
+        "signalAttempts": 0,
+        "signalsUnderstood": 331,
+        "riskEpisodeStamps": 0,
+        "maxAdultsAway": 2
+      },
+      "walking": {
+        "activeDayMeanKm": 6.5,
+        "calendarDayMeanKm": 5.688,
+        "loadedMeanKm": 0,
+        "longestExpeditionKm": 108,
+        "conditioning": 0.795
+      },
+      "adaptation": {
+        "carryingReliefActive": false,
+        "carryingRelief": 0
+      },
+      "guards": {
+        "infoTaskFood": 0,
+        "genericBucket": 0,
+        "capViolations": 0
+      },
+      "fingerprint": "2b4b0f71d28656866a4b6ae9e73c00d1d0942764e1c7a078586ac3382e526082"
+    }
+  }
+}

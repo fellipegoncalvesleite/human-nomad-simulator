@@ -429,3 +429,58 @@ de-prioritise, rather than being ignored entirely).
 Outstanding for CORRECTION-6: the above; ordinary break-even; the bounded viability
 matrix (7 cases x 25/50/100y, multi-seed on good/ordinary); adaptation reassessment;
 full regression; docs (HANDOFF/AGENTS/CLAUDE/graph/roadmap); push.
+
+# CORRECTION-6 — the recorded marginal-regression hypothesis is DISPROVED
+
+CORRECTION-5 recorded this leading hypothesis for the marginal regression:
+  "CORRECTION-4 made exploitation causes IGNORE inspection-only visits in
+   wasRecentlyVisited. That also removed the rotation pressure suppression provided,
+   so the same-day path can re-target the same recently inspected tile instead of
+   moving on, reducing catchment coverage and total receipts."
+It predicted: distinct same-day target tiles should have COLLAPSED on the marginal
+founder between corr-3 and corr-5.
+
+## Test (scripts/sameDayRotationProbe.mjs, 40y, map2, same scored sites)
+Ran the probe at current HEAD, then again with intraSeasonTrips.ts reverted to its
+corr-3 content (0b119f2), isolating the trip-selection changes.
+
+| metric (marginal founder) | corr-3 trip selection | current (corr-5) |
+|---|---|---|
+| distinct same-day targets | 29 | 29 |
+| productive food trip records | 26 | 26 |
+| immediate repeat targets | 184 | 184 |
+| final population @40y | 12 | 12 |
+
+IDENTICAL on every measure. Ordinary likewise near-identical (19/19 distinct targets;
+123 vs 110 productive records; final pop 13 in both).
+
+## Conclusion — record corrected
+1. The rotation hypothesis is WRONG. The CORRECTION-4 trip-selection changes
+   (requireMultiDay + inspectionOnly suppression) have NO measurable effect on
+   same-day marginal behavior. They only affect which EXPEDITIONS launch.
+2. `inspectionOnlyRecords` was 0 in every probe run, on both revisions. Inspection
+   records never reach the same-day path at all, so they cannot have been suppressing
+   or de-suppressing same-day rotation. The mechanism the hypothesis proposed does not
+   exist.
+3. Therefore the marginal delta must originate in expedition.ts (party labour
+   commitment), not the same-day path. An attribution run (corr-3 expedition.ts +
+   corr-5 intraSeasonTrips.ts) was launched to confirm this, but its output was lost
+   when the session scratchpad was cleared. IT MUST BE RE-RUN — do not treat the
+   expedition.ts attribution as established.
+4. A genuine confounder surfaced and is unresolved: marginal shows 184 immediate
+   repeat same-day targets against only 26 productive trips, at BOTH revisions. That
+   is a large pre-existing inefficiency independent of every correction in this series
+   — a band re-walking the same tile rather than rotating. It is a candidate cause of
+   marginal's low absolute receipts, but it is NOT a regression and must not be
+   attributed to CORRECTION-4/5.
+
+## Next (CORRECTION-7)
+a. Re-run the expedition.ts attribution (one 100y habitat run per arm) and confirm
+   where the marginal delta actually originates.
+b. Investigate the pre-existing 184-repeat same-day pattern on marginal ground.
+c. Then ordinary break-even, the bounded viability matrix, adaptation reassessment,
+   full regression, docs, push.
+
+METHOD NOTE: this is the second time in this series a plausible written-down cause
+survived into a commit message before being measured. The rotation hypothesis was
+recorded as "leading hypothesis" and was wrong. Measure before recording a cause.

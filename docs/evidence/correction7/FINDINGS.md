@@ -75,3 +75,33 @@ Both corrections are RETAINED at HEAD:
    (measured: 1326 -> 15 launches, 92.20 -> 134.02 units).
 Measured cost of keeping both vs valueGate alone: rich 23 viable -> 23 fragile, same
 population. Accepted deliberately and recorded here rather than silently tuned away.
+
+## E. The "double factor" hypothesis is REJECTED on analysis (before implementing it)
+CODE OBSERVATION (plantStock.ts:395, :447-452, :534-556; intraSeasonTrips.ts:862):
+harvest = Math.min(requestedAmount, physicalAvailability), where
+  request ∝ partySize x returnFactor,  returnFactor ∝ naturalAvailability x (1-depletion)
+  ceiling ∝ baseAbundance x naturalAvailability x (1-depletion) x 2.4
+Both terms scale LINEARLY in the same factor x = naturalAvailability x (1-depletion), and
+they are combined with min(), not with a product. min(a*x, b*x) = x*min(a,b) — still
+LINEAR in x. Therefore the double application CANNOT produce the measured superlinearity.
+The §C hypothesis is REJECTED. It was not implemented.
+(The double application is still a redundancy worth tidying, but it is not this defect.)
+
+## F. Where the superlinearity actually lives — narrowed, not yet closed
+MEASURED FACT 5 is about the PRODUCTIVE RATE — the fraction of trips returning ANY food
+(rich 39.2%, ordinary 2.9%). That is a BINARY SUCCESS GATE, not a continuous yield
+formula. A yield-scaling defect cannot explain a 13.5x swing in how often a trip returns
+anything at all.
+The success gate is (intraSeasonTrips.ts:317-321):
+  activityEligible = !verifyOnly && routeReached
+                     && isPhysicalFoodReturnKind(returnedResourceKind)
+                     && estimatedReturnValue > 0
+with upstream binary failures from classifyActivityOutcome (failed_due_to_distance,
+failed_due_to_season_mismatch, delayed_return, low_memory_confidence) and from the
+resolvers (physical_source_absent, physically_exhausted).
+NEXT MEASUREMENT (do this first in CORRECTION-8, do not skip to a fix): instrument the
+ordinary founder's same-day trips and count terminal failure reasons per season. The
+distribution will name which gate rejects ~97% of ordinary trips. Only then decide
+whether that gate is physically legitimate (poor ground genuinely yields little) or
+defective (e.g. a confidence threshold that poor habitat can never satisfy, or a
+seasonal-activity window that is too narrow).

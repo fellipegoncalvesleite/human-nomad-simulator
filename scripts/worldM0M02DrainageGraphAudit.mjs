@@ -180,6 +180,17 @@ function runSynthetic(definition) {
     };
   }
   let result;
+  let accounting;
+  const originalRelease = fixture.budget?.release;
+  if (definition.captureReleasedAliases && originalRelease) {
+    fixture.budget.release = label => {
+      if (label === "primaryContributingAreaM2") {
+        accounting = { assignment: Array.from(task8Aliases[5]), catchment: Array.from(task8Aliases[1]),
+          primary: Array.from(fixture.flow.primaryReceiver), splitArea: Array.from(fixture.flow.contributingAreaM2) };
+      }
+      return originalRelease(label);
+    };
+  }
   try {
     result = fixture.grid && hasAuthority
       ? modules.drainage.extractPersistentDrainageGraph(
@@ -189,6 +200,7 @@ function runSynthetic(definition) {
   } finally {
     if (definition.captureReleasedAliases && fixture.budget && originalAllocateBatch) {
       fixture.budget.allocateBatch = originalAllocateBatch;
+      fixture.budget.release = originalRelease;
     }
   }
   const releasedAliases = definition.captureReleasedAliases && fixture.flow && fixture.terminalOwners
@@ -202,7 +214,7 @@ function runSynthetic(definition) {
       flowTopologicalOrder: fixture.flow.topologicalOrder,
     })[label]), fixture.terminalOwners.terminalOwnerCells]
     : [];
-  return { fixture, before, result, value: resultValue(result), after: fixture.budget?.snapshot(), releasedAliases };
+  return { fixture, before, result, accounting, value: resultValue(result), after: fixture.budget?.snapshot(), releasedAliases };
 }
 
 function replaceSourceExactlyOnce(source, needle, replacement) {
@@ -527,7 +539,7 @@ const oldTerminalOwnerMergeMutation = await runDrainageSourceMutation(
   () => {
     const mutant = runSynthetic(F3_TERMINAL_OWNER_MERGE);
     return {
-      detected: mutant.result?.ok === true && mutant.value?.nodes.filter((node) => node.kind === "confluence").length === 0 &&
+      detected: resultError(mutant.result)?.path === "drainage.reaches.localContributingAreaM2" || mutant.result?.ok === true && mutant.value?.nodes.filter((node) => node.kind === "confluence").length === 0 &&
         mutant.value?.reaches.length === 2,
       detail: { error: resultError(mutant.result) ?? null, nodeKinds: mutant.value?.nodes.map((node) => node.kind) ?? null,
         reachCount: mutant.value?.reaches.length ?? null },
@@ -545,7 +557,8 @@ const droppedOffSupportMutation = await runDrainageSourceMutation(
   () => {
     const mutant = runSynthetic(F1);
     return {
-      detected: mutant.result?.ok === true && mutant.value?.reaches[0]?.localContributingAreaM2 === 4 * CELL_AREA,
+      detected: resultError(mutant.result)?.path === "drainage.reaches.localContributingAreaM2" ||
+        mutant.result?.ok === true && mutant.value?.reaches[0]?.localContributingAreaM2 === 4 * CELL_AREA,
       detail: { error: resultError(mutant.result) ?? null,
         localContributingAreaM2: mutant.value?.reaches[0]?.localContributingAreaM2 ?? null },
     };
@@ -566,7 +579,8 @@ const incomingConfluenceAssignmentMutation = await runDrainageSourceMutation(
     const tribA = reachByEndpoints(mutant.value, point(125, 125), point(375, 125));
     const tribB = reachByEndpoints(mutant.value, point(375, 375), point(375, 125));
     return {
-      detected: mutant.result?.ok === true && (trunk?.localContributingAreaM2 !== 3 * CELL_AREA ||
+      detected: resultError(mutant.result)?.path === "drainage.reaches.localContributingAreaM2" ||
+        mutant.result?.ok === true && (trunk?.localContributingAreaM2 !== 3 * CELL_AREA ||
         tribA?.localContributingAreaM2 !== CELL_AREA || tribB?.localContributingAreaM2 !== CELL_AREA),
       detail: { error: resultError(mutant.result) ?? null, trunkLocal: trunk?.localContributingAreaM2 ?? null,
         tribALocal: tribA?.localContributingAreaM2 ?? null, tribBLocal: tribB?.localContributingAreaM2 ?? null },
@@ -782,11 +796,228 @@ function ringAreaM2(ring) {
   return area2 / 2;
 }
 
+// Literal v2 inputs and expectations, independent of production extraction.
+// Pairs are [cell, primary receiver]; -1 marks the closed floor.
+function closedDefinition(width, height, pairs, eligible) {
+  const n = width * height;
+  const primary = Array(n).fill(-1), landMask = Array(n).fill(0);
+  const kinds = Array(n).fill(0), ordinals = Array(n).fill(-1), splitArea = Array(n).fill(0);
+  for (const [cell, receiver] of pairs) { primary[cell] = receiver; landMask[cell] = 1; }
+  const floor = pairs.find(([, receiver]) => receiver === -1)[0];
+  kinds[floor] = 3; ordinals[floor] = 0;
+  for (const cell of eligible) splitArea[cell] = 125_000;
+  return { width, height, primary, landMask, kinds, ordinals, splitArea, owners: [floor],
+    captureReleasedAliases: true, topologicalOrder: pairs.map(([cell]) => cell), persistenceAreaM2: 125_000, minReachLengthMeters: 1000 };
+}
+const CLOSED_CHAIN = [[0, 1], [1, 2], [2, 3], [3, -1]];
+const CLOSED_CASES = [
+  { name: "noEligible", definition: closedDefinition(4, 1, CLOSED_CHAIN, []),
+    total: 250_000, terminalLocal: 250_000, nodes: 0, reaches: [], owners: [-2,-2,-2,-2] },
+  { name: "floorOnly", definition: closedDefinition(4, 1, CLOSED_CHAIN, [3]),
+    total: 250_000, terminalLocal: 250_000, nodes: 1, reaches: [], owners: [-2,-2,-2,-2] },
+  { name: "indegreeOne", definition: closedDefinition(4, 1, CLOSED_CHAIN, [0]),
+    total: 250_000, terminalLocal: 62_500, nodes: 2, reaches: [[0,3,187_500,187_500]], owners: [0,0,0,-2] },
+  { name: "twoBranch", definition: closedDefinition(3, 1, [[0,1],[2,1],[1,-1]], [0,2]),
+    total: 187_500, terminalLocal: 62_500, nodes: 3, reaches: [[0,1,62_500,62_500],[2,1,62_500,62_500]], owners: [0,-2,2] },
+  { name: "unequalUpstreamConfluence", definition: closedDefinition(5, 3,
+      [[0,1],[1,6],[2,6],[6,7],[7,8],[4,9],[9,8],[8,-1]], [0,2,4]),
+    total: 500_000, terminalLocal: 62_500, nodes: 5,
+    reaches: [[0,6,125_000,125_000],[2,6,62_500,62_500],[6,8,312_500,125_000],[4,8,125_000,125_000]],
+    ownerPairs: [[0,0],[1,0],[2,2],[6,6],[7,6],[4,4],[9,4],[8,-2]] },
+  { name: "directFeeder", definition: closedDefinition(3, 3,
+      [[0,1],[1,4],[2,5],[5,4],[7,4],[4,-1]], [0,2]),
+    total: 375_000, terminalLocal: 125_000, nodes: 3,
+    reaches: [[0,4,125_000,125_000],[2,4,125_000,125_000]],
+    ownerPairs: [[0,0],[1,0],[2,2],[5,2],[7,-2],[4,-2]] },
+  { name: "multibranchSimplification", definition: closedDefinition(5, 3,
+      [[0,5],[5,10],[10,11],[11,12],[2,7],[7,12],[4,9],[9,14],[14,13],[13,12],[12,-1]], [0,2,4]),
+    total: 687_500, terminalLocal: 62_500, nodes: 4,
+    reaches: [[0,12,250_000,250_000],[2,12,125_000,125_000],[4,12,250_000,250_000]],
+    ownerPairs: [[0,0],[5,0],[10,0],[11,0],[2,2],[7,2],[4,4],[9,4],[14,4],[13,4],[12,-2]] },
+];
+function cellPoint(definition, cell) {
+  return point((cell % definition.width + 0.5) * 250,
+    (definition.height - Math.floor(cell / definition.width) - 0.5) * 250);
+}
+function closedBehavior(fixture, run) {
+  const value = run.value, def = fixture.definition;
+  if (!value || value.nodes.length !== fixture.nodes || value.reaches.length !== fixture.reaches.length ||
+      value.terminals.length !== 1 || value.catchments.length !== 1 || value.catchments[0].areaM2 !== fixture.total ||
+      !samePoint(value.terminals[0].point, cellPoint(def, def.owners[0]))) return false;
+  if (value.nodes.filter(n => n.kind === "terminal").length !== (fixture.nodes ? 1 : 0)) return false;
+  if (new Set(value.nodes.map(n => JSON.stringify(n.point))).size !== value.nodes.length) return false;
+  return fixture.reaches.every(([up, down, total, local]) => {
+    const reach = reachByEndpoints(value, cellPoint(def, up), cellPoint(def, down));
+    const next = fixture.reaches.find(([source]) => source === down);
+    const nextReach = next && reachByEndpoints(value, cellPoint(def, next[0]), cellPoint(def, next[1]));
+    return reach?.contributingAreaM2 === total && reach?.localContributingAreaM2 === local &&
+      reach.downstreamReachId === (nextReach?.id ?? null) && reach.lengthMeters > 0 && reach.geometry.length >= 2 &&
+      new Set(reach.geometry.map(p => JSON.stringify(p))).size === reach.geometry.length &&
+      reach.upstreamNodeId !== reach.downstreamNodeId;
+  });
+}
+function conserved(value) {
+  if (!value) return false;
+  return value.reaches.every(reach => Math.abs(reach.contributingAreaM2 - reach.localContributingAreaM2 -
+    value.reaches.filter(up => up.downstreamReachId === reach.id).reduce((sum, up) => sum + up.contributingAreaM2, 0)) <= 0.01) &&
+    value.catchments.every(c => {
+      const terminal = value.terminals.find(t => t.id === c.terminalId);
+      const reaches = value.reaches.filter(r => r.catchmentId === c.id);
+      return Math.abs(c.areaM2 - terminal.localContributingAreaM2 - reaches.filter(r => r.downstreamReachId === null)
+        .reduce((sum,r) => sum + r.contributingAreaM2, 0)) <= 0.01 &&
+        Math.abs(c.areaM2 - terminal.localContributingAreaM2 - reaches.reduce((sum,r) => sum + r.localContributingAreaM2, 0)) <= 0.01;
+    });
+}
+const OCEAN_MERGE = { width: 3, height: 2, landMask: [0,1,0,1,1,0],
+  primary: [-1,4,-1,4,-1,-1], kinds: [0,0,0,0,1,0], ordinals: [-1,-1,-1,-1,0,-1], owners: [4],
+  topologicalOrder: [1,3,4], splitArea: [0,62_500,0,62_500,187_500,0], persistenceAreaM2: 62_500 };
+const oceanMerge = runSynthetic(OCEAN_MERGE);
+const closedSiblingOrder = runSynthetic({ ...CLOSED_CASES[5].definition, topologicalOrder: [7,2,5,0,1,4] });
+const closedRuns = CLOSED_CASES.map(f => runSynthetic(f.definition));
+const closedChecks = {};
+for (let i = 0; i < CLOSED_CASES.length; i += 1) {
+  const fixture = CLOSED_CASES[i], run = closedRuns[i];
+  closedChecks[fixture.name + "BehavioralLiteral"] = closedBehavior(fixture, run);
+  closedChecks[fixture.name + "TerminalLiteral"] = run.value?.terminals[0]?.localContributingAreaM2 === fixture.terminalLocal;
+  closedChecks[fixture.name + "Conservation"] = conserved(run.value);
+  const owners = fixture.ownerPairs ?? fixture.owners.map((owner,cell) => [cell,owner]);
+  closedChecks[fixture.name + "ExactCellOwnership"] = run.result?.ok === true &&
+    owners.length === fixture.definition.landMask.filter(v => v === 1).length &&
+    owners.every(([cell, owner]) => {
+      const actual = run.accounting?.assignment[cell];
+      if (owner === -2) return actual === -2;
+      const reach = run.value?.reaches[actual];
+      const node = run.value?.nodes.find(n => n.id === reach?.upstreamNodeId);
+      return samePoint(node?.point, cellPoint(fixture.definition,owner));
+    });
+  closedChecks[fixture.name + "RoutingAndMembershipUnchanged"] = run.result?.ok === true &&
+    exactArray(run.accounting.primary, fixture.definition.primary) &&
+    exactArray(run.accounting.splitArea, fixture.definition.splitArea) &&
+    fixture.definition.landMask.every((land,cell) => run.accounting.catchment[cell] === (land ? 0 : -1));
+  const reverse = runSynthetic({ ...fixture.definition, fillOrder: "reverse" });
+  closedChecks[fixture.name + "FillOrder"] = run.result?.ok === true && JSON.stringify(run.value) === JSON.stringify(reverse.value);
+}
+
+// Each source mutant must load, violate a positive literal or a focused
+// corruption refusal, and restore the exact original bytes in finally.
+const v2MutationResults = {};
+const fixtureFailures = () => {
+  const results = CLOSED_CASES.map(f => runSynthetic(f.definition));
+  const failed = results.map((r,i) => !closedBehavior(CLOSED_CASES[i],r) ||
+    r.value?.terminals[0]?.localContributingAreaM2 !== CLOSED_CASES[i].terminalLocal || !conserved(r.value));
+  return { detected: failed.some(Boolean), detail: { failed: CLOSED_CASES.filter((_,i) => failed[i]).map(f => f.name) } };
+};
+const beforeFinal = "  // Final physical identity sort uses the finalized geometry, not the domain-2";
+const beforeValidation = "  // Measurement reads are complete. Reuse primaryArea for independent checks,";
+const replace = replaceSourceExactlyOnce;
+const mutationsV2 = {
+  closedFloorAnchor: source => replace(source,
+    'downstream.kind === "confluence" || closedTerminal ? previous : current',
+    'downstream.kind === "confluence" ? previous : current'),
+  floorAssignedIncoming: source => replace(source,
+    'firstReachAssignment[owners.terminalOwnerCells[ordinal]] = -2 - ordinal;',
+    'firstReachAssignment[owners.terminalOwnerCells[ordinal]] = reaches.find(r => r.downstreamCell === owners.terminalOwnerCells[ordinal])?.transientOrdinal ?? -2 - ordinal;'),
+  dropDirectFeeder: source => replace(source,
+    'terminals[terminalOrdinal].localContributingAreaM2 += scratch.cellAreaM2;',
+    'if (cell === owners.terminalOwnerCells[terminalOrdinal]) terminals[terminalOrdinal].localContributingAreaM2 += scratch.cellAreaM2;'),
+  hardCodeOneCell: source => replace(source, beforeFinal,
+    '  for (const terminal of terminals) terminal.localContributingAreaM2 = scratch.cellAreaM2;\n' + beforeFinal),
+  duplicateTerminalCell: source => replace(source,
+    'terminals[terminalOrdinal].localContributingAreaM2 += scratch.cellAreaM2;',
+    'terminals[terminalOrdinal].localContributingAreaM2 += 2 * scratch.cellAreaM2;'),
+  artificialColocatedTwin: source => replace(source,
+    'const terminalMerge = representedIndegree[cell] >= 2 && !samePoint(cellCenter, terminal.point);',
+    'const terminalMerge = representedIndegree[cell] >= 2;'),
+  singlePointConnector: source => replace(source, '    reach.geometry = geometry;',
+    '    reach.geometry = terminals[reach.terminalOrdinal].kind === "retained_closed_basin" ? [geometry[geometry.length - 1]] : geometry;'),
+  zeroLengthConnector: source => replace(source, '    reach.geometry = geometry;',
+    '    reach.geometry = terminals[reach.terminalOrdinal].kind === "retained_closed_basin" ? [geometry[geometry.length - 1], geometry[geometry.length - 1]] : geometry;'),
+  siblingContinuation: source => replace(source, beforeValidation,
+    '  if (terminals[0]?.kind === "retained_closed_basin" && persistentReaches.length > 1) {\n' +
+    '    (persistentReaches[0] as { downstreamReachId: string | null }).downstreamReachId = persistentReaches[1].id;\n  }\n' + beforeValidation),
+  deleteGenuineShortReach: source => replace(source, '  const links: TerrainRetainedDepressionDrainageLink[] = [];',
+    '  for (let i = persistentReaches.length - 1; i >= 0; i -= 1) { if (persistentReaches[i].lengthMeters < constants.drainage.minReachLengthMeters) persistentReaches.splice(i, 1); }\n  const links: TerrainRetainedDepressionDrainageLink[] = [];'),
+};
+for (const [name, mutate] of Object.entries(mutationsV2)) {
+  v2MutationResults[name] = await runDrainageSourceMutation(name, mutate, fixtureFailures);
+}
+// Independent measurement-corruption probes distinguish actual cell witnesses
+// from numerically equivalent residual formulas on otherwise consistent data.
+const reachFault = '  primaryArea[reaches[0].measurementCell] += 1;\n';
+const terminalFault = '  (catchments[0] as { areaM2: number }).areaM2 += 1;\n';
+const beforeLocal = '  // Local-area witnesses are complete before the domain-2 ID barrier.';
+const reachPath = "drainage.reaches.localContributingAreaM2", terminalPath = "terminals.localContributingAreaM2";
+const probe = expectedPath => {
+  const result = runSynthetic(CLOSED_CASES[2].definition).result;
+  return { detected: resultError(result)?.path === expectedPath, detail: { error: resultError(result) ?? null } };
+};
+const independentReachProbe = await runDrainageSourceMutation("independent-reach-probe",
+  source => replace(source,beforeLocal,reachFault + beforeLocal), () => probe(reachPath));
+const independentTerminalProbe = await runDrainageSourceMutation("independent-terminal-probe",
+  source => replace(source,beforeLocal,terminalFault + beforeLocal), () => probe(terminalPath));
+for (const [name, fault, residual, path] of [
+  ["residualReachLocal", reachFault,
+    '  for (const reach of reaches) { let upstream = 0; for (const r of reaches) { if (r !== reach && r.downstreamCell === reach.upstreamCell) upstream += primaryArea[r.measurementCell]; } reach.localAreaM2 = primaryArea[reach.measurementCell] - upstream; }\n', reachPath],
+  ["residualTerminalLocal", terminalFault,
+    '  for (let ordinal = 0; ordinal < terminals.length; ordinal += 1) { let incoming = 0; for (const r of reaches) { if (r.terminalOrdinal === ordinal && nodes[r.downstreamNodeOrdinal].kind === "terminal") incoming += primaryArea[r.measurementCell]; } terminals[ordinal].localContributingAreaM2 = catchments[ordinal].areaM2 - incoming; }\n', terminalPath],
+]) {
+  v2MutationResults[name] = await runDrainageSourceMutation(name,
+    source => replace(replace(source,beforeLocal,fault + beforeLocal),beforeFinal,residual + beforeFinal),
+    () => { const outcome = probe(path); return { detected: !outcome.detected, detail: outcome.detail }; });
+}
+// A +1 m² corruption must be refused at reach conservation, even when closed.
+const corruptReach = '  if (persistentReaches[0]) (persistentReaches[0] as { contributingAreaM2: number }).contributingAreaM2 += 1;\n';
+const strongReachProbe = await runDrainageSourceMutation("strong-reach-probe",
+  source => replace(source,beforeValidation,corruptReach + beforeValidation), () => probe(reachPath));
+v2MutationResults.weakenClosedReachConservation = await runDrainageSourceMutation("weakenClosedReachConservation",
+  source => replace(replace(source,beforeValidation,corruptReach + beforeValidation),
+    'Math.abs(reach.contributingAreaM2 - primaryArea[ordinal]) > constants.validation.areaToleranceM2',
+    'terminals[reaches[ordinal].terminalOrdinal].kind !== "retained_closed_basin" && Math.abs(reach.contributingAreaM2 - primaryArea[ordinal]) > constants.validation.areaToleranceM2'),
+  () => { const outcome = probe(reachPath); return { detected: !outcome.detected, detail: outcome.detail }; });
+const terminalCorruption = delta => `  terminals[0].localContributingAreaM2 += ${delta};\n`;
+const strongTerminalProbes = [];
+for (const delta of [-1, 1]) {
+  strongTerminalProbes.push(await runDrainageSourceMutation(`strong-terminal-${delta}`,
+    source => replace(source,beforeValidation,terminalCorruption(delta) + beforeValidation), () => probe(terminalPath)));
+}
+v2MutationResults.weakenTerminalInequality = await runDrainageSourceMutation("weakenTerminalInequality",
+  source => replace(replace(source,beforeValidation,terminalCorruption(1) + beforeValidation),
+    'Math.abs(catchments[ordinal].areaM2 - local - primaryArea[ordinal]) > constants.validation.areaToleranceM2',
+    'catchments[ordinal].areaM2 - local - primaryArea[ordinal] > constants.validation.areaToleranceM2'),
+  () => { const outcome = probe(terminalPath); return { detected: !outcome.detected, detail: outcome.detail }; });
+const reverseAccountingProbe = await runDrainageSourceMutation("reverse-accounting-order", source => {
+  const start = source.indexOf(beforeLocal), end = source.indexOf(beforeFinal);
+  if (start < 0 || end <= start) return undefined;
+  const segment = source.slice(start,end).replaceAll('for (let cell = 0; cell < cellCount; cell += 1)',
+    'for (let cell = cellCount - 1; cell >= 0; cell -= 1)');
+  return source.slice(0,start) + segment + source.slice(end);
+}, () => ({ detected: CLOSED_CASES.every((fixture,i) =>
+  JSON.stringify(runSynthetic(fixture.definition).value) === JSON.stringify(closedRuns[i].value)) }));
+const v2MutationChecks = Object.fromEntries(Object.entries(v2MutationResults)
+  .map(([name,r]) => [name + "MutantKilled", r.applied && r.detected && r.restored]));
+v2MutationChecks.independentWitnessProbes = [independentReachProbe,independentTerminalProbe,strongReachProbe,...strongTerminalProbes]
+  .every(r => r.applied && r.detected && r.restored);
+
 const sharedF1Point = modules.depressions?.terminalPointCoordinates?.(
   4, modules.scratch?.TERRAIN_TERMINAL_EXTERNAL_DOMAIN_OUTLET, f1.fixture.grid,
 );
 
 const checks = {
+  ...closedChecks,
+  ...v2MutationChecks,
+  terminalLocalReverseAccumulationInvariant: reverseAccountingProbe.applied && reverseAccountingProbe.detected && reverseAccountingProbe.restored,
+  unrepresentedMixedTerminalWholeCatchments: f8Donut.value?.reaches.length === 0 &&
+    exactArray(f8Donut.value.terminals.map(t => t.localContributingAreaM2), [62_500,562_500]) && conserved(f8Donut.value),
+  closedSiblingOrderInvariant: JSON.stringify(closedSiblingOrder.value) === JSON.stringify(closedRuns[5].value),
+  closedPredecessorSurvivesSimplification: closedRuns[2].value?.reaches[0]?.geometry.length === 2 &&
+    closedRuns[2].value.reaches[0].contributingAreaM2 === 187_500 &&
+    reachByEndpoints(closedRuns[6].value,point(625,625),point(625,125))?.geometry.length === 2,
+  representedBoundaryTerminalLocalZero: [f1.value,f2.value,f3.value,f3TerminalOwnerMerge.value,oceanMerge.value]
+    .every(v => v?.terminals.every(t => t.localContributingAreaM2 === 0) && conserved(v)),
+  oceanBoundaryBehavior: oceanMerge.value?.nodes.length === 4 && oceanMerge.value?.reaches.length === 3 &&
+    samePoint(oceanMerge.value.terminals[0].point, point(500,125)) &&
+    reachByEndpoints(oceanMerge.value, point(375,125), point(500,125))?.contributingAreaM2 === 187_500,
+
   authorityPersistentDrainageExtractor: hasAuthority && modules.loadError === undefined,
   r004ConsumesFinalCoastlineAuthority:
     resultError(f1BadCoastline.result)?.code === "M02_CANDIDATE_INVALID" &&
@@ -984,6 +1215,8 @@ const report = {
   loadError: modules.loadError ?? null,
   checks,
   evidence: {
+    v2MutationResults, reverseAccountingProbe, independentReachProbe, independentTerminalProbe, strongReachProbe, strongTerminalProbes,
+    closed: CLOSED_CASES.map((f,i) => ({ name: f.name, error: resultError(closedRuns[i].result), graph: closedRuns[i].value })),
     f1Error: resultError(f1.result) ?? null,
     f2Error: resultError(f2.result) ?? null,
     f3Error: resultError(f3.result) ?? null,

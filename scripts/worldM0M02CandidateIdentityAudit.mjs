@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "vite";
 
 const ROOT = process.cwd();
@@ -18,7 +18,7 @@ const ids = {
   valley: [id("valley", 0), id("valley", 1)], floodplain: [id("floodplain", 0), id("floodplain", 1)], crossing: [id("crossing", 0), id("crossing", 1)],
 };
 const candidate = {
-  schema: "world-m0-terrain-hydro-candidate/v1", recipeDigest: `sha256:${"11".repeat(32)}`,
+  schema: "world-m0-terrain-hydro-candidate/v2", recipeDigest: `sha256:${"11".repeat(32)}`,
   physicalConstants: { id: "physical:constants", version: "v1", digest: `sha256:${"22".repeat(32)}` },
   physicalGeneratorVersion: "physical:v1", repairPolicyVersion: "repair:v1", numericKernelVersion: "numeric:v1",
   analysis: { cellSizeMeters: 250, width: 1200, height: 720, boundaryModel: "finite_open_outflow", flowAlgorithm: "d_infinity_v1" },
@@ -34,7 +34,7 @@ const candidate = {
     catchmentIds: [...ids.catchment].reverse(), reachIds: [...ids.reach].reverse(), depressionBasinIds: [...ids.basin].reverse(), valleyCandidateIds: [...ids.valley].reverse(), floodplainCandidateIds: [...ids.floodplain].reverse(), crossingCandidateIds: [...ids.crossing].reverse(),
   })),
   coastline: [[p(0, 250), p(125, 0)], [p(0, 0), p(250, 0)]],
-  terminals: [{ id: ids.terminal[1], kind: "external_domain_outlet", point: p(40, 10), catchmentId: ids.catchment[1] }, { id: ids.terminal[0], kind: "ocean_outlet", point: p(20, 10), catchmentId: ids.catchment[0] }],
+  terminals: [{ id: ids.terminal[1], kind: "external_domain_outlet", point: p(40, 10), catchmentId: ids.catchment[1], localContributingAreaM2: 125_000 }, { id: ids.terminal[0], kind: "ocean_outlet", point: p(20, 10), catchmentId: ids.catchment[0], localContributingAreaM2: 0 }],
   catchments: [{ id: ids.catchment[1], terminalId: ids.terminal[1], areaM2: 125000.5, boundaryRings: rings(20, 20) }, { id: ids.catchment[0], terminalId: ids.terminal[0], areaM2: 62500.5, boundaryRings: rings(0, 20) }],
   drainageNodes: [{ id: ids.node[1], point: p(40, 10), kind: "terminal", terminalId: ids.terminal[1] }, { id: ids.node[0], point: p(10, 10), kind: "source", terminalId: null }],
   drainageReaches: [
@@ -58,7 +58,7 @@ const goldenCandidate = {
   deterministicProvenance: { repairOperationCount: 0, conditionedDepressionCount: 0, retainedDepressionCount: 0 },
 };
 const EXPECTED_CANONICAL_TEXT =
-  `{"schema":"world-m0-terrain-hydro-candidate/v1","recipeDigest":"sha256:1111111111111111111111111111111111111111111111111111111111111111",` +
+  `{"schema":"world-m0-terrain-hydro-candidate/v2","recipeDigest":"sha256:1111111111111111111111111111111111111111111111111111111111111111",` +
   `"physicalConstants":{"id":"physical:constants","version":"v1","digest":"sha256:2222222222222222222222222222222222222222222222222222222222222222"},` +
   `"physicalGeneratorVersion":"physical:v1","repairPolicyVersion":"repair:v1","numericKernelVersion":"numeric:v1",` +
   `"analysis":{"cellSizeMeters":250,"width":1200,"height":720,"boundaryModel":"finite_open_outflow","flowAlgorithm":"d_infinity_v1"},` +
@@ -82,7 +82,7 @@ const nestedGoldenCandidate = {
   catchments: [{ id: ids.catchment[0], terminalId: ids.terminal[0], areaM2: 50000, boundaryRings: [ring(0, 20)] }],
 };
 const EXPECTED_NESTED_CANONICAL_TEXT =
-  `{"schema":"world-m0-terrain-hydro-candidate/v1","recipeDigest":"sha256:1111111111111111111111111111111111111111111111111111111111111111",` +
+  `{"schema":"world-m0-terrain-hydro-candidate/v2","recipeDigest":"sha256:1111111111111111111111111111111111111111111111111111111111111111",` +
   `"physicalConstants":{"id":"physical:constants","version":"v1","digest":"sha256:2222222222222222222222222222222222222222222222222222222222222222"},` +
   `"physicalGeneratorVersion":"physical:v1","repairPolicyVersion":"repair:v1","numericKernelVersion":"numeric:v1",` +
   `"analysis":{"cellSizeMeters":250,"width":1200,"height":720,"boundaryModel":"finite_open_outflow","flowAlgorithm":"d_infinity_v1"},` +
@@ -148,6 +148,7 @@ const adjacentBacktracking = clone();
 adjacentBacktracking.drainageReaches[0].geometry = [p(10, 10), p(20, 10), p(15, 10)];
 const adjacentBacktrackingError = failure(encode(adjacentBacktracking));
 const mutations = {
+  terminalLocalArea: (value) => { value.terminals[0].localContributingAreaM2 = 125_001; },
   recipeDigest: (value) => { value.recipeDigest = `sha256:${"33".repeat(32)}`; }, physicalConstantsDigest: (value) => { value.physicalConstants.digest = `sha256:${"44".repeat(32)}`; },
   provinceAxis: (value) => { value.provenanceProvinces[0].axisAngleRadians = 0.375; }, provinceFamilyEffect: (value) => { value.provenanceProvinces[0].elevationOffsetMeters = 3.5; },
   terrainValue: (value) => { value.strategicTerrain[0].elevationMeanMeters = 9.5; }, coastlinePoint: (value) => { value.coastline[0][1].xM = 126; },
@@ -161,7 +162,82 @@ for (const [name, mutate] of Object.entries(mutations)) {
 }
 const forbidden = clone(); forbidden.crossingCandidates[0].knownFord = true;
 const forbiddenError = failure(encode(forbidden));
+const terminalFieldChecks = {};
+for (const [name, mutate] of Object.entries({
+  missing: t => { delete t.localContributingAreaM2; }, extra: t => { t.extraAreaM2 = 0; },
+  nan: t => { t.localContributingAreaM2 = NaN; }, infinite: t => { t.localContributingAreaM2 = Infinity; },
+  negative: t => { t.localContributingAreaM2 = -1; },
+})) {
+  const changed = clone(); mutate(changed.terminals[0]);
+  const error = failure(encode(changed));
+  terminalFieldChecks[name + "TerminalFieldRejected"] = error?.code === "M02_CANDIDATE_INVALID" && error.path.includes("terminals");
+}
+const oldShape = clone(); oldShape.schema = "world-m0-terrain-hydro-candidate/v1";
+const terminalGoldenCandidate = { ...structuredClone(goldenCandidate), terminals: [{
+  id: "terminal:0000000000000000", kind: "retained_closed_basin", point: { xM: 375, yM: 375 },
+  catchmentId: "catchment:0000000000000000", localContributingAreaM2: 125_000,
+}] };
+const EXPECTED_TERMINAL_TEXT = EXPECTED_CANONICAL_TEXT.replace('"terminals":[]',
+  '"terminals":[{"id":"terminal:0000000000000000","kind":"retained_closed_basin","point":{"xM":375,"yM":375},"catchmentId":"catchment:0000000000000000","localContributingAreaM2":125000}]');
+const terminalGoldenEncoded = encode(terminalGoldenCandidate);
+const terminalGoldenDigest = await digestCandidate(terminalGoldenCandidate);
+const expectedTerminalDigest = `sha256:${createHash("sha256").update(EXPECTED_TERMINAL_TEXT).digest("hex")}`;
+const canonicalSourceMutations = {};
+const terminalRecordLine = '    const value = record(item, ["id", "kind", "point", "catchmentId", "localContributingAreaM2"], path);';
+const replaceOnce = (source, needle, replacement) => {
+  if (source.indexOf(needle) < 0 || source.indexOf(needle) !== source.lastIndexOf(needle)) return undefined;
+  return source.replace(needle, replacement);
+};
+const badTerminal = mutation => { const c = clone(); mutation(c.terminals[0]); return c; };
+const sourceCases = {
+  missingFieldAccepted: [source => replaceOnce(source,terminalRecordLine,
+    '    if (!("localContributingAreaM2" in (item as object))) (item as Record<string, unknown>).localContributingAreaM2 = 0;\n' + terminalRecordLine),
+    badTerminal(t => { delete t.localContributingAreaM2; })],
+  extraFieldAccepted: [source => replaceOnce(source,terminalRecordLine,
+    '    delete (item as Record<string, unknown>).extraAreaM2;\n' + terminalRecordLine), badTerminal(t => { t.extraAreaM2 = 0; })],
+  nonfiniteFieldAccepted: [source => replaceOnce(source,
+    'const localArea = numberValue(value.localContributingAreaM2, `${path}.localContributingAreaM2`);',
+    'const localArea = Number.isFinite(value.localContributingAreaM2) ? numberValue(value.localContributingAreaM2, `${path}.localContributingAreaM2`) : "0";'),
+    badTerminal(t => { t.localContributingAreaM2 = NaN; })],
+  negativeFieldAccepted: [source => replaceOnce(source,
+    '    if ((value.localContributingAreaM2 as number) < 0) reject(`${path}.localContributingAreaM2`, "expected nonnegative terminal local area");', ''),
+    badTerminal(t => { t.localContributingAreaM2 = -1; })],
+  digestFieldOmitted: [source => replaceOnce(source, ',"localContributingAreaM2":${localArea}', ''), undefined],
+};
+for (const [name,[mutate,invalid]] of Object.entries(sourceCases)) {
+  const original = readFileSync(modulePath), mutated = mutate(original.toString('utf8'));
+  const saved = canonical;
+  let applied = false, detected = false, loadError;
+  try {
+    if (typeof mutated === 'string' && mutated !== original.toString('utf8')) {
+      applied = true; writeFileSync(modulePath,mutated);
+      const loader = await createServer({ root: `${ROOT}/src`, configFile: false, appType: 'custom',
+        server: { middlewareMode: true, hmr: false, ws: false }, logLevel: 'error' });
+      try { canonical = await loader.ssrLoadModule(`/sim/world/physical/canonicalTerrainHydro.ts?mutant=${name}`); }
+      catch (error) { loadError = String(error); }
+      finally { await loader.close(); }
+      if (!loadError) {
+        if (invalid) detected = encode(invalid)?.ok === true;
+        else {
+          const changed = clone(); changed.terminals[0].localContributingAreaM2 += 1;
+          const before = encode(candidate), after = encode(changed);
+          const beforeDigest = await digestCandidate(candidate), afterDigest = await digestCandidate(changed);
+          detected = before?.ok === true && after?.ok === true && bytes(before) === bytes(after) &&
+            beforeDigest?.ok === true && afterDigest?.ok === true && beforeDigest.value === afterDigest.value;
+        }
+      }
+    }
+  } finally { canonical = saved; writeFileSync(modulePath,original); }
+  canonicalSourceMutations[name] = { applied, detected, restored: readFileSync(modulePath).equals(original), loadError };
+}
 const checks = {
+  ...terminalFieldChecks,
+  literalTerminalCanonicalBytes: text(terminalGoldenEncoded) === EXPECTED_TERMINAL_TEXT,
+  literalTerminalDigest: terminalGoldenDigest?.ok === true && terminalGoldenDigest.value === expectedTerminalDigest,
+  canonicalSourceMutationsKilled: Object.values(canonicalSourceMutations).every(r => r.applied && r.detected && r.restored && !r.loadError),
+  oldSchemaRejected: failure(encode(oldShape))?.path === "$.schema",
+  terminalCanonicalFieldOrder: text(baseEncoded)?.includes('"catchmentId":"catchment:0000000000000001","localContributingAreaM2":125000}'),
+  candidateBytesWithinBound: baseEncoded?.ok === true && baseEncoded.value.length < 67_108_864,
   canonicalEncoderExists: typeof canonical?.encodeCanonicalTerrainHydroCandidate === "function", candidateDigestExists: typeof canonical?.computeTerrainHydroCandidateDigest === "function",
   exactCanonicalUtf8Text: actualText === EXPECTED_CANONICAL_TEXT, independentNodeSha256Oracle: goldenDigest?.ok === true && goldenDigest.value === expectedDigest,
   independentNestedCanonicalUtf8Text: nestedActualText === EXPECTED_NESTED_CANONICAL_TEXT,
@@ -176,6 +252,6 @@ const checks = {
   ...mutationChecks,
   forbiddenKeyRejectedNotOmitted: forbiddenError?.code === "M02_CANDIDATE_INVALID" && forbiddenError.path.includes("crossingCandidates"),
 };
-const out = { check: "WORLD-M0-M0.2-CANDIDATE-IDENTITY", verdict: Object.values(checks).every(Boolean) ? "PASS" : "FAIL", checks, witnesses: { expectedDigest, actualDigest: goldenDigest?.value, expectedNestedDigest, actualNestedDigest: nestedGoldenDigest?.value } };
+const out = { check: "WORLD-M0-M0.2-CANDIDATE-IDENTITY", verdict: Object.values(checks).every(Boolean) ? "PASS" : "FAIL", checks, witnesses: { canonicalSourceMutations, canonicalBytes: baseEncoded?.value?.length, expectedTerminalDigest, actualTerminalDigest: terminalGoldenDigest?.value, expectedDigest, actualDigest: goldenDigest?.value, expectedNestedDigest, actualNestedDigest: nestedGoldenDigest?.value } };
 console.log(JSON.stringify(out, null, 2));
 if (out.verdict !== "PASS") process.exitCode = 1;

@@ -13,7 +13,7 @@ import {
 import type {
   WorldM0PointM,
   WorldM0StrategicCellRef,
-  WorldM0TerrainHydroCandidateV1,
+  WorldM0TerrainHydroCandidateV2,
 } from "./terrainHydroTypes";
 
 export type WorldM0TerrainHydroCandidateDigest =
@@ -321,7 +321,7 @@ function canonicalText(input: unknown): string {
     "catchments", "drainageNodes", "drainageReaches", "depressionBasins", "valleys", "floodplainCandidates",
     "crossingCandidates", "deterministicProvenance",
   ], "$");
-  const schema = literal(root.schema, ["world-m0-terrain-hydro-candidate/v1"], "$.schema");
+  const schema = literal(root.schema, ["world-m0-terrain-hydro-candidate/v2"], "$.schema");
   const recipeDigest = digest(root.recipeDigest, "$.recipeDigest");
   const constants = record(root.physicalConstants, ["id", "version", "digest"], "$.physicalConstants");
   const constantsText = `{"id":${jsonString(token(constants.id, "$.physicalConstants.id"))},"version":${jsonString(token(constants.version, "$.physicalConstants.version"))},"digest":${jsonString(digest(constants.digest, "$.physicalConstants.digest"))}}`;
@@ -374,9 +374,11 @@ function canonicalText(input: unknown): string {
   const coastline = `[${[...coastlineValues].sort((a, b) => compareAscii(a.key, b.key)).map((item) => item.text).join(",")}]`;
 
   const terminals = registry(root.terminals, "$.terminals", "terminal", (item, path) => {
-    const value = record(item, ["id", "kind", "point", "catchmentId"], path);
+    const value = record(item, ["id", "kind", "point", "catchmentId", "localContributingAreaM2"], path);
     const itemId = id(value.id, "terminal", `${path}.id`);
-    return { id: itemId, text: `{"id":${jsonString(itemId)},"kind":${jsonString(literal(value.kind, ["ocean_outlet", "retained_closed_basin", "external_domain_outlet"], `${path}.kind`))},"point":${point(value.point, `${path}.point`).text},"catchmentId":${jsonString(id(value.catchmentId, "catchment", `${path}.catchmentId`))}}` };
+    const localArea = numberValue(value.localContributingAreaM2, `${path}.localContributingAreaM2`);
+    if ((value.localContributingAreaM2 as number) < 0) reject(`${path}.localContributingAreaM2`, "expected nonnegative terminal local area");
+    return { id: itemId, text: `{"id":${jsonString(itemId)},"kind":${jsonString(literal(value.kind, ["ocean_outlet", "retained_closed_basin", "external_domain_outlet"], `${path}.kind`))},"point":${point(value.point, `${path}.point`).text},"catchmentId":${jsonString(id(value.catchmentId, "catchment", `${path}.catchmentId`))},"localContributingAreaM2":${localArea}}` };
   });
   const catchments = registry(root.catchments, "$.catchments", "catchment", (item, path) => {
     const value = record(item, ["id", "terminalId", "areaM2", "boundaryRings"], path);
@@ -426,7 +428,7 @@ function canonicalText(input: unknown): string {
 }
 
 export function encodeCanonicalTerrainHydroCandidate(
-  input: WorldM0TerrainHydroCandidateV1,
+  input: WorldM0TerrainHydroCandidateV2,
 ): WorldM0Result<Uint8Array> {
   try {
     return { ok: true, value: new TextEncoder().encode(canonicalText(input)) };
@@ -437,7 +439,7 @@ export function encodeCanonicalTerrainHydroCandidate(
 }
 
 export async function computeTerrainHydroCandidateDigest(
-  input: WorldM0TerrainHydroCandidateV1,
+  input: WorldM0TerrainHydroCandidateV2,
 ): Promise<WorldM0Result<WorldM0TerrainHydroCandidateDigest>> {
   const encoded = encodeCanonicalTerrainHydroCandidate(input);
   if (!encoded.ok) return encoded;

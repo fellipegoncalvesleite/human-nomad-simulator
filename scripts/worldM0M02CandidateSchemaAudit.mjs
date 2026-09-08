@@ -11,7 +11,7 @@ const expectedInterfaces = {
   WorldM0StrategicCellRef: ["row", "column"],
   WorldM0StrategicEdgeRef: ["first", "second"],
   LandformProvenanceProvince: ["id", "family", "center", "radiusXM", "radiusYM", "axisAngleRadians", "influenceRadiusM", "elevationOffsetMeters", "reliefMultiplier"],
-  TerrainHydroTerminal: ["id", "kind", "point", "catchmentId"],
+  TerrainHydroTerminal: ["id", "kind", "point", "catchmentId", "localContributingAreaM2"],
   TerrainCatchment: ["id", "terminalId", "areaM2", "boundaryRings"],
   TerrainDepressionBasin: ["id", "catchmentId", "floorElevationMeters", "spillElevationMeters", "outletTerminalId", "closedEndorheic", "areaM2", "boundaryRings"],
   TerrainDrainageNode: ["id", "point", "kind", "terminalId"],
@@ -20,7 +20,7 @@ const expectedInterfaces = {
   TerrainFloodplainCandidate: ["id", "reachId", "boundaryRings", "areaM2", "terrainSlope"],
   PhysicalCrossingCandidate: ["id", "reachId", "strategicEdge", "intersection", "leftBank", "rightBank", "channelIncisionMeters", "firstApproachSlope", "secondApproachSlope"],
   StrategicTerrainSummary: ["cell", "landOceanClass", "landAreaM2", "oceanAreaM2", "elevationMinMeters", "elevationMaxMeters", "elevationMeanMeters", "localReliefMeters", "slopeMean", "coastlineLengthMeters", "provenanceFractions", "catchmentIds", "reachIds", "depressionBasinIds", "valleyCandidateIds", "floodplainCandidateIds", "crossingCandidateIds"],
-  WorldM0TerrainHydroCandidateV1: ["schema", "recipeDigest", "physicalConstants", "physicalGeneratorVersion", "repairPolicyVersion", "numericKernelVersion", "analysis", "provenanceProvinces", "strategicTerrain", "coastline", "terminals", "catchments", "drainageNodes", "drainageReaches", "depressionBasins", "valleys", "floodplainCandidates", "crossingCandidates", "deterministicProvenance"],
+  WorldM0TerrainHydroCandidateV2: ["schema", "recipeDigest", "physicalConstants", "physicalGeneratorVersion", "repairPolicyVersion", "numericKernelVersion", "analysis", "provenanceProvinces", "strategicTerrain", "coastline", "terminals", "catchments", "drainageNodes", "drainageReaches", "depressionBasins", "valleys", "floodplainCandidates", "crossingCandidates", "deterministicProvenance"],
 };
 
 const expectedNestedKeys = {
@@ -121,7 +121,7 @@ const fixtureReachDirectionsMatchDeclaredNodes = (fixture) => fixture.drainageRe
 });
 
 const candidate = Object.freeze({
-  schema: "world-m0-terrain-hydro-candidate/v1",
+  schema: "world-m0-terrain-hydro-candidate/v2",
   recipeDigest: "sha256:" + "11".repeat(32),
   physicalConstants: Object.freeze({ id: "physical:constants", version: "v1", digest: "sha256:" + "22".repeat(32) }),
   physicalGeneratorVersion: "physical:v1",
@@ -149,7 +149,7 @@ const reversedReachCandidate = Object.freeze({
 const forbiddenNames = ["knownFord", "confidence", "fordability", "risk", "crossingClass", "baseCrossingCost", "waterDepth", "width", "velocity", "watercraft", "bridge", "ferry", "precipitation", "runoff", "recharge", "baseflow", "discharge", "regime", "wetted"];
 const scratchNames = ["scratch", "buffer", "typedArray", "elevationGrid", "routingGrid", "flowGrid"];
 const persistentArrayProperties = ["provenanceProvinces", "strategicTerrain", "coastline", "terminals", "catchments", "drainageNodes", "drainageReaches", "depressionBasins", "valleys", "floodplainCandidates", "crossingCandidates"];
-const candidateDeclaration = interfaces.get("WorldM0TerrainHydroCandidateV1");
+const candidateDeclaration = interfaces.get("WorldM0TerrainHydroCandidateV2");
 const candidateArrayTypesReadonly = persistentArrayProperties.every((name) => {
   const property = candidateDeclaration?.members.find((member) => memberName(member) === name);
   return property?.type?.getText(sourceFile).startsWith("readonly ") === true;
@@ -175,16 +175,16 @@ const checks = {
   typesModuleExists: source.length > 0,
   numericModuleExists: numeric !== undefined,
   exactInterfaceKeySets: Object.entries(expectedInterfaces).every(([name, keys]) => exact(interfaceKeys(name), keys)),
-  exactAnalysisKeys: exact(nestedTypeKeys("WorldM0TerrainHydroCandidateV1", "analysis"), expectedNestedKeys.analysis),
+  exactAnalysisKeys: exact(nestedTypeKeys("WorldM0TerrainHydroCandidateV2", "analysis"), expectedNestedKeys.analysis),
   exactProvenanceFractionKeys: exact(nestedTypeKeys("StrategicTerrainSummary", "provenanceFractions"), expectedNestedKeys.provenanceFractions),
-  exactDeterministicProvenanceKeys: exact(nestedTypeKeys("WorldM0TerrainHydroCandidateV1", "deterministicProvenance"), expectedNestedKeys.deterministicProvenance),
+  exactDeterministicProvenanceKeys: exact(nestedTypeKeys("WorldM0TerrainHydroCandidateV2", "deterministicProvenance"), expectedNestedKeys.deterministicProvenance),
   exactlyFourProvenanceFamilies: exact(stringUnionMembers("LandformProvenanceFamily"), ["stable_denudational", "orogenic_uplift", "volcanic_constructive", "sedimentary_basin"]),
   exactTerminalKinds: exact(stringUnionMembers("TerrainHydroTerminalKind"), ["ocean_outlet", "retained_closed_basin", "external_domain_outlet"]),
   exactCrossingKeys: exact(interfaceKeys("PhysicalCrossingCandidate"), expectedInterfaces.PhysicalCrossingCandidate),
-  noForbiddenCrossingOrHydraulicFields: forbiddenNames.every((name) => !interfaceKeys("PhysicalCrossingCandidate").includes(name)) && forbiddenNames.every((name) => !interfaceKeys("WorldM0TerrainHydroCandidateV1").includes(name)),
+  noForbiddenCrossingOrHydraulicFields: forbiddenNames.every((name) => !interfaceKeys("PhysicalCrossingCandidate").includes(name)) && forbiddenNames.every((name) => !interfaceKeys("WorldM0TerrainHydroCandidateV2").includes(name)),
   allPersistentPropertiesReadonly: allInterfacePropertiesReadonly && candidateArrayTypesReadonly,
-  noScratchTypedArraySurface: !/\b(?:Float(?:32|64)Array|Uint(?:8|16|32)Array|Int(?:8|16|32)Array|BigUint64Array|BigInt64Array)\b/.test(source) && scratchNames.every((name) => !interfaceKeys("WorldM0TerrainHydroCandidateV1").includes(name)),
-  completeFixtureExactTopLevelKeys: exact(Object.keys(candidate), expectedInterfaces.WorldM0TerrainHydroCandidateV1),
+  noScratchTypedArraySurface: !/\b(?:Float(?:32|64)Array|Uint(?:8|16|32)Array|Int(?:8|16|32)Array|BigUint64Array|BigInt64Array)\b/.test(source) && scratchNames.every((name) => !interfaceKeys("WorldM0TerrainHydroCandidateV2").includes(name)),
+  completeFixtureExactTopLevelKeys: exact(Object.keys(candidate), expectedInterfaces.WorldM0TerrainHydroCandidateV2),
   completeFixtureControlledDimensions: candidate.analysis.width === 1200 && candidate.analysis.height === 720 && candidate.analysis.width * candidate.analysis.height === 864000,
   asciiComparatorFixed: asciiWithoutLocale && call("compareAscii", "A", "a") === -1 && call("compareAscii", "a", "aa") === -1 && call("compareAscii", "aa", "a") === 1 && call("compareAscii", "same", "same") === 0,
   strategicCellRowThenColumn: call("compareStrategicCell", { row: 1, column: 9 }, { row: 2, column: 0 }) === -1 && call("compareStrategicCell", { row: 1, column: 1 }, { row: 1, column: 2 }) === -1,

@@ -1511,6 +1511,25 @@ Correction execution (before resuming any later task):
 5. Run candidate schema/identity, drainage, flow, basin/valley, crossing, strategic aggregation audits, both TypeScript projects, build, and diff checks. Prove iteration-order invariance, original predecessor under simplification, unchanged upstream authority, candidate byte bounds and terminal-only digest sensitivity.
 6. Commit/push the correction separately from docs, verify exact remote SHA and clean worktree, then hand off to a fresh independent read-only reviewer. Do not merge, freeze, or edit `compileTerrainHydro.ts`, `terrainHydroValidate.ts`, or `worldM0M02CompilerAudit.mjs`.
 
+#### Upstream v2 correction execution evidence (2026-09-08)
+
+Base: `9fa2ac2d11b861b5b9314cc7af3453f7164a2213`; authority committed first as `9a1f6a0aa68d0c2ddd53a97f88614ced49b472d4`. Correction branch: `fix/world-m0-m02-task8-closed-terminal-accounting-v2`. These results certify implementation gates only; independent read-only review is still the next actor, and Task 12 remains deferred.
+
+Behavioral RED was run before production edits with literal primary-path/eligibility fixtures. The indegree-one chain returned total/local `250000/250000` instead of `187500/187500`. The minimal two-branch merge returned totals `187500,187500` instead of `62500,62500`. The six-cell direct-feeder fixture returned totals `375000,375000` and locals `125000,250000`; the literal ruling requires totals/locals `125000/125000` on each branch and terminal-local `125000`. Thus RED did not rely only on the absent new field. Existing drainage controls and the new ocean-boundary fixture passed on the base.
+
+GREEN implementation retains absorbing closed topology, records the original predecessor before simplification, and independently accumulates terminal-local cells. Terminal destinations use negative ordinals in `firstReachAssignment`. Conservation checks reuse `primaryArea` after its last measurement read. There are no additional dense allocations or owner registries; exact scratch peak remains `88N + 4T` (worst case `92N`). The sole new retained payload is the required terminal-local numeric field.
+
+Verification completed:
+
+- `node scripts/worldM0M02DrainageGraphAudit.mjs`: 106/106 checks. Seven closed fixture families plus ocean/external preservation; every literal cell destination and catchment membership checked before scratch release; primary routing unchanged; sibling ordering, reversed local accumulation, and removed geometric predecessor are discriminating controls.
+- Drainage source mutations: 14/14 v2 mutants and all four existing Task-8 mutants killed. Independent measurement/catchment corruption probes distinguish both residual-derived locals behaviorally. Both signs of terminal-local corruption are refused; the one-sided inequality mutant accepts the overcount and is killed. Sources restore byte-identically.
+- `node scripts/worldM0M02CandidateSchemaAudit.mjs`: 31/31 checks. Explicit required `WorldM0TerrainHydroCandidateV2` contract.
+- `node scripts/worldM0M02CandidateIdentityAudit.mjs`: 42/42 checks. Five canonical source mutants killed (missing/extra/nonfinite/negative field acceptance and digest omission), with byte-identical restoration. Literal terminal bytes and independent Node SHA-256 match; changing only terminal-local changes bytes and digest. Fixture encoding is 9,097 bytes, below the unchanged 67,108,864-byte bound. Old schema is rejected.
+- `node scripts/worldM0M02FlowAudit.mjs`, `node scripts/worldM0M02BasinValleyAudit.mjs`, `node scripts/worldM0M02CrossingAudit.mjs`, and `node scripts/worldM0M02StrategicAggregationAudit.mjs`: PASS.
+- `npx tsc -p tsconfig.json --noEmit`, `npx tsc -p tsconfig.node.json --noEmit`, `npm run build`, and `git diff --check`: PASS. Vite emits its chunk-size advisory.
+
+Only `terrainHydroTypes.ts`, `canonicalTerrainHydro.ts`, `terrainDrainage.ts`, their schema/identity/drainage audits, and the two authority documents change. No compatibility layer or additional pre-Task-12 production propagation was needed. Flow, catchment construction, terminal physical point derivation, constants/seeds, and crossing production remain unchanged. The historical Task-12 worktree remains clean at `50e5e9d61887a77c9494ba88b077eddb8845e176`.
+
 ### Task 8: Extract catchments and the one-receiver persistent geomorphic drainage graph
 
 **Files:**

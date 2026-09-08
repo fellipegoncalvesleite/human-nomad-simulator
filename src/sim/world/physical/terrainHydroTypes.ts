@@ -43,6 +43,7 @@ export interface TerrainHydroTerminal {
   readonly kind: TerrainHydroTerminalKind;
   readonly point: WorldM0PointM;
   readonly catchmentId: string;
+  readonly localContributingAreaM2: number;
 }
 
 export interface TerrainCatchment {
@@ -137,8 +138,8 @@ export interface StrategicTerrainSummary {
   readonly crossingCandidateIds: readonly string[];
 }
 
-export interface WorldM0TerrainHydroCandidateV1 {
-  readonly schema: "world-m0-terrain-hydro-candidate/v1";
+export interface WorldM0TerrainHydroCandidateV2 {
+  readonly schema: "world-m0-terrain-hydro-candidate/v2";
   readonly recipeDigest: WorldM0RecipeDigest;
   readonly physicalConstants: WorldM0ContentIdentity;
   readonly physicalGeneratorVersion: string;

@@ -754,7 +754,7 @@ export function extractPersistentDrainageGraph(
   // Geometry/ID barrier: only now, after EVERY domain-1 feature is FINAL, may
   // canonical catchment and reciprocal terminal ids be materialized. Reuse the
   // same catchmentDomain objects so there is no duplicate O(T) JS mirror.
-  const terminals: TerrainHydroTerminal[] = [];
+  const terminals: (Omit<TerrainHydroTerminal, "localContributingAreaM2"> & { localContributingAreaM2: number })[] = [];
   for (let ordinal = 0; ordinal < owners.terminalCount; ordinal += 1) {
     const owner = owners.terminalOwnerCells[ordinal];
     const kind = kindName(scratch.terminalKindByCell[owner]);
@@ -774,6 +774,7 @@ export function extractPersistentDrainageGraph(
       kind,
       point: { xM: coordinates.x, yM: coordinates.y },
       catchmentId: catchmentId.value,
+      localContributingAreaM2: 0,
     });
   }
   const catchments = catchmentDomain as unknown as TerrainCatchment[];
@@ -911,7 +912,9 @@ export function extractPersistentDrainageGraph(
       const downstreamNodeOrdinal = representedIndegree[current];
       if (downstreamNodeOrdinal >= 0) {
         const downstream = nodes[downstreamNodeOrdinal];
-        const measurementCell = downstream.kind === "confluence" ? previous : current;
+        const closedTerminal = downstream.kind === "terminal" &&
+          terminals[downstream.terminalOrdinal].kind === "retained_closed_basin";
+        const measurementCell = downstream.kind === "confluence" || closedTerminal ? previous : current;
         if (downstream.kind === "confluence") firstReachAssignment[current] = -1;
         reaches.push({
           upstreamCell: upstream.cell,
@@ -936,6 +939,15 @@ export function extractPersistentDrainageGraph(
     const outgoing = reaches.find((reach) => reach.upstreamCell === node.cell);
     if (!outgoing) return fail(invalid("drainage.reaches", "confluence lacks an outgoing reach"));
     firstReachAssignment[node.cell] = outgoing.transientOrdinal;
+  }
+
+  // Closed floors are absorbing accounting destinations, never incoming reach
+  // cells. Negative ordinals reuse the existing assignment ledger: -1 means
+  // unresolved; -2-ordinal means terminal-local. No extra dense/owner storage.
+  for (let ordinal = 0; ordinal < terminals.length; ordinal += 1) {
+    if (terminals[ordinal].kind === "retained_closed_basin") {
+      firstReachAssignment[owners.terminalOwnerCells[ordinal]] = -2 - ordinal;
+    }
   }
 
   const compareReachBase = (left: ReachCandidate, right: ReachCandidate): number => {
@@ -1117,6 +1129,10 @@ export function extractPersistentDrainageGraph(
     if (firstReachAssignment[current] >= 0) {
       firstReachAssignment[cell] = firstReachAssignment[current];
       reaches[firstReachAssignment[current]].localAreaM2 += scratch.cellAreaM2;
+    } else {
+      const terminalOrdinal = catchmentRoot[cell];
+      firstReachAssignment[cell] = -2 - terminalOrdinal;
+      terminals[terminalOrdinal].localContributingAreaM2 += scratch.cellAreaM2;
     }
   }
   for (let cell = 0; cell < cellCount; cell += 1) {
@@ -1200,6 +1216,50 @@ export function extractPersistentDrainageGraph(
       localReliefMeters: reach.maximumElevationMeters - reach.minimumElevationMeters,
       channelIncisionMeters: reach.maximumElevationMeters - reach.minimumElevationMeters,
     });
+  }
+
+  // Measurement reads are complete. Reuse primaryArea for independent checks,
+  // first by reach ordinal and then by terminal ordinal. Peak stays 88N + 4T.
+  primaryArea.fill(0);
+  for (let ordinal = 0; ordinal < persistentReaches.length; ordinal += 1) {
+    primaryArea[ordinal] = persistentReaches[ordinal].localContributingAreaM2;
+  }
+  for (let ordinal = 0; ordinal < reaches.length; ordinal += 1) {
+    const reach = reaches[ordinal];
+    if (nodes[reach.downstreamNodeOrdinal].kind !== "terminal") {
+      primaryArea[firstReachAssignment[reach.downstreamCell]] += persistentReaches[ordinal].contributingAreaM2;
+    }
+  }
+  for (let ordinal = 0; ordinal < persistentReaches.length; ordinal += 1) {
+    const reach = persistentReaches[ordinal];
+    if (!Number.isFinite(reach.contributingAreaM2) || !Number.isFinite(reach.localContributingAreaM2) ||
+        reach.localContributingAreaM2 < 0 ||
+        Math.abs(reach.contributingAreaM2 - primaryArea[ordinal]) > constants.validation.areaToleranceM2) {
+      return fail(invalid("drainage.reaches.localContributingAreaM2", "independent local contributing-area conservation failed"));
+    }
+  }
+  for (let cell = 0; cell < cellCount; cell += 1) {
+    if (scratch.landMask[cell] === 1 && (firstReachAssignment[cell] === -1 ||
+        (firstReachAssignment[cell] < -1 && firstReachAssignment[cell] !== -2 - catchmentRoot[cell]))) {
+      return fail(invalid("drainage.accounting", "terrestrial cell has no unique accounting destination"));
+    }
+  }
+  for (const localWitnesses of [false, true]) {
+    primaryArea.fill(0);
+    for (let ordinal = 0; ordinal < reaches.length; ordinal += 1) {
+      const reach = persistentReaches[ordinal];
+      if (localWitnesses || reach.downstreamReachId === null) {
+        primaryArea[reaches[ordinal].terminalOrdinal] += localWitnesses
+          ? reach.localContributingAreaM2 : reach.contributingAreaM2;
+      }
+    }
+    for (let ordinal = 0; ordinal < terminals.length; ordinal += 1) {
+      const local = terminals[ordinal].localContributingAreaM2;
+      if (!Number.isFinite(local) || local < 0 ||
+          Math.abs(catchments[ordinal].areaM2 - local - primaryArea[ordinal]) > constants.validation.areaToleranceM2) {
+        return fail(terminalInvalid("terminals.localContributingAreaM2", "independent terminal area reconciliation failed"));
+      }
+    }
   }
 
   const links: TerrainRetainedDepressionDrainageLink[] = [];

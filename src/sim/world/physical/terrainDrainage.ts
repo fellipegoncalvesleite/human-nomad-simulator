@@ -810,17 +810,18 @@ export function extractPersistentDrainageGraph(
       if (!terminal) return fail(terminalInvalid("drainage.nodes", "terminal node ordinal has no finalized terminal"));
       const cellCenter = center(cell, scratch);
       const terminalMerge = representedIndegree[cell] >= 2 && !samePoint(cellCenter, terminal.point);
-      if (nodes.length + (terminalMerge ? 2 : 1) > constants.drainage.maxNodes) {
+      const terminalSource = representedIndegree[cell] === 0 && !samePoint(cellCenter, terminal.point);
+      if (terminalSource && persistentEligible[cell] !== 1) {
+        return fail(invalid("drainage.sources", "represented boundary source is not an eligible threshold entry"));
+      }
+      if (nodes.length + (terminalMerge || terminalSource ? 2 : 1) > constants.drainage.maxNodes) {
         return fail(bound("drainage.maxNodes", "persistent node count exceeds bound"));
       }
-      // A boundary terminal owner is still a terrestrial represented cell. If
-      // two represented branches first merge there, preserve that already-live
-      // merge at the cell center and then represent the owner-center→boundary
-      // terminal segment as the unique outgoing reach. Collapsing the merge
-      // directly into the terminal would make every incoming branch measure the
-      // whole catchment at the shared owner cell.
-      if (terminalMerge) {
-        nodes.push({ cell, point: cellCenter, kind: "confluence", terminalOrdinal: catchmentRoot[cell] });
+      // Distinct-coordinate boundary owners preserve threshold-entry sources
+      // (k=0) and confluences (k>=2), each with a real boundary continuation.
+      // k=1 stays contracted; a co-located closed floor stays absorbing.
+      if (terminalMerge || terminalSource) {
+        nodes.push({ cell, point: cellCenter, kind: terminalSource ? "source" : "confluence", terminalOrdinal: catchmentRoot[cell] });
       }
       nodes.push({ cell, point: terminal.point, kind: "terminal", terminalOrdinal });
     } else if (representedIndegree[cell] === 0) {
@@ -850,10 +851,10 @@ export function extractPersistentDrainageGraph(
     else representedIndegree[node.cell] = index;
   }
   for (const node of nodes) {
-    if (node.kind === "confluence" && scratch.terminalOrdinalByCell[node.cell] >= 0) {
+    if (node.kind !== "terminal" && scratch.terminalOrdinalByCell[node.cell] >= 0) {
       const terminalTwinNodeOrdinal = firstReachAssignment[node.cell];
       if (terminalTwinNodeOrdinal < 0 || nodes[terminalTwinNodeOrdinal]?.kind !== "terminal") {
-        return fail(terminalInvalid("drainage.nodes", "terminal-owner confluence lacks its terminal node"));
+        return fail(terminalInvalid("drainage.nodes", "boundary owner lacks its terminal node"));
       }
       node.terminalTwinNodeOrdinal = terminalTwinNodeOrdinal;
     }
@@ -883,7 +884,7 @@ export function extractPersistentDrainageGraph(
     if (upstream.terminalTwinNodeOrdinal !== undefined) {
       const downstream = nodes[upstream.terminalTwinNodeOrdinal];
       if (!downstream || downstream.kind !== "terminal" || downstream.cell !== upstream.cell) {
-        return fail(terminalInvalid("drainage.reaches", "terminal-owner confluence has an invalid terminal continuation"));
+        return fail(terminalInvalid("drainage.reaches", "boundary owner has an invalid terminal continuation"));
       }
       reaches.push({
         upstreamCell: upstream.cell,
@@ -1239,6 +1240,13 @@ export function extractPersistentDrainageGraph(
     }
   }
   for (let cell = 0; cell < cellCount; cell += 1) {
+    // Support must survive reduction, independently of the area equations.
+    // Only an absorbing closed floor can be represented without a reach owner.
+    if (representedSupport[cell] === 1 && firstReachAssignment[cell] < 0 &&
+        !(terminals[catchmentRoot[cell]].kind === "retained_closed_basin" &&
+          owners.terminalOwnerCells[catchmentRoot[cell]] === cell)) {
+      return fail(invalid("drainage.support", "represented cell has no persistent reach accounting destination"));
+    }
     if (scratch.landMask[cell] === 1 && (firstReachAssignment[cell] === -1 ||
         (firstReachAssignment[cell] < -1 && firstReachAssignment[cell] !== -2 - catchmentRoot[cell]))) {
       return fail(invalid("drainage.accounting", "terrestrial cell has no unique accounting destination"));
@@ -1256,6 +1264,8 @@ export function extractPersistentDrainageGraph(
     for (let ordinal = 0; ordinal < terminals.length; ordinal += 1) {
       const local = terminals[ordinal].localContributingAreaM2;
       if (!Number.isFinite(local) || local < 0 ||
+          (terminals[ordinal].kind !== "retained_closed_basin" &&
+            representedSupport[owners.terminalOwnerCells[ordinal]] === 1 && local !== 0) ||
           Math.abs(catchments[ordinal].areaM2 - local - primaryArea[ordinal]) > constants.validation.areaToleranceM2) {
         return fail(terminalInvalid("terminals.localContributingAreaM2", "independent terminal area reconciliation failed"));
       }

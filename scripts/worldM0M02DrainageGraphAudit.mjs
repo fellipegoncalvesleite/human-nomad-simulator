@@ -94,6 +94,7 @@ function makeSyntheticFixture(definition) {
     constants.geometry.maxPolylineVerticesPerFeature = definition.maxPolylineVerticesPerFeature;
   }
   if (definition.maxNodes !== undefined) constants.drainage.maxNodes = definition.maxNodes;
+  if (definition.maxReaches !== undefined) constants.drainage.maxReaches = definition.maxReaches;
   const n = definition.width * definition.height;
   constants.analysis.maxAnalysisCells = Math.max(constants.analysis.maxAnalysisCells, n);
   const budgetResult = modules.scratch?.createTerrainScratchBudget?.(constants.analysis.maxScratchBytes);
@@ -186,7 +187,8 @@ function runSynthetic(definition) {
     fixture.budget.release = label => {
       if (label === "primaryContributingAreaM2") {
         accounting = { assignment: Array.from(task8Aliases[5]), catchment: Array.from(task8Aliases[1]),
-          primary: Array.from(fixture.flow.primaryReceiver), splitArea: Array.from(fixture.flow.contributingAreaM2) };
+          primary: Array.from(fixture.flow.primaryReceiver), splitArea: Array.from(fixture.flow.contributingAreaM2),
+          eligible: Array.from(task8Aliases[2]), support: Array.from(task8Aliases[3]) };
       }
       return originalRelease(label);
     };
@@ -238,6 +240,8 @@ async function runDrainageSourceMutation(label, mutateSource, exercise) {
   }
   const originalDrainage = modules.drainage;
   let detected = false;
+  let loadedSuccessfully = false;
+  let executed = false;
   let detail = null;
   try {
     writeFileSync(DRAINAGE_PATH, mutatedSource);
@@ -245,7 +249,9 @@ async function runDrainageSourceMutation(label, mutateSource, exercise) {
     if (loaded.loadError !== undefined || typeof loaded.drainage?.extractPersistentDrainageGraph !== "function") {
       detail = { loadError: loaded.loadError ?? "mutated drainage authority absent" };
     } else {
+      loadedSuccessfully = true;
       modules.drainage = loaded.drainage;
+      executed = true;
       const outcome = exercise(mutatedSource);
       detected = outcome?.detected === true;
       detail = outcome?.detail ?? null;
@@ -254,7 +260,7 @@ async function runDrainageSourceMutation(label, mutateSource, exercise) {
     modules.drainage = originalDrainage;
     writeFileSync(DRAINAGE_PATH, originalBytes);
   }
-  return { applied: true, detected, restored: readFileSync(DRAINAGE_PATH).equals(originalBytes), detail };
+  return { applied: true, loaded: loadedSuccessfully, executed, detected, restored: readFileSync(DRAINAGE_PATH).equals(originalBytes), detail };
 }
 
 function runWithPushGuard(definition, shouldGuard, limit) {
@@ -872,6 +878,147 @@ const OCEAN_MERGE = { width: 3, height: 2, landMask: [0,1,0,1,1,0],
   primary: [-1,4,-1,4,-1,-1], kinds: [0,0,0,0,1,0], ordinals: [-1,-1,-1,-1,0,-1], owners: [4],
   topologicalOrder: [1,3,4], splitArea: [0,62_500,0,62_500,187_500,0], persistenceAreaM2: 62_500 };
 const oceanMerge = runSynthetic(OCEAN_MERGE);
+// A/B/C/D expectations are literal physical fixtures, never graph-derived.
+// Node identity is checked by point/kind; canonical ID order is not flow order.
+const C_FEEDER = { width: 3, height: 2, landMask: [0,1,0,1,1,0],
+  primary: [-1,4,-1,4,-1,-1], kinds: [0,0,0,0,2,0], ordinals: [-1,-1,-1,-1,0,-1], owners: [4],
+  topologicalOrder: [1,3,4], splitArea: [0,125_000,0,62_500,187_500,0], persistenceAreaM2: 125_000 };
+const D_FEEDER = { width: 3, height: 2, landMask: [0,1,0,1,1,1],
+  primary: [-1,4,-1,4,-1,4], kinds: [0,0,0,0,2,0], ordinals: [-1,-1,-1,-1,0,-1], owners: [4],
+  topologicalOrder: [1,3,5,4], splitArea: [0,125_000,0,125_000,250_000,62_500], persistenceAreaM2: 125_000 };
+const BOUNDARY_CASES = [
+  { name: "externalC", state: "C", definition: { ...F1, persistenceAreaM2: 250_000 },
+    terminal: point(1125,0), total: 312_500, terminalLocal: 0,
+    nodes: [[point(875,125),"source"],[point(1125,0),"terminal"]],
+    reaches: [[point(875,125),point(1125,0),312_500,312_500]],
+    support: [0,0,0,1,1], owned: [[0,3],[1,3],[2,3],[3,3],[4,3]] },
+  { name: "externalB", state: "B", definition: { ...F1, persistenceAreaM2: 312_500 },
+    terminal: point(1125,0), total: 312_500, terminalLocal: 0,
+    nodes: [[point(1125,125),"source"],[point(1125,0),"terminal"]],
+    reaches: [[point(1125,125),point(1125,0),312_500,312_500,125]],
+    support: [0,0,0,0,1], owned: [[0,4],[1,4],[2,4],[3,4],[4,4]] },
+  { name: "externalA", state: "A", definition: { ...F1, persistenceAreaM2: 312_501 },
+    terminal: point(1125,0), total: 312_500, terminalLocal: 312_500, nodes: [], reaches: [],
+    support: [0,0,0,0,0], owned: [[0,-2],[1,-2],[2,-2],[3,-2],[4,-2]] },
+  { name: "oceanD", state: "D", definition: OCEAN_MERGE,
+    terminal: point(500,125), total: 187_500, terminalLocal: 0,
+    nodes: [[point(375,375),"source"],[point(125,125),"source"],[point(375,125),"confluence"],[point(500,125),"terminal"]],
+    reaches: [[point(375,375),point(375,125),62_500,62_500],
+      [point(125,125),point(375,125),62_500,62_500], [point(375,125),point(500,125),187_500,62_500,125]],
+    support: [0,1,0,1,1,0], owned: [[1,1],[3,3],[4,4]] },
+  { name: "oceanB", state: "B", definition: { ...OCEAN_MERGE, persistenceAreaM2: 187_500 },
+    terminal: point(500,125), total: 187_500, terminalLocal: 0,
+    nodes: [[point(375,125),"source"],[point(500,125),"terminal"]],
+    reaches: [[point(375,125),point(500,125),187_500,187_500,125]],
+    support: [0,0,0,0,1,0], owned: [[1,4],[3,4],[4,4]] },
+  { name: "oceanA", state: "A", definition: { ...OCEAN_MERGE, persistenceAreaM2: 187_501 },
+    terminal: point(500,125), total: 187_500, terminalLocal: 187_500, nodes: [], reaches: [],
+    support: [0,0,0,0,0,0], owned: [[1,-2],[3,-2],[4,-2]] },
+  { name: "externalCFeeder", state: "C", definition: C_FEEDER,
+    terminal: point(375,0), total: 187_500, terminalLocal: 0,
+    nodes: [[point(375,375),"source"],[point(375,0),"terminal"]],
+    reaches: [[point(375,375),point(375,0),187_500,187_500]],
+    support: [0,1,0,0,1,0], owned: [[1,1],[3,1],[4,1]] },
+  { name: "externalDFeeder", state: "D", definition: D_FEEDER,
+    terminal: point(375,0), total: 250_000, terminalLocal: 0,
+    nodes: [[point(375,375),"source"],[point(125,125),"source"],[point(375,125),"confluence"],[point(375,0),"terminal"]],
+    reaches: [[point(375,375),point(375,125),62_500,62_500],
+      [point(125,125),point(375,125),62_500,62_500],[point(375,125),point(375,0),250_000,125_000,125]],
+    support: [0,1,0,1,1,0], owned: [[1,1],[3,3],[4,4],[5,4]] },
+];
+// Same primary catchment; split-flow inputs discriminate closure/eligibility
+// from primary total measurement in both directions.
+BOUNDARY_CASES.push(
+  { ...BOUNDARY_CASES[6], name: "ineligibleOwnerClosureC", definition: { ...C_FEEDER,
+    splitArea: [0,125_000,0,62_500,62_500,0] } },
+  { ...BOUNDARY_CASES[7], name: "ineligibleOwnerClosureD", definition: { ...D_FEEDER,
+    splitArea: [0,125_000,0,125_000,62_500,62_500] } },
+  { ...BOUNDARY_CASES[4], name: "splitEligiblePrimarySmallerB", definition: { ...OCEAN_MERGE,
+    splitArea: [0,62_500,0,62_500,250_000,0], persistenceAreaM2: 200_000 } },
+  { ...BOUNDARY_CASES[2], name: "primaryLargeSplitIneligibleA", definition: { ...F1,
+    splitArea: [62_500,62_500,62_500,62_500,62_500], persistenceAreaM2: 312_500 } },
+);
+for (const f of BOUNDARY_CASES) f.definition = { ...f.definition, captureReleasedAliases: true, minReachLengthMeters: 1000 };
+function boundaryBehavior(f, run) {
+  const v = run.value;
+  if (!v || v.terminals.length !== 1 || v.catchments.length !== 1 ||
+      v.nodes.length !== f.nodes.length || v.reaches.length !== f.reaches.length ||
+      !samePoint(v.terminals[0].point,f.terminal) || v.catchments[0].areaM2 !== f.total ||
+      v.terminals[0].localContributingAreaM2 !== f.terminalLocal || !conserved(v)) return false;
+  if (!f.nodes.every(([p,kind]) => v.nodes.some(n => n.kind === kind && samePoint(n.point,p)))) return false;
+  return f.reaches.every(([up,down,total,local,length]) => {
+    const r = reachByEndpoints(v,up,down);
+    const next = f.reaches.find(([p]) => samePoint(p,down));
+    const nextReach = next && reachByEndpoints(v,next[0],next[1]);
+    return r?.contributingAreaM2 === total && r?.localContributingAreaM2 === local &&
+      r.downstreamReachId === (nextReach?.id ?? null) && r.lengthMeters > 0 &&
+      (length === undefined || (r.lengthMeters === length && exactPointArray(r.geometry,[up,down]))) &&
+      r.geometry.length >= 2 && samePoint(r.geometry[0],up) && samePoint(r.geometry.at(-1),down) &&
+      new Set(r.geometry.map(p => JSON.stringify(p))).size === r.geometry.length;
+  });
+}
+function boundaryOwnership(f, run) {
+  return run.result?.ok === true && f.owned.every(([cell,owner]) => {
+    const actual = run.accounting?.assignment[cell];
+    if (owner === -2) return actual === -2;
+    const reach = run.value.reaches[actual];
+    const node = run.value.nodes.find(n => n.id === reach?.upstreamNodeId);
+    return samePoint(node?.point,cellPoint(f.definition,owner));
+  });
+}
+const boundaryRuns = BOUNDARY_CASES.map(f => runSynthetic(f.definition));
+const boundaryChecks = {};
+for (const [i,f] of BOUNDARY_CASES.entries()) {
+  const run = boundaryRuns[i];
+  boundaryChecks[f.name + "Literal"] = boundaryBehavior(f,run);
+  boundaryChecks[f.name + "ExactlyOnceOwnership"] = boundaryOwnership(f,run);
+  boundaryChecks[f.name + "SupportAndEligibility"] = run.result?.ok === true &&
+    exactArray(run.accounting.support,f.support) &&
+    f.owned.every(([cell]) => run.accounting.eligible[cell] ===
+      ((f.definition.splitArea[cell] >= f.definition.persistenceAreaM2) ? 1 : 0)) &&
+    (f.state !== "B" || run.accounting.eligible[f.definition.owners[0]] === 1) &&
+    exactArray(run.accounting.primary,f.definition.primary) &&
+    exactArray(run.accounting.splitArea,f.definition.splitArea) &&
+    f.owned.every(([cell]) => run.accounting.catchment[cell] === 0);
+  const terminalNode = run.value?.nodes.find(n => n.kind === "terminal");
+  boundaryChecks[f.name + "TerminalDegree"] = run.result?.ok === true &&
+    run.value.reaches.filter(r => r.downstreamNodeId === terminalNode?.id).length === (f.state === "A" ? 0 : 1) &&
+    run.value.reaches.every(r => r.upstreamNodeId !== terminalNode?.id);
+  const reverse = runSynthetic({ ...f.definition, fillOrder: "reverse" });
+  const pointOrder = (a,b) => a.xM - b.xM || a.yM - b.yM;
+  const literalNodes = [...f.nodes].sort(([a],[b]) => pointOrder(a,b));
+  const literalReaches = [...f.reaches].sort(([a],[b]) => pointOrder(a,b));
+  boundaryChecks[f.name + "CanonicalFillOrder"] = run.result?.ok === true &&
+    JSON.stringify(run.value) === JSON.stringify(reverse.value) &&
+    run.value.nodes.every((n,i) => n.id === id("drainage-node",i) &&
+      samePoint(n.point,literalNodes[i]?.[0]) && n.kind === literalNodes[i]?.[1]) &&
+    run.value.reaches.every((r,i) => r.id === id("drainage-reach",i) &&
+      samePoint(run.value.nodes.find(n => n.id === r.upstreamNodeId)?.point,literalReaches[i]?.[0]));
+  const n = f.definition.width * f.definition.height;
+  boundaryChecks[f.name + "ExactPeakAndRelease"] = run.result?.ok === true &&
+    run.after.peakBytes === 88 * n + 4 && run.after.liveBytes === 26 * n &&
+    run.releasedAliases.length === 14 && run.releasedAliases.every(a => a.byteLength === 0);
+}
+const boundarySiblingOrders = [[3,[3,1,4]],[7,[5,3,1,4]],[9,[3,5,1,4]]];
+boundaryChecks.boundarySiblingOrderInvariant = boundarySiblingOrders.every(([i,topologicalOrder]) =>
+  JSON.stringify(runSynthetic({ ...BOUNDARY_CASES[i].definition,topologicalOrder }).value) === JSON.stringify(boundaryRuns[i].value));
+const boundaryBoundRuns = [];
+for (const i of [1,3,4,7]) {
+  const f = BOUNDARY_CASES[i];
+  for (const [property,limit,path] of [["maxNodes",f.nodes.length - 1,"drainage.maxNodes"],
+    ["maxReaches",f.reaches.length - 1,"drainage.maxReaches"]]) {
+    const rejected = runWithPushGuard({ ...f.definition,[property]: limit },
+      v => v && typeof v === "object" && (property === "maxNodes" ?
+        Number.isSafeInteger(v.cell) && ["source","confluence","terminal"].includes(v.kind) :
+        Number.isSafeInteger(v.measurementCell) && Number.isSafeInteger(v.transientOrdinal)),limit);
+    const exact = runSynthetic({ ...f.definition,[property]: limit + 1 });
+    boundaryChecks[f.name + property + "Bound"] = rejected.guardTrips === 0 &&
+      resultError(rejected.result)?.code === "M02_BOUND_EXCEEDED" && resultError(rejected.result)?.path === path &&
+      boundaryBehavior(f,exact);
+    boundaryBoundRuns.push({ fixture: f.name,property,error: resultError(rejected.result),guardTrips: rejected.guardTrips });
+  }
+}
+
 const closedSiblingOrder = runSynthetic({ ...CLOSED_CASES[5].definition, topologicalOrder: [7,2,5,0,1,4] });
 const closedRuns = CLOSED_CASES.map(f => runSynthetic(f.definition));
 const closedChecks = {};
@@ -998,11 +1145,203 @@ const v2MutationChecks = Object.fromEntries(Object.entries(v2MutationResults)
 v2MutationChecks.independentWitnessProbes = [independentReachProbe,independentTerminalProbe,strongReachProbe,...strongTerminalProbes]
   .every(r => r.applied && r.detected && r.restored);
 
+// Runtime refusal probes use valid loaded authority and explicit corruptions.
+// These must fail on the old base even though its area equations still balance.
+const boundaryEraseFault = `  nodes.length = 0;
+  reaches.length = 0;
+  firstReachAssignment.fill(-1);
+`;
+const boundaryCompensatedFault = `  if (persistentReaches[0]) {
+  terminals[0].localContributingAreaM2 += 1;
+  persistentReaches[0] = { ...persistentReaches[0],
+    contributingAreaM2: persistentReaches[0].contributingAreaM2 - 1,
+    localContributingAreaM2: persistentReaches[0].localContributingAreaM2 - 1 };
+  }
+`;
+function boundaryRefusal(definition,path) {
+  const r = runSynthetic(definition);
+  return { detected: r.result?.ok === false && resultError(r.result)?.path === path,
+    detail: { ok: r.result?.ok, error: resultError(r.result) ?? null } };
+}
+const boundarySupportProbe = await runDrainageSourceMutation("boundary-support-erased",
+  s => replace(s,beforeLocal,boundaryEraseFault + beforeLocal),
+  () => boundaryRefusal(BOUNDARY_CASES[0].definition,"drainage.support"));
+const boundaryZeroProbe = await runDrainageSourceMutation("boundary-compensated-local",
+  s => replace(s,beforeValidation,boundaryCompensatedFault + beforeValidation),
+  () => boundaryRefusal(BOUNDARY_CASES[0].definition,"terminals.localContributingAreaM2"));
+const boundaryEligibilityProbe = await runDrainageSourceMutation("boundary-ineligible-entry",
+  s => replace(s,'  const nodes: NodeCandidate[] = [];',
+    '  persistentEligible[owners.terminalOwnerCells[0]] = 0;\n  const nodes: NodeCandidate[] = [];'),
+  () => boundaryRefusal(BOUNDARY_CASES[1].definition,"drainage.sources"));
+for (const [name,r] of Object.entries({ boundarySupportProbe,boundaryZeroProbe,boundaryEligibilityProbe })) {
+  boundaryChecks[name] = r.applied && r.detected && r.restored;
+}
+
+// Worst-case T=N uses at most N reach slots even though B needs 2N nodes.
+const manyBoundaryDefinition = { ...F10_MANY_TERMINALS, persistenceAreaM2: 62_500, captureReleasedAliases: true,
+  maxNodes: 32, maxReaches: 16, minReachLengthMeters: 1000 };
+const manyBoundaryRun = runSynthetic(manyBoundaryDefinition);
+const manyBoundaryMirrorGuard = runWithArrayLengthGuard(manyBoundaryDefinition,16);
+boundaryChecks.allCellsBoundaryEntriesBounded = manyBoundaryRun.result?.ok === true &&
+  manyBoundaryRun.value.nodes.length === 32 && manyBoundaryRun.value.reaches.length === 16 &&
+  manyBoundaryRun.value.terminals.length === 16 && manyBoundaryRun.value.catchments.length === 16 &&
+  manyBoundaryRun.value.nodes.filter(n => n.kind === "source").length === 16 &&
+  manyBoundaryRun.value.reaches.every(r => r.lengthMeters === 125 && r.contributingAreaM2 === 62_500 &&
+    r.localContributingAreaM2 === 62_500 && r.downstreamReachId === null) &&
+  manyBoundaryRun.value.terminals.every(t => t.localContributingAreaM2 === 0) &&
+  conserved(manyBoundaryRun.value) && manyBoundaryRun.after.peakBytes === 1472 &&
+  manyBoundaryRun.after.liveBytes === 416 && manyBoundaryRun.releasedAliases.every(a => a.byteLength === 0) &&
+  manyBoundaryMirrorGuard.result?.ok === true && manyBoundaryMirrorGuard.guardTrips === 0 &&
+  resultError(runSynthetic({ ...manyBoundaryDefinition,maxNodes: 31 }).result)?.path === "drainage.maxNodes" &&
+  resultError(runSynthetic({ ...manyBoundaryDefinition,maxReaches: 15 }).result)?.path === "drainage.maxReaches";
+const boundaryTinyZeroProbe = await runDrainageSourceMutation("boundary-subtolerance-local",
+  s => replace(s,beforeValidation,boundaryCompensatedFault.replaceAll('+= 1','+= 0.001').replaceAll('- 1','- 0.001') + beforeValidation),
+  () => boundaryRefusal(BOUNDARY_CASES[0].definition,"terminals.localContributingAreaM2"));
+boundaryChecks.boundaryExactZeroBelowAreaTolerance = boundaryTinyZeroProbe.applied && boundaryTinyZeroProbe.loaded &&
+  boundaryTinyZeroProbe.executed && boundaryTinyZeroProbe.detected && boundaryTinyZeroProbe.restored;
+
+const boundaryMutationResults = {};
+function boundaryFailures() {
+  const failed = [];
+  for (const f of BOUNDARY_CASES) {
+    const r = runSynthetic(f.definition);
+    if (!boundaryBehavior(f,r) || !boundaryOwnership(f,r)) {
+      failed.push({ fixture: f.name, error: resultError(r.result) ?? null,
+        nodes: r.value?.nodes.length, reaches: r.value?.reaches.length });
+    }
+  }
+  return { detected: failed.length > 0, detail: { failed } };
+}
+const boundarySourceLine = 'const terminalSource = representedIndegree[cell] === 0 && !samePoint(cellCenter, terminal.point);';
+const boundaryMergeLine = 'const terminalMerge = representedIndegree[cell] >= 2 && !samePoint(cellCenter, terminal.point);';
+const boundaryGeometryMutant = geometry => s => replace(s,'    reach.geometry = geometry;',
+  `    reach.geometry = reach.upstreamCell === reach.downstreamCell && terminals[reach.terminalOrdinal].kind !== "retained_closed_basin" ? ${geometry} : geometry;`);
+const boundaryMutations = {
+  restoreTerminalOnlyB: s => replace(s,boundarySourceLine,'const terminalSource = false;'),
+  suppressOwnerSource: s => replace(s,'      if (terminalMerge || terminalSource) {','      if (terminalMerge) {'),
+  confluenceOnlyPairing: s => replace(s,
+    'node.kind !== "terminal" && scratch.terminalOrdinalByCell[node.cell] >= 0',
+    'node.kind === "confluence" && scratch.terminalOrdinalByCell[node.cell] >= 0'),
+  eraseSupportedTopology: s => replace(s,beforeLocal,boundaryEraseFault + beforeLocal),
+  labelBConfluence: s => replace(s,'kind: terminalSource ? "source" : "confluence"','kind: "confluence"'),
+  unnecessaryCOwnerNode: s => replace(s,boundaryMergeLine,
+    'const terminalMerge = representedIndegree[cell] >= 1 && !samePoint(cellCenter, terminal.point);'),
+  collapseDIntoTerminal: s => replace(s,boundaryMergeLine,'const terminalMerge = false;'),
+  singlePointBoundary: boundaryGeometryMutant('[geometry[0]]'),
+  zeroLengthBoundary: boundaryGeometryMutant('[geometry[0],geometry[0]]'),
+  repeatedPointBoundary: boundaryGeometryMutant('[geometry[0],geometry[0],geometry[geometry.length - 1]]'),
+  epsilonBoundary: boundaryGeometryMutant('[geometry[0],{ xM: geometry[0].xM, yM: geometry[0].yM + 0.000001 }]'),
+  delete125MeterBoundary: s => replace(s,'  const links: TerrainRetainedDepressionDrainageLink[] = [];',
+    '  for (let i = persistentReaches.length - 1; i >= 0; i -= 1) { if (persistentReaches[i].lengthMeters === 125 && persistentReaches[i].lengthMeters < constants.drainage.minReachLengthMeters) persistentReaches.splice(i,1); }\n  const links: TerrainRetainedDepressionDrainageLink[] = [];'),
+  wrongBOwnerAnchor: s => replace(s,'        measurementCell: upstream.cell,',
+    '        measurementCell: upstream.kind === "source" ? Math.max(0,upstream.cell - 1) : upstream.cell,'),
+  wrongIncomingDAnchor: s => replace(s,
+    'const measurementCell = downstream.kind === "confluence" || closedTerminal ? previous : current;',
+    'const measurementCell = downstream.kind === "confluence" && scratch.terminalOrdinalByCell[current] < 0 || closedTerminal ? previous : current;'),
+  dropOwnerLocal: s => replace(s,'      reaches[firstReachAssignment[cell]].localAreaM2 += scratch.cellAreaM2;',
+    '      if (scratch.terminalOrdinalByCell[cell] < 0) reaches[firstReachAssignment[cell]].localAreaM2 += scratch.cellAreaM2;'),
+  duplicateOwnerLocal: s => replace(s,'      reaches[firstReachAssignment[cell]].localAreaM2 += scratch.cellAreaM2;',
+    '      reaches[firstReachAssignment[cell]].localAreaM2 += scratch.cellAreaM2 * (scratch.terminalOrdinalByCell[cell] >= 0 ? 2 : 1);'),
+  dropBelowThresholdFeeder: s => replace(s,'      reaches[firstReachAssignment[current]].localAreaM2 += scratch.cellAreaM2;',
+    '      reaches[firstReachAssignment[current]].localAreaM2 += 0;'),
+  duplicateBelowThresholdFeeder: s => replace(s,'      reaches[firstReachAssignment[current]].localAreaM2 += scratch.cellAreaM2;',
+    '      reaches[firstReachAssignment[current]].localAreaM2 += 2 * scratch.cellAreaM2;'),
+  primaryAreaEligibility: s => replace(s,
+    'if (scratch.landMask[cell] === 1 && flow.contributingAreaM2[cell] >= constants.drainage.persistenceAreaM2)',
+    'if (scratch.landMask[cell] === 1 && primaryArea[cell] >= constants.drainage.persistenceAreaM2)'),
+  splitAreaMeasurement: s => replace(s,'      contributingAreaM2: primaryArea[reach.measurementCell],',
+    '      contributingAreaM2: flow.contributingAreaM2[reach.measurementCell],'),
+  compensatedRepresentedTerminalLocal: s => replace(s,beforeValidation,boundaryCompensatedFault + beforeValidation),
+};
+for (const [name,mutate] of Object.entries(boundaryMutations)) {
+  boundaryMutationResults[name] = await runDrainageSourceMutation(name,mutate,boundaryFailures);
+}
+// Pair each weakened validator with a corruption the strong validator rejects.
+// A kill requires the weakened authority to accept, not merely a different error.
+const boundaryStrongProbes = { support: boundarySupportProbe, exactZero: boundaryZeroProbe, eligibility: boundaryEligibilityProbe };
+const boundaryResidualFault = `  primaryArea[owners.terminalOwnerCells[0]] += 1;
+  (catchments[0] as { areaM2: number }).areaM2 += 1;
+`;
+const boundaryResidualFormula = `  for (const reach of reaches) {
+    let incoming = 0;
+    for (const up of reaches) {
+      if (nodes[up.downstreamNodeOrdinal].kind !== "terminal" && up.downstreamCell === reach.upstreamCell) incoming += primaryArea[up.measurementCell];
+    }
+    reach.localAreaM2 = primaryArea[reach.measurementCell] - incoming;
+  }
+`;
+boundaryStrongProbes.independentLocal = await runDrainageSourceMutation("boundary-independent-local-probe",
+  s => replace(s,beforeLocal,boundaryResidualFault + beforeLocal),
+  () => boundaryRefusal(BOUNDARY_CASES[1].definition,reachPath));
+boundaryMutationResults.residualDerivedBLocal = await runDrainageSourceMutation("residual-derived-B-local",
+  s => replace(replace(s,beforeLocal,boundaryResidualFault + beforeLocal),beforeFinal,boundaryResidualFormula + beforeFinal),
+  () => { const r = runSynthetic(BOUNDARY_CASES[1].definition); return { detected: r.result?.ok === true,
+    detail: { ok: r.result?.ok, error: resultError(r.result) ?? null, local: r.value?.reaches[0]?.localContributingAreaM2 } }; });
+const incomingOnlyFault = `  const corruptOrdinal = persistentReaches.findIndex(r => r.downstreamReachId !== null);
+  (persistentReaches[corruptOrdinal] as { contributingAreaM2: number }).contributingAreaM2 += 1;
+`;
+boundaryStrongProbes.universalConservation = await runDrainageSourceMutation("boundary-universal-probe",
+  s => replace(s,beforeValidation,incomingOnlyFault + beforeValidation),
+  () => boundaryRefusal(BOUNDARY_CASES[3].definition,reachPath));
+boundaryMutationResults.weakenUniversalConservation = await runDrainageSourceMutation("weaken-universal-conservation",
+  s => replace(replace(s,beforeValidation,incomingOnlyFault + beforeValidation),
+    'Math.abs(reach.contributingAreaM2 - primaryArea[ordinal]) > constants.validation.areaToleranceM2','false'),
+  () => { const r = runSynthetic(BOUNDARY_CASES[3].definition); return { detected: r.result?.ok === true,
+    detail: { ok: r.result?.ok, error: resultError(r.result) ?? null } }; });
+const reconciliationLoop = '  for (const localWitnesses of [false, true]) {';
+for (const [name,field,replacementLoop] of [
+  ["terminalReachingEquation","contributingAreaM2",'  for (const localWitnesses of [true]) {'],
+  ["allReachLocalEquation","localContributingAreaM2",'  for (const localWitnesses of [false]) {'],
+]) {
+  const fault = `  (persistentReaches[0] as { ${field}: number }).${field} += 1;\n`;
+  boundaryStrongProbes[name] = await runDrainageSourceMutation(name + "-strong",
+    s => replace(s,reconciliationLoop,fault + reconciliationLoop),
+    () => boundaryRefusal(BOUNDARY_CASES[1].definition,terminalPath));
+  boundaryMutationResults["weaken" + name] = await runDrainageSourceMutation(name + "-weakened",
+    s => replace(s,reconciliationLoop,fault + replacementLoop),
+    () => { const r = runSynthetic(BOUNDARY_CASES[1].definition); return { detected: r.result?.ok === true,
+      detail: { ok: r.result?.ok, error: resultError(r.result) ?? null } }; });
+}
+boundaryMutationResults.weakenExactBoundaryZero = await runDrainageSourceMutation("weaken-exact-boundary-zero",
+  s => replace(replace(s,beforeValidation,boundaryCompensatedFault + beforeValidation),
+    'representedSupport[owners.terminalOwnerCells[ordinal]] === 1 && local !== 0','false'),
+  () => { const r = runSynthetic(BOUNDARY_CASES[0].definition); return { detected: r.result?.ok === true,
+    detail: { ok: r.result?.ok, error: resultError(r.result) ?? null, terminalLocal: r.value?.terminals[0]?.localContributingAreaM2 } }; });
+for (const [name,needle,replacement,property,limit] of [
+  ["nodeBoundUnderCount",'(terminalMerge || terminalSource ? 2 : 1)','(terminalMerge ? 2 : 1)',"maxNodes",1],
+  ["reachBoundOffByOne",'reaches.length >= constants.drainage.maxReaches','reaches.length > constants.drainage.maxReaches',"maxReaches",0],
+]) {
+  boundaryMutationResults[name] = await runDrainageSourceMutation(name,s => replace(s,needle,replacement),
+    () => {
+      const r = runWithPushGuard({ ...BOUNDARY_CASES[1].definition,[property]: limit },
+        v => v && typeof v === "object" && (property === "maxNodes" ? Number.isSafeInteger(v.cell) &&
+          ["source","confluence","terminal"].includes(v.kind) : Number.isSafeInteger(v.measurementCell)),limit);
+      return { detected: r.guardTrips > 0, detail: { guardTrips: r.guardTrips, thrown: r.thrown } };
+    });
+}
+const boundaryReverseAccounting = await runDrainageSourceMutation("boundary-reverse-accounting",s => {
+  const start = s.indexOf(beforeLocal), end = s.indexOf(beforeFinal);
+  if (start < 0 || end <= start) return undefined;
+  return s.slice(0,start) + s.slice(start,end).replaceAll('for (let cell = 0; cell < cellCount; cell += 1)',
+    'for (let cell = cellCount - 1; cell >= 0; cell -= 1)') + s.slice(end);
+}, () => ({ detected: BOUNDARY_CASES.every((f,i) => {
+  const r = runSynthetic(f.definition);
+  return JSON.stringify(r.value) === JSON.stringify(boundaryRuns[i].value) && boundaryOwnership(f,r);
+}) }));
+for (const [name,r] of Object.entries(boundaryMutationResults)) {
+  boundaryChecks[name + "BoundaryMutantKilled"] = r.applied && r.loaded && r.executed && r.detected && r.restored;
+}
+boundaryChecks.boundaryStrongIndependentProbes = Object.values(boundaryStrongProbes)
+  .every(r => r.applied && r.loaded && r.executed && r.detected && r.restored);
+boundaryChecks.boundaryReverseAccounting = boundaryReverseAccounting.applied && boundaryReverseAccounting.loaded &&
+  boundaryReverseAccounting.executed && boundaryReverseAccounting.detected && boundaryReverseAccounting.restored;
+
 const sharedF1Point = modules.depressions?.terminalPointCoordinates?.(
   4, modules.scratch?.TERRAIN_TERMINAL_EXTERNAL_DOMAIN_OUTLET, f1.fixture.grid,
 );
 
 const checks = {
+  ...boundaryChecks,
   ...closedChecks,
   ...v2MutationChecks,
   terminalLocalReverseAccumulationInvariant: reverseAccountingProbe.applied && reverseAccountingProbe.detected && reverseAccountingProbe.restored,
@@ -1215,6 +1554,10 @@ const report = {
   loadError: modules.loadError ?? null,
   checks,
   evidence: {
+    boundary: BOUNDARY_CASES.map((f,i) => ({ name: f.name, state: f.state, error: resultError(boundaryRuns[i].result), graph: boundaryRuns[i].value, accounting: boundaryRuns[i].accounting })),
+    boundaryBoundRuns, boundarySupportProbe, boundaryZeroProbe, boundaryEligibilityProbe,
+    boundaryMutationResults, boundaryStrongProbes, boundaryReverseAccounting, boundaryTinyZeroProbe,
+    manyBoundaryPeak: manyBoundaryRun.after,
     v2MutationResults, reverseAccountingProbe, independentReachProbe, independentTerminalProbe, strongReachProbe, strongTerminalProbes,
     closed: CLOSED_CASES.map((f,i) => ({ name: f.name, error: resultError(closedRuns[i].result), graph: closedRuns[i].value })),
     f1Error: resultError(f1.result) ?? null,

@@ -434,6 +434,36 @@ The threshold must be:
 
 Persistent reach extraction must preserve deterministic downstream connectivity and may use local valley/slope evidence in addition to contributing area, but it must not use future climate/hydrology truth.
 
+### Retained-closed terminal accounting — active candidate v2 ruling
+
+Retained-closed terminals are absorbing junctions: one terminal record and, when represented support reaches the floor, exactly one terminal drainage node at the canonical floor-cell center. Zero, one, or many incoming reaches are permitted; incoming reaches are siblings with no outgoing reach. A represented floor-only component has one isolated terminal node and zero reaches. Without represented support the catchment and terminal records remain, with no drainage node required. Never manufacture co-located graph twins, self-loops, or zero-length, single-point, epsilon-offset, or repeated-point connectors.
+
+Every reach ending at a retained-closed terminal measures `primaryContributingAreaM2` at the immediate primary-path predecessor of the floor, for both indegree one and multiple incoming branches. Retain that measurement anchor from the original primary raster path before simplification; geometry still ends at the actual floor center. Distinct-coordinate ocean/external terminals retain their existing terrestrial confluence → real positive-length boundary reach → physical boundary terminal topology.
+
+Independently assign every terrestrial catchment cell exactly once to a persistent reach local witness or its terminal local witness. An ordinary downstream confluence cell belongs to its outgoing reach; a retained-closed floor belongs to its terminal. Other cells follow their primary path to the first reach-accounting cell, or to their terminal if no reach is encountered first. Below-threshold feeders reaching the floor directly therefore also belong to the terminal. Never derive either local witness by subtraction.
+
+For **every** persistent reach, without a closed-terminal exemption:
+
+```text
+reach.contributingAreaM2 ≈ reach.localContributingAreaM2
+  + Σ immediate-upstream reach.contributingAreaM2
+```
+
+Persist required `TerrainHydroTerminal.localContributingAreaM2`, independently accumulated and finite/nonnegative. Require both independent terminal reconciliations:
+
+```text
+catchment.areaM2 ≈ terminal.localContributingAreaM2
+  + Σ contributingAreaM2 of terminal-reaching reaches
+catchment.areaM2 ≈ terminal.localContributingAreaM2
+  + Σ localContributingAreaM2 of ALL reaches in the catchment
+```
+
+Use the existing area tolerance for each equality, never a one-sided inequality. Represented ocean/external terminals have zero terminal-local area under their existing reach topology. Any catchment with no represented reaches has terminal-local equal to its independently accumulated whole catchment area.
+
+The active schema is `world-m0-terrain-hydro-candidate/v2`, with the explicit `WorldM0TerrainHydroCandidateV2` contract. Canonical terminal field order is `id`, `kind`, `point`, `catchmentId`, `localContributingAreaM2`; the new field is required, included in canonical bytes and digest-sensitive. Missing/extra/nonfinite/negative fields fail closed. No dual-shape `/v1` acceptance or migration layer is introduced; historical v1 evidence stays in Git history. `physicalGeneratorVersion` remains unchanged because it participates in physical seed derivation.
+
+Task-7 routing, catchment membership, terminal physical points, constants, generation seeds, persistence threshold, ordinary confluences, and Task-10/ocean/external behavior remain unchanged. Reuse existing budgeted ledger/scratch storage; no additional dense raster, per-cell/per-terminal Map, or duplicate owner registry is authorized. M0.2 remains shadow-only. This upstream correction does not resume Task 12 or modify its historical continuation.
+
 ### Persistent graph contract
 
 A drainage reach has conceptually:
@@ -524,7 +554,7 @@ M0.2 output is a deterministic pre-seal candidate component, not `WorldM0Package
 Conceptually:
 
 ```text
-WorldM0TerrainHydroCandidateV1
+WorldM0TerrainHydroCandidateV2
 ├── source identities / generator identity
 ├── landform-provenance province registry
 ├── strategic terrain summaries

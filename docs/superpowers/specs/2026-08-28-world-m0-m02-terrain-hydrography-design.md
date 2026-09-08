@@ -438,7 +438,7 @@ Persistent reach extraction must preserve deterministic downstream connectivity 
 
 Retained-closed terminals are absorbing junctions: one terminal record and, when represented support reaches the floor, exactly one terminal drainage node at the canonical floor-cell center. Zero, one, or many incoming reaches are permitted; incoming reaches are siblings with no outgoing reach. A represented floor-only component has one isolated terminal node and zero reaches. Without represented support the catchment and terminal records remain, with no drainage node required. Never manufacture co-located graph twins, self-loops, or zero-length, single-point, epsilon-offset, or repeated-point connectors.
 
-Every reach ending at a retained-closed terminal measures `primaryContributingAreaM2` at the immediate primary-path predecessor of the floor, for both indegree one and multiple incoming branches. Retain that measurement anchor from the original primary raster path before simplification; geometry still ends at the actual floor center. Distinct-coordinate ocean/external terminals retain their existing terrestrial confluence → real positive-length boundary reach → physical boundary terminal topology.
+Every reach ending at a retained-closed terminal measures `primaryContributingAreaM2` at the immediate primary-path predecessor of the floor, for both indegree one and multiple incoming branches. Retain that measurement anchor from the original primary raster path before simplification; geometry still ends at the actual floor center. Distinct-coordinate ocean/external terminals follow the A/B/C/D boundary threshold-entry clarification below.
 
 Independently assign every terrestrial catchment cell exactly once to a persistent reach local witness or its terminal local witness. An ordinary downstream confluence cell belongs to its outgoing reach; a retained-closed floor belongs to its terminal. Other cells follow their primary path to the first reach-accounting cell, or to their terminal if no reach is encountered first. Below-threshold feeders reaching the floor directly therefore also belong to the terminal. Never derive either local witness by subtraction.
 
@@ -458,11 +458,28 @@ catchment.areaM2 ≈ terminal.localContributingAreaM2
   + Σ localContributingAreaM2 of ALL reaches in the catchment
 ```
 
-Use the existing area tolerance for each equality, never a one-sided inequality. Represented ocean/external terminals have zero terminal-local area under their existing reach topology. Any catchment with no represented reaches has terminal-local equal to its independently accumulated whole catchment area.
+Use the existing area tolerance for each equality, never a one-sided inequality. Represented ocean/external terminals have exactly zero terminal-local area. A boundary catchment can have zero reaches and whole terminal-local only when represented support is absent; retained-closed floor-only semantics remain separate.
 
 The active schema is `world-m0-terrain-hydro-candidate/v2`, with the explicit `WorldM0TerrainHydroCandidateV2` contract. Canonical terminal field order is `id`, `kind`, `point`, `catchmentId`, `localContributingAreaM2`; the new field is required, included in canonical bytes and digest-sensitive. Missing/extra/nonfinite/negative fields fail closed. No dual-shape `/v1` acceptance or migration layer is introduced; historical v1 evidence stays in Git history. `physicalGeneratorVersion` remains unchanged because it participates in physical seed derivation.
 
 Task-7 routing, catchment membership, terminal physical points, constants, generation seeds, persistence threshold, ordinary confluences, and Task-10/ocean/external behavior remain unchanged. Reuse existing budgeted ledger/scratch storage; no additional dense raster, per-cell/per-terminal Map, or duplicate owner registry is authorized. M0.2 remains shadow-only. This upstream correction does not resume Task 12 or modify its historical continuation.
+
+### Boundary threshold entry — active candidate v2 clarification
+
+For an `ocean_outlet` or `external_domain_outlet` whose owner-cell center differs from its physical terminal point, let `k` be represented indegree in Task-8 downstream-closure support `R`:
+
+| State | Persistent topology | Terminal-local area |
+| --- | --- | --- |
+| A: owner absent from `R` | Terminal and catchment records only; no drainage node or reach | Independently accumulated whole catchment |
+| B: owner in `R`, `k = 0` | Eligible `source` at owner-cell center → genuine positive-length boundary reach → physical terminal | Exactly zero |
+| C: owner in `R`, `k = 1` | Existing contracted upstream reach → physical terminal; no extra owner-center node | Exactly zero |
+| D: owner in `R`, `k >= 2` | Incoming branches → owner-center `confluence` → genuine positive-length boundary reach → physical terminal | Exactly zero |
+
+Terminal ownership does not suppress the distinct B source role. The B owner must itself be eligible; closure through an ineligible owner is C or D. B/D owner-center nodes are topology-critical, and their real boundary continuation survives `minReachLengthMeters`, including a 125 m segment. Every represented ocean/external terminal has exactly one incoming persistent reach and zero outgoing reaches. Zero reaches plus whole terminal-local is valid for a boundary terminal only when represented support is genuinely absent; conservation alone cannot authorize erasing supported topology.
+
+B's continuation measures `primaryContributingAreaM2` at the owner. Its local area is independently accumulated from cells assigned to that reach, which can be the entire catchment when the owner is its first represented support. C's contracted terminal-reaching reach also measures at the owner. D's incoming branches retain immediate primary-path predecessor anchors, while its outgoing continuation measures at the owner and locally owns the owner and any direct feeders reaching it first. Every terrestrial cell is assigned exactly once. D∞ contributing area remains the sole eligibility quantity; primary area remains the stored reach-total quantity. Neither local area is derived by subtraction. Universal reach conservation and both candidate-v2 catchment reconciliation equations above remain unchanged.
+
+Retained-closed absorbing/floor-only semantics remain separate: a represented isolated floor can have one terminal node, zero reaches, and whole terminal-local. No new node kind, schema field, dense raster, per-cell/per-terminal Map, or owner registry is introduced. Reuse existing continuation and budgeted scratch; peak remains `88N + 4T`. Task-7 routing, catchments, terminal points, constants, seeds, `physicalGeneratorVersion`, candidate schema `world-m0-terrain-hydro-candidate/v2`, and canonical physical ordering remain unchanged. M0.2 stays shadow-only; no merge, freeze, production cutover, M0.3, or Task-12 resumption is authorized.
 
 ### Persistent graph contract
 

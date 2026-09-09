@@ -379,7 +379,7 @@ Retained intentional basins remain explicit geometry with:
 
 - deterministic basin identity;
 - contributing catchment identity/area;
-- basin floor/minimum elevation;
+- canonical raw basin floor-point identity and floor/minimum elevation;
 - spill elevation where exorheic;
 - outlet identity where exorheic;
 - closed/endorheic terminal classification where applicable;
@@ -434,7 +434,7 @@ The threshold must be:
 
 Persistent reach extraction must preserve deterministic downstream connectivity and may use local valley/slope evidence in addition to contributing area, but it must not use future climate/hydrology truth.
 
-### Retained-closed terminal accounting — active candidate v2 ruling
+### Retained-closed terminal accounting — historical candidate v2 ruling, semantics preserved by v3
 
 Retained-closed terminals are absorbing junctions: one terminal record and, when represented support reaches the floor, exactly one terminal drainage node at the canonical floor-cell center. Zero, one, or many incoming reaches are permitted; incoming reaches are siblings with no outgoing reach. A represented floor-only component has one isolated terminal node and zero reaches. Without represented support the catchment and terminal records remain, with no drainage node required. Never manufacture co-located graph twins, self-loops, or zero-length, single-point, epsilon-offset, or repeated-point connectors.
 
@@ -460,11 +460,11 @@ catchment.areaM2 ≈ terminal.localContributingAreaM2
 
 Use the existing area tolerance for each equality, never a one-sided inequality. Represented ocean/external terminals have exactly zero terminal-local area. A boundary catchment can have zero reaches and whole terminal-local only when represented support is absent; retained-closed floor-only semantics remain separate.
 
-The active schema is `world-m0-terrain-hydro-candidate/v2`, with the explicit `WorldM0TerrainHydroCandidateV2` contract. Canonical terminal field order is `id`, `kind`, `point`, `catchmentId`, `localContributingAreaM2`; the new field is required, included in canonical bytes and digest-sensitive. Missing/extra/nonfinite/negative fields fail closed. No dual-shape `/v1` acceptance or migration layer is introduced; historical v1 evidence stays in Git history. `physicalGeneratorVersion` remains unchanged because it participates in physical seed derivation.
+Candidate v2 introduced the explicit `WorldM0TerrainHydroCandidateV2` contract and canonical terminal field order `id`, `kind`, `point`, `catchmentId`, `localContributingAreaM2`. That terminal field remains required, canonical-byte/digest-sensitive, and fail-closed for missing/extra/nonfinite/negative values. The v2 shape is historical evidence; the active v3 basin-identity correction below inherits these terminal semantics without a compatibility/default migration layer. `physicalGeneratorVersion` remains unchanged because it participates in physical seed derivation.
 
 Task-7 routing, catchment membership, terminal physical points, constants, generation seeds, persistence threshold, ordinary confluences, and Task-10/ocean/external behavior remain unchanged. Reuse existing budgeted ledger/scratch storage; no additional dense raster, per-cell/per-terminal Map, or duplicate owner registry is authorized. M0.2 remains shadow-only. This upstream correction does not resume Task 12 or modify its historical continuation.
 
-### Boundary threshold entry — active candidate v2 clarification
+### Boundary threshold entry — historical candidate v2 clarification, semantics preserved by v3
 
 For an `ocean_outlet` or `external_domain_outlet` whose owner-cell center differs from its physical terminal point, let `k` be represented indegree in Task-8 downstream-closure support `R`:
 
@@ -477,9 +477,21 @@ For an `ocean_outlet` or `external_domain_outlet` whose owner-cell center differ
 
 Terminal ownership does not suppress the distinct B source role. The B owner must itself be eligible; closure through an ineligible owner is C or D. B/D owner-center nodes are topology-critical, and their real boundary continuation survives `minReachLengthMeters`, including a 125 m segment. Every represented ocean/external terminal has exactly one incoming persistent reach and zero outgoing reaches. Zero reaches plus whole terminal-local is valid for a boundary terminal only when represented support is genuinely absent; conservation alone cannot authorize erasing supported topology.
 
-B's continuation measures `primaryContributingAreaM2` at the owner. Its local area is independently accumulated from cells assigned to that reach, which can be the entire catchment when the owner is its first represented support. C's contracted terminal-reaching reach also measures at the owner. D's incoming branches retain immediate primary-path predecessor anchors, while its outgoing continuation measures at the owner and locally owns the owner and any direct feeders reaching it first. Every terrestrial cell is assigned exactly once. D∞ contributing area remains the sole eligibility quantity; primary area remains the stored reach-total quantity. Neither local area is derived by subtraction. Universal reach conservation and both candidate-v2 catchment reconciliation equations above remain unchanged.
+B's continuation measures `primaryContributingAreaM2` at the owner. Its local area is independently accumulated from cells assigned to that reach, which can be the entire catchment when the owner is its first represented support. C's contracted terminal-reaching reach also measures at the owner. D's incoming branches retain immediate primary-path predecessor anchors, while its outgoing continuation measures at the owner and locally owns the owner and any direct feeders reaching it first. Every terrestrial cell is assigned exactly once. D∞ contributing area remains the sole eligibility quantity; primary area remains the stored reach-total quantity. Neither local area is derived by subtraction. Universal reach conservation and both v2-origin catchment reconciliation equations above remain unchanged under v3.
 
-Retained-closed absorbing/floor-only semantics remain separate: a represented isolated floor can have one terminal node, zero reaches, and whole terminal-local. No new node kind, schema field, dense raster, per-cell/per-terminal Map, or owner registry is introduced. Reuse existing continuation and budgeted scratch; peak remains `88N + 4T`. Task-7 routing, catchments, terminal points, constants, seeds, `physicalGeneratorVersion`, candidate schema `world-m0-terrain-hydro-candidate/v2`, and canonical physical ordering remain unchanged. M0.2 stays shadow-only; no merge, freeze, production cutover, M0.3, or Task-12 resumption is authorized.
+Retained-closed absorbing/floor-only semantics remain separate: a represented isolated floor can have one terminal node, zero reaches, and whole terminal-local. No new node kind, dense raster, per-cell/per-terminal Map, or owner registry is introduced. Reuse existing continuation and budgeted scratch; peak remains `88N + 4T`. Task-7 routing, catchments, terminal points, constants, seeds, `physicalGeneratorVersion`, and canonical physical ordering remain unchanged. This paragraph records the historical v2 boundary correction; the active candidate shape is superseded by the v3 basin-floor identity ruling below. M0.2 stays shadow-only; no merge, freeze, production cutover, M0.3, or Task-12 resumption is authorized.
+
+### Basin floor-point identity — active candidate v3 ruling
+
+The active candidate schema is `world-m0-terrain-hydro-candidate/v3`, with explicit `WorldM0TerrainHydroCandidateV3`. Historical v2 remains valid historical evidence only; the v3 encoder does not accept v2 and there is no compatibility/default migration layer.
+
+`TerrainDepressionBasin` now requires `floorPoint: WorldM0PointM` immediately after `catchmentId`. It is exactly the physical center of Task-6's already-authoritative canonical raw minimum-elevation cell for that retained depression. Task 9 persists that point directly from the retained analysis record; it does not select a new floor, derive one from conditioned routing elevation, or substitute the onward outlet terminal. `floorElevationMeters` remains the raw physical elevation at this same floor.
+
+The v3 canonical basin field order is exactly `id`, `catchmentId`, `floorPoint`, `floorElevationMeters`, `spillElevationMeters`, `outletTerminalId`, `closedEndorheic`, `areaM2`, `boundaryRings`. `floorPoint` uses the existing strict canonical point encoding, participates in canonical bytes and `terrainHydroCandidateDigest`, and is required to contain only finite canonical `xM`/`yM` values with no negative zero. At the fixed 250 m analysis resolution it is a valid in-extent cell center `xM = 125 + 250*k`, `yM = 125 + 250*k`, belongs to the retained basin region respecting holes/multipart topology, and belongs to the linked catchment region.
+
+Basin physical identity/order is not redesigned. Preserve the existing final producer key exactly as `closedEndorheic → floorPoint.xM → floorPoint.yM → floorElevationMeters → spillElevationMeters (null last) → finalized canonical boundary-ring registry → physical catchment key`. Persisting `floorPoint` makes that already-used key reconstructible from retained candidate state. Equivalent physical stage inputs must keep existing basin IDs. After the final physical sort and before ID assignment, duplicate complete final basin keys are invalid rather than resolved by insertion order, numeric IDs, or sort stability.
+
+For a closed endorheic basin, persistent spill and outlet remain null and the reciprocal catchment terminal is `retained_closed_basin` at exactly `basin.floorPoint`. For an exorheic basin, spill remains finite and strictly above the raw floor elevation; the onward terminal may be ocean, external, or downstream retained-closed and is not the basin floor identity. No Task-6 floor selection, Task-7 routing, Task-8 accounting/topology, boundary A/B/C/D semantics, constants, seeds, recipe digest, `physicalGeneratorVersion`, physical geometry, or production authority changes under this correction.
 
 ### Persistent graph contract
 
@@ -571,7 +583,7 @@ M0.2 output is a deterministic pre-seal candidate component, not `WorldM0Package
 Conceptually:
 
 ```text
-WorldM0TerrainHydroCandidateV2
+WorldM0TerrainHydroCandidateV3
 ├── source identities / generator identity
 ├── landform-provenance province registry
 ├── strategic terrain summaries

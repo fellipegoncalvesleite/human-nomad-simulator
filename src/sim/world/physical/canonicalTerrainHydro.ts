@@ -234,12 +234,11 @@ function requireSimpleOpenSequence(points: readonly WorldM0PointM[], path: strin
   }
 }
 
-function containsPoint(ring: readonly WorldM0PointM[], tested: WorldM0PointM, path: string): boolean {
+function ringInteriorContainsPoint(ring: readonly WorldM0PointM[], tested: WorldM0PointM): boolean {
   let inside = false;
   for (let index = 0; index < ring.length - 1; index += 1) {
     const first = ring[index];
     const second = ring[index + 1];
-    if (pointOnSegment(tested, first, second)) reject(path, "rings may not touch or overlap");
     if ((first.yM > tested.yM) !== (second.yM > tested.yM)) {
       const crossingX = first.xM + ((tested.yM - first.yM) * (second.xM - first.xM)) /
         (second.yM - first.yM);
@@ -247,6 +246,13 @@ function containsPoint(ring: readonly WorldM0PointM[], tested: WorldM0PointM, pa
     }
   }
   return inside;
+}
+
+function containsPoint(ring: readonly WorldM0PointM[], tested: WorldM0PointM, path: string): boolean {
+  for (let index = 0; index < ring.length - 1; index += 1) {
+    if (pointOnSegment(tested, ring[index], ring[index + 1])) reject(path, "rings may not touch or overlap");
+  }
+  return ringInteriorContainsPoint(ring, tested);
 }
 
 function boundaryRingRegistry(
@@ -292,10 +298,14 @@ function boundaryRings(input: unknown, path: string): string {
 function boundaryRegistryContainsPoint(
   rings: readonly (readonly WorldM0PointM[])[],
   tested: WorldM0PointM,
-  path: string,
 ): boolean {
   let inside = false;
-  for (const ring of rings) if (containsPoint(ring, tested, path)) inside = !inside;
+  for (const ring of rings) {
+    for (let index = 0; index < ring.length - 1; index += 1) {
+      if (pointOnSegment(tested, ring[index], ring[index + 1])) return true;
+    }
+    if (ringInteriorContainsPoint(ring, tested)) inside = !inside;
+  }
   return inside;
 }
 
@@ -469,10 +479,10 @@ function canonicalText(input: unknown): string {
     if (!linkedTerminal || linkedTerminal.catchmentId !== catchmentId) {
       reject(`${path}.catchmentId`, "basin linked catchment/terminal must be reciprocal");
     }
-    if (!boundaryRegistryContainsPoint(rings.rings, floor.value, `${path}.floorPoint`)) {
+    if (!boundaryRegistryContainsPoint(rings.rings, floor.value)) {
       reject(`${path}.floorPoint`, "floor point must belong to basin filled geometry");
     }
-    if (!boundaryRegistryContainsPoint(linkedCatchment.boundaryRings, floor.value, `${path}.floorPoint`)) {
+    if (!boundaryRegistryContainsPoint(linkedCatchment.boundaryRings, floor.value)) {
       reject(`${path}.floorPoint`, "floor point must belong to linked catchment");
     }
     const closed = value.closedEndorheic as boolean;

@@ -30,11 +30,17 @@ const expectedNestedKeys = {
 };
 
 const source = existsSync(typesPath) ? readFileSync(typesPath, "utf8") : "";
-const sourceFile = ts.createSourceFile(typesPath, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-const interfaces = new Map();
-for (const statement of sourceFile.statements) {
-  if (ts.isInterfaceDeclaration(statement)) interfaces.set(statement.name.text, statement);
+function parseInterfaceSource(inputSource) {
+  const file = ts.createSourceFile(typesPath, inputSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const map = new Map();
+  for (const statement of file.statements) {
+    if (ts.isInterfaceDeclaration(statement)) map.set(statement.name.text, statement);
+  }
+  return { file, map };
 }
+const parsedSource = parseInterfaceSource(source);
+const sourceFile = parsedSource.file;
+const interfaces = parsedSource.map;
 const memberName = (member) => ts.isIdentifier(member.name) || ts.isStringLiteral(member.name)
   ? member.name.text
   : undefined;
@@ -44,6 +50,53 @@ const exact = (actual, expected) => actual.length === expected.length && expecte
 const allInterfacePropertiesReadonly = [...interfaces.values()].every((declaration) =>
   declaration.members.every((member) => ts.isPropertySignature(member) && hasReadonly(member))
 );
+
+function requiredReadonlyProperty(parsed, interfaceName, propertyName) {
+  const property = parsed.map.get(interfaceName)?.members.find((member) => memberName(member) === propertyName);
+  return ts.isPropertySignature(property) && hasReadonly(property) && property.questionToken === undefined ? property : undefined;
+}
+
+function evaluateStaticV3Contract(inputSource) {
+  const parsed = parseInterfaceSource(inputSource);
+  const floorPoint = requiredReadonlyProperty(parsed, "TerrainDepressionBasin", "floorPoint");
+  const schema = requiredReadonlyProperty(parsed, "WorldM0TerrainHydroCandidateV3", "schema");
+  return {
+    floorPoint: floorPoint !== undefined && ts.isTypeReferenceNode(floorPoint.type) &&
+      ts.isIdentifier(floorPoint.type.typeName) && floorPoint.type.typeName.text === "WorldM0PointM" &&
+      (floorPoint.type.typeArguments?.length ?? 0) === 0,
+    schema: schema !== undefined && ts.isLiteralTypeNode(schema.type) && ts.isStringLiteral(schema.type.literal) &&
+      schema.type.literal.text === "world-m0-terrain-hydro-candidate/v3",
+  };
+}
+
+function replaceSingle(inputSource, needle, replacement) {
+  if (inputSource.indexOf(needle) < 0 || inputSource.indexOf(needle) !== inputSource.lastIndexOf(needle)) return undefined;
+  return inputSource.replace(needle, replacement);
+}
+
+const floorPointDeclaration = "  readonly floorPoint: WorldM0PointM;";
+const schemaDeclaration = '  readonly schema: "world-m0-terrain-hydro-candidate/v3";';
+const staticContractMutantSources = {
+  optionalFloorPoint: replaceSingle(source, floorPointDeclaration, "  readonly floorPoint?: WorldM0PointM;"),
+  anyFloorPoint: replaceSingle(source, floorPointDeclaration, "  readonly floorPoint: any;"),
+  wrongFloorPointType: replaceSingle(source, floorPointDeclaration, "  readonly floorPoint: WorldM0StrategicCellRef;"),
+  optionalSchema: replaceSingle(source, schemaDeclaration, '  readonly schema?: "world-m0-terrain-hydro-candidate/v3";'),
+  stringSchema: replaceSingle(source, schemaDeclaration, "  readonly schema: string;"),
+  widenedSchemaUnion: replaceSingle(source, schemaDeclaration,
+    '  readonly schema: "world-m0-terrain-hydro-candidate/v2" | "world-m0-terrain-hydro-candidate/v3";'),
+  wrongSchemaLiteral: replaceSingle(source, schemaDeclaration, '  readonly schema: "world-m0-terrain-hydro-candidate/v2";'),
+};
+const staticContractMutants = {};
+for (const [name, mutatedSource] of Object.entries(staticContractMutantSources)) {
+  const applied = typeof mutatedSource === "string" && mutatedSource !== source;
+  const contract = applied ? evaluateStaticV3Contract(mutatedSource) : { floorPoint: true, schema: true };
+  const targetsFloorPoint = name.toLowerCase().includes("floorpoint");
+  staticContractMutants[name] = {
+    applied,
+    detected: applied && (targetsFloorPoint ? contract.floorPoint === false : contract.schema === false),
+  };
+}
+const currentStaticV3Contract = evaluateStaticV3Contract(source);
 
 function nestedTypeKeys(interfaceName, propertyName) {
   const property = interfaces.get(interfaceName)?.members.find((member) => memberName(member) === propertyName);
@@ -180,6 +233,10 @@ const checks = {
   exactDeterministicProvenanceKeys: exact(nestedTypeKeys("WorldM0TerrainHydroCandidateV3", "deterministicProvenance"), expectedNestedKeys.deterministicProvenance),
   exactlyFourProvenanceFamilies: exact(stringUnionMembers("LandformProvenanceFamily"), ["stable_denudational", "orogenic_uplift", "volcanic_constructive", "sedimentary_basin"]),
   exactTerminalKinds: exact(stringUnionMembers("TerrainHydroTerminalKind"), ["ocean_outlet", "retained_closed_basin", "external_domain_outlet"]),
+  exactFloorPointStaticContract: currentStaticV3Contract.floorPoint,
+  exactV3SchemaStaticContract: currentStaticV3Contract.schema,
+  staticV3ContractMutantsKilled: Object.keys(staticContractMutants).length === 7 &&
+    Object.values(staticContractMutants).every((entry) => entry.applied === true && entry.detected === true),
   exactCrossingKeys: exact(interfaceKeys("PhysicalCrossingCandidate"), expectedInterfaces.PhysicalCrossingCandidate),
   noForbiddenCrossingOrHydraulicFields: forbiddenNames.every((name) => !interfaceKeys("PhysicalCrossingCandidate").includes(name)) && forbiddenNames.every((name) => !interfaceKeys("WorldM0TerrainHydroCandidateV3").includes(name)),
   allPersistentPropertiesReadonly: allInterfacePropertiesReadonly && candidateArrayTypesReadonly,
@@ -209,6 +266,7 @@ const out = {
   check: "WORLD-M0-M0.2-CANDIDATE-SCHEMA",
   verdict: Object.values(checks).every(Boolean) ? "PASS" : "FAIL",
   checks,
+  witnesses: { staticContractMutants },
 };
 console.log(JSON.stringify(out, null, 2));
 if (out.verdict !== "PASS") process.exitCode = 1;

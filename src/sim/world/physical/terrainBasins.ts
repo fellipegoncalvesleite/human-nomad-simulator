@@ -220,6 +220,14 @@ function registryContainsPoint(point: WorldM0PointM, rings: readonly (readonly W
   for (const ring of rings) if (pointInRing(point, ring)) inside = !inside;
   return inside;
 }
+function registryContainsPointOrBoundary(point: WorldM0PointM, rings: readonly (readonly WorldM0PointM[])[]): boolean {
+  for (const ring of rings) {
+    for (let index = 0; index + 1 < ring.length; index += 1) {
+      if (onSegment(ring[index], ring[index + 1], point)) return true;
+    }
+  }
+  return registryContainsPoint(point, rings);
+}
 function geometryRelationSignature(
   featureRings: readonly (readonly WorldM0PointM[])[],
   reference: readonly WorldM0PointM[],
@@ -581,10 +589,10 @@ export function finalizeDepressionBasins(
     }
     const normalized = normalizeTask9RasterRingFeatureV1(item.boundaryRings, scratch, "depressionBasins.boundaryRings");
     if (!normalized.ok) return normalized;
-    if (!registryContainsPoint(point, normalized.value)) {
+    if (!registryContainsPointOrBoundary(point, normalized.value)) {
       return invalid("retainedDepressions.floorPoint", "canonical floor point is outside retained basin filled geometry");
     }
-    if (!registryContainsPoint(point, catchment.boundaryRings)) {
+    if (!registryContainsPointOrBoundary(point, catchment.boundaryRings)) {
       return invalid("retainedDepressions.floorPoint", "canonical floor point is outside its linked catchment");
     }
     if (registryAreaM2(normalized.value) !== item.areaM2) {

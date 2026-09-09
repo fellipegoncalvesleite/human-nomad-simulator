@@ -237,6 +237,14 @@ const outsideCatchmentDrain=drainageFor("retained_closed_basin");
 outsideCatchmentDrain.catchments[0]={...outsideCatchmentDrain.catchments[0],boundaryRings:[outsideBasinRing]};
 const floorOutsideCatchmentResult=safeCall(()=>modules.basins?.finalizeDepressionBasins?.(
   f6Grid.grid,{...duplicateFinalAnalysis,retainedDepressions:[f6Dep],conditionedDepressionCount:1},coastlineFor(f6Grid.grid),outsideCatchmentDrain,f6Grid.constants));
+const floorBoundaryRing=ring([500,500],[750,250],[1000,500],[750,750],[500,500]);
+const floorOnBasinBoundaryResult=safeCall(()=>modules.basins?.finalizeDepressionBasins?.(
+  f6Grid.grid,{...duplicateFinalAnalysis,retainedDepressions:[{...f6Dep,boundaryRings:[floorBoundaryRing],areaM2:125000}],conditionedDepressionCount:1},
+  coastlineFor(f6Grid.grid),drainageFor("retained_closed_basin"),f6Grid.constants));
+const floorBoundaryCatchmentDrain=drainageFor("retained_closed_basin");
+floorBoundaryCatchmentDrain.catchments[0]={...floorBoundaryCatchmentDrain.catchments[0],boundaryRings:[floorBoundaryRing]};
+const floorOnCatchmentBoundaryResult=safeCall(()=>modules.basins?.finalizeDepressionBasins?.(
+  f6Grid.grid,{...duplicateFinalAnalysis,retainedDepressions:[f6Dep],conditionedDepressionCount:1},coastlineFor(f6Grid.grid),floorBoundaryCatchmentDrain,f6Grid.constants));
 const closedTerminalMismatchResult=safeCall(()=>modules.basins?.finalizeDepressionBasins?.(
   f6Grid.grid,{...duplicateFinalAnalysis,retainedDepressions:[f6Dep],conditionedDepressionCount:1},coastlineFor(f6Grid.grid),
   drainageFor("retained_closed_basin",point(875,625)),f6Grid.constants));
@@ -446,10 +454,11 @@ async function runDomain3ScheduleMutations() {
 }
 
 async function runBasinFloorIdentityMutations() {
-  if(!existsSync(BASINS_PATH))return {sourceExists:false,restored:false,cases:{}};
+  if(!existsSync(BASINS_PATH))return {sourceExists:false,restored:false,cases:{},controls:{}};
   const original=readFileSync(BASINS_PATH);
   const source=original.toString("utf8");
   const cases={};
+  const controls={};
   const pairOrder=(result,fixture)=>{
     const value=ok(result);
     return Array.isArray(value)&&
@@ -465,22 +474,39 @@ async function runBasinFloorIdentityMutations() {
     return value?.floorPoint?.xM===625&&value?.floorPoint?.yM===625&&value?.floorElevationMeters===1&&
       value?.outletTerminalId===id("terminal",0);
   };
-  const run=async(name,mutate,invoke,isCanonical)=>{
+  const run=async(name,mutate,invoke,isCanonical,bucket=cases)=>{
     const mutated=mutate(source);
     if(typeof mutated!=="string"||mutated===source) {
-      cases[name]={applied:false,killed:false,restored:readFileSync(BASINS_PATH).equals(original)};
+      bucket[name]={applied:false,loaded:false,executed:false,detected:false,behaviorallyDetected:false,killed:false,
+        restored:readFileSync(BASINS_PATH).equals(original)};
       return;
     }
-    let value,loadError;
+    let value,loadError,invocationError;
+    let loadedOk=false,executed=false,missingTarget=false;
     try {
       writeFileSync(BASINS_PATH,mutated);
       const loaded=await loadModules(`?audit-task9-basin-floor-${name}`);
       loadError=loaded.loadError;
-      if(!loadError)value=invoke(loaded);
+      loadedOk=!loadError;
+      const target=loaded.basins?.finalizeDepressionBasins;
+      if(loadedOk&&typeof target!=="function") missingTarget=true;
+      if(loadedOk&&!missingTarget) {
+        try {
+          executed=true;
+          value=invoke(target);
+        } catch(error) {
+          invocationError=error instanceof Error?error.message:String(error);
+        }
+      }
     } finally {
       writeFileSync(BASINS_PATH,original);
     }
-    cases[name]={applied:true,killed:!loadError&&!isCanonical(value),loadError,restored:readFileSync(BASINS_PATH).equals(original)};
+    const applied=true;
+    const restored=readFileSync(BASINS_PATH).equals(original);
+    const detected=loadedOk&&executed&&!invocationError&&!isCanonical(value);
+    const killed=applied&&loadedOk&&executed&&detected&&restored&&!missingTarget&&!invocationError;
+    bucket[name]={applied,loaded:loadedOk,executed,detected,behaviorallyDetected:detected,killed,loadError,
+      missingTarget,invocationError,restored,legacyWouldCredit:loadedOk&&!loadError&&!isCanonical(value)};
   };
   const pointBlock='  const floor = comparePointM(left.floorPoint, right.floorPoint);\n  if (floor !== 0) return floor;\n';
   const elevationBlock='  const floorElevation = compareNumber(left.analysis.floorElevationMeters, right.analysis.floorElevationMeters);\n  if (floorElevation !== 0) return floorElevation;\n';
@@ -490,8 +516,8 @@ async function runBasinFloorIdentityMutations() {
   const floorCellBlock='  const row = Math.floor(item.canonicalFloorCell / scratch.width);\n  const column = item.canonicalFloorCell - row * scratch.width;\n';
   const floorPersist='      floorPoint: candidate.floorPoint,\n';
   const elevationPersist='      floorElevationMeters: candidate.analysis.floorElevationMeters,\n';
-  const invokePair=(fixture)=>(loaded)=>safeCall(()=>loaded.basins?.finalizeDepressionBasins?.(
-    fixture.fixtureGrid.grid,fixture.analysis,coastlineFor(fixture.fixtureGrid.grid),fixture.drainage,fixture.fixtureGrid.constants));
+  const invokePair=(fixture)=>(finalize)=>finalize(
+    fixture.fixtureGrid.grid,fixture.analysis,coastlineFor(fixture.fixtureGrid.grid),fixture.drainage,fixture.fixtureGrid.constants);
   const mutateFinalComparator=(source,transform)=>{
     const start=source.indexOf(comparatorStart);
     if(start<0)return source;
@@ -512,19 +538,22 @@ async function runBasinFloorIdentityMutations() {
     invokePair(pointBeforePhysicalId),r=>pairOrder(r,pointBeforePhysicalId));
   await run("wrong-plateau-floor-cell",s=>s.includes(floorCellBlock)?s.replace(floorCellBlock,
     '  const mutatedFloorCell = item.canonicalFloorCell + 1;\n  const row = Math.floor(mutatedFloorCell / scratch.width);\n  const column = mutatedFloorCell - row * scratch.width;\n'):s,
-    loaded=>safeCall(()=>loaded.basins?.finalizeDepressionBasins?.(f6Grid.grid,
+    finalize=>finalize(f6Grid.grid,
       {retainedDepressions:[f6Dep],terminalOwners:{terminalKindByCell:f6Grid.grid?.terminalKindByCell,terminalOrdinalByCell:f6Grid.grid?.terminalOrdinalByCell,terminalOwnerCells:new Int32Array(0),terminalCount:0},conditionedDepressionCount:1,repairOperationCount:0},
-      coastlineFor(f6Grid.grid),drainageFor("retained_closed_basin"),f6Grid.constants)),canonicalClosed);
+      coastlineFor(f6Grid.grid),drainageFor("retained_closed_basin"),f6Grid.constants),canonicalClosed);
   await run("routing-elevation-as-raw-floor",s=>s.includes(elevationPersist)?s.replace(elevationPersist,
     '      floorElevationMeters: scratch.routingElevationMeters[candidate.analysis.canonicalFloorCell],\n'):s,
-    loaded=>safeCall(()=>loaded.basins?.finalizeDepressionBasins?.(f6Grid.grid,
+    finalize=>finalize(f6Grid.grid,
       {retainedDepressions:[f6Dep],terminalOwners:{terminalKindByCell:f6Grid.grid?.terminalKindByCell,terminalOrdinalByCell:f6Grid.grid?.terminalOrdinalByCell,terminalOwnerCells:new Int32Array(0),terminalCount:0},conditionedDepressionCount:1,repairOperationCount:0},
-      coastlineFor(f6Grid.grid),drainageFor("retained_closed_basin"),f6Grid.constants)),canonicalClosed);
+      coastlineFor(f6Grid.grid),drainageFor("retained_closed_basin"),f6Grid.constants),canonicalClosed);
   await run("exorheic-terminal-as-floor",s=>s.includes(floorPersist)?s.replace(floorPersist,'      floorPoint: candidate.terminal.point,\n'):s,
-    loaded=>safeCall(()=>loaded.basins?.finalizeDepressionBasins?.(f7Grid.grid,
+    finalize=>finalize(f7Grid.grid,
       {retainedDepressions:[f7Dep],terminalOwners:{terminalKindByCell:f7Grid.grid?.terminalKindByCell,terminalOrdinalByCell:f7Grid.grid?.terminalOrdinalByCell,terminalOwnerCells:new Int32Array(0),terminalCount:0},conditionedDepressionCount:1,repairOperationCount:0},
-      coastlineFor(f7Grid.grid),f7Drain,f7Grid.constants)),canonicalExorheic);
-  return {sourceExists:true,cases,restored:readFileSync(BASINS_PATH).equals(original)};
+      coastlineFor(f7Grid.grid),f7Drain,f7Grid.constants),canonicalExorheic);
+  await run("non-callable-target",s=>s.includes("export function finalizeDepressionBasins(")?
+    s.replace("export function finalizeDepressionBasins(","function finalizeDepressionBasins("):s,
+    ()=>undefined,()=>false,controls);
+  return {sourceExists:true,cases,controls,restored:readFileSync(BASINS_PATH).equals(original)};
 }
 
 async function runDomains45ScheduleMutations() {
@@ -631,6 +660,8 @@ const checks={
   floorOutsideBasinRejected: err(floorOutsideBasinResult)?.code==="M02_CANDIDATE_INVALID" && /floor/i.test(err(floorOutsideBasinResult)?.path??err(floorOutsideBasinResult)?.detail??""),
   floorInsideExcludedHoleRejected: err(floorInsideHoleResult)?.code==="M02_CANDIDATE_INVALID" && /floor/i.test(err(floorInsideHoleResult)?.path??err(floorInsideHoleResult)?.detail??""),
   floorOutsideCatchmentRejected: err(floorOutsideCatchmentResult)?.code==="M02_CANDIDATE_INVALID" && /floor/i.test(err(floorOutsideCatchmentResult)?.path??err(floorOutsideCatchmentResult)?.detail??""),
+  floorOnValidBasinBoundaryAccepted: ok(floorOnBasinBoundaryResult)?.[0]?.floorPoint?.xM===625 && ok(floorOnBasinBoundaryResult)?.[0]?.floorPoint?.yM===625,
+  floorOnValidCatchmentBoundaryAccepted: ok(floorOnCatchmentBoundaryResult)?.[0]?.floorPoint?.xM===625 && ok(floorOnCatchmentBoundaryResult)?.[0]?.floorPoint?.yM===625,
   closedFloorTerminalMismatchRejected: err(closedTerminalMismatchResult)?.code==="M02_CANDIDATE_INVALID" && /floor|terminal/i.test(err(closedTerminalMismatchResult)?.path??err(closedTerminalMismatchResult)?.detail??""),
   conditionedRoutingElevationCannotSubstituteRawFloor: err(conditionedElevationSubstitutionResult)?.code==="M02_CANDIDATE_INVALID" && /floor|elevation/i.test(err(conditionedElevationSubstitutionResult)?.path??err(conditionedElevationSubstitutionResult)?.detail??""),
   closedRejectsNonclosedTerminal: [f6OceanBad,f6ExternalBad].every((result)=>err(result)?.code==="M02_CANDIDATE_INVALID" && /spill/i.test(err(result)?.path??err(result)?.detail??"")),
@@ -639,7 +670,11 @@ const checks={
   exorheicDownstreamClosedMutationDiscriminated: exorheicDownstreamClosedMutationAudit.mutationApplied===true && exorheicDownstreamClosedMutationAudit.restored===true &&
     err(exorheicDownstreamClosedMutationAudit.value)?.code==="M02_CANDIDATE_INVALID" && err(exorheicDownstreamClosedMutationAudit.value)?.path==="retainedDepressions.spill",
   basinFloorIdentityMutantsKilledByBehavior: basinFloorIdentityMutationAudit.sourceExists===true && basinFloorIdentityMutationAudit.restored===true &&
-    Object.values(basinFloorIdentityMutationAudit.cases).length===8 && Object.values(basinFloorIdentityMutationAudit.cases).every((entry)=>entry.applied===true&&entry.killed===true&&!entry.loadError&&entry.restored===true),
+    Object.values(basinFloorIdentityMutationAudit.cases).length===8 && Object.values(basinFloorIdentityMutationAudit.cases).every((entry)=>
+      entry.applied===true&&entry.loaded===true&&entry.executed===true&&entry.detected===true&&entry.behaviorallyDetected===true&&
+      entry.killed===true&&!entry.loadError&&!entry.missingTarget&&!entry.invocationError&&entry.restored===true),
+  basinFloorMutationMissingTargetCannotCountAsKill: (()=>{const control=basinFloorIdentityMutationAudit.controls?.["non-callable-target"]; return control?.applied===true&&control.loaded===true&&control.executed===false&&control.detected===false&&control.behaviorallyDetected===false&&
+    control.killed===false&&control.missingTarget===true&&!control.loadError&&!control.invocationError&&control.restored===true&&control.legacyWouldCredit===true;})(),
   domain3OrderAndRingRegistryInvariant: ok(d3Forward) && ok(d3Reverse) && sameBytes(ok(d3Forward),ok(d3Reverse)),
   domain3ExactPreKeyRejectsEqualPhysicalTuples: err(duplicatePreKeyResult)?.code==="M02_CANDIDATE_INVALID" && /pre-key/i.test(err(duplicatePreKeyResult)?.detail??""),
   domain3FinalReferenceProtection: referenceProtectionWitness && domain3FinalCoastlineWitness,
@@ -669,6 +704,6 @@ const checks={
   polygonBoundFailure: (()=>{ const c=structuredClone(vc); c.geometry.maxPolygonVerticesPerFeature=4; const one={...valleyDrainage,terminals:[valleyTerminals[0]],catchments:[valleyCatchments[0]],nodes:valleyNodes.slice(0,2),reaches:[reachA]}; const r=safeCall(()=>modules.valleys?.deriveTerrainValleyGeometry?.(valleyGrid.grid,one,c)); return err(r)?.code==="M02_BOUND_EXCEEDED"; })(),
 };
 const passed=Object.values(checks).every(Boolean);
-console.log(JSON.stringify({audit:"WORLD-M0 M0.2 Task 9 basin/valley geometry",checks,evidence:{basinFloorIdentityMutations:basinFloorIdentityMutationAudit.cases,duplicateFinalKeyError:err(duplicateFinalKeyResult),floorOutsideBasinError:err(floorOutsideBasinResult),floorInsideHoleError:err(floorInsideHoleResult),floorOutsideCatchmentError:err(floorOutsideCatchmentResult),closedTerminalMismatchError:err(closedTerminalMismatchResult),conditionedElevationSubstitutionError:err(conditionedElevationSubstitutionResult),exorheicDownstreamClosedError:err(exorheicDownstreamClosed),exorheicDownstreamClosedMutationError:err(exorheicDownstreamClosedMutationAudit.value),exorheicDownstreamClosedMutationRestored:exorheicDownstreamClosedMutationAudit.restored,f6OceanError:err(f6OceanBad),f6ExternalError:err(f6ExternalBad),f7ProtectedError:err(f7ProtectedBad),f7NullSpillError:err(f7NullSpillBad),f7MismatchSpillError:err(f7MismatchSpillBad),f7MissingCatchmentError:err(f7MissingCatchmentBad),f7NonreciprocalError:err(f7NonreciprocalBad),nonCollinearAfter,referenceProtectedValue,earlierFinalValue,domain3FinalCoastlineWitness,exactTask8PhysicalKeyWitness,domain3Schedule:domain3ScheduleAudit.canonical?.trace,domain3NoSortSchedule:domain3ScheduleAudit.noSort?.trace,domain3AllOriginalSchedule:domain3ScheduleAudit.allOriginal?.trace,domains45Schedule:d45Trace,domains45PrematureSchedule:d45PrematureTrace},loadError:modules.loadError,verdict:passed?"PASS":"FAIL"},null,2));
+console.log(JSON.stringify({audit:"WORLD-M0 M0.2 Task 9 basin/valley geometry",checks,evidence:{basinFloorIdentityMutations:basinFloorIdentityMutationAudit.cases,basinFloorIdentityMutationControls:basinFloorIdentityMutationAudit.controls,duplicateFinalKeyError:err(duplicateFinalKeyResult),floorOutsideBasinError:err(floorOutsideBasinResult),floorInsideHoleError:err(floorInsideHoleResult),floorOutsideCatchmentError:err(floorOutsideCatchmentResult),closedTerminalMismatchError:err(closedTerminalMismatchResult),conditionedElevationSubstitutionError:err(conditionedElevationSubstitutionResult),exorheicDownstreamClosedError:err(exorheicDownstreamClosed),exorheicDownstreamClosedMutationError:err(exorheicDownstreamClosedMutationAudit.value),exorheicDownstreamClosedMutationRestored:exorheicDownstreamClosedMutationAudit.restored,f6OceanError:err(f6OceanBad),f6ExternalError:err(f6ExternalBad),f7ProtectedError:err(f7ProtectedBad),f7NullSpillError:err(f7NullSpillBad),f7MismatchSpillError:err(f7MismatchSpillBad),f7MissingCatchmentError:err(f7MissingCatchmentBad),f7NonreciprocalError:err(f7NonreciprocalBad),nonCollinearAfter,referenceProtectedValue,earlierFinalValue,domain3FinalCoastlineWitness,exactTask8PhysicalKeyWitness,domain3Schedule:domain3ScheduleAudit.canonical?.trace,domain3NoSortSchedule:domain3ScheduleAudit.noSort?.trace,domain3AllOriginalSchedule:domain3ScheduleAudit.allOriginal?.trace,domains45Schedule:d45Trace,domains45PrematureSchedule:d45PrematureTrace},loadError:modules.loadError,verdict:passed?"PASS":"FAIL"},null,2));
 for(const g of [f5Grid.grid,f6Grid.grid,f7Grid.grid,twoGrid.grid,xBeforeElevation.fixtureGrid.grid,yBeforeElevation.fixtureGrid.grid,xBeforeYAxisPriority.fixtureGrid.grid,pointBeforePhysicalId.fixtureGrid.grid,valleyGrid.grid,longGrid.grid]) releaseGrid(g);
 if(!passed) process.exitCode=1;

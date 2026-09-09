@@ -231,6 +231,21 @@ const floorInsideHoleError = failure(encode(floorInsideHole));
 const floorOutsideCatchment = structuredClone(basinGoldenCandidate);
 floorOutsideCatchment.catchments[0].boundaryRings = [cellRing(250, 0)];
 const floorOutsideCatchmentError = failure(encode(floorOutsideCatchment));
+const boundaryContactRing = [p(0, 0), p(500, 0), p(500, 500), p(0, 500), p(250, 250), p(0, 0)];
+const floorOnBasinBoundary = structuredClone(basinGoldenCandidate);
+floorOnBasinBoundary.depressionBasins[0].boundaryRings = [boundaryContactRing];
+floorOnBasinBoundary.catchments[0].boundaryRings = [squareRing(0, 0, 500)];
+const floorOnBasinBoundaryEncoded = encode(floorOnBasinBoundary);
+const floorOnCatchmentBoundary = structuredClone(basinGoldenCandidate);
+floorOnCatchmentBoundary.depressionBasins[0].boundaryRings = [squareRing(0, 0, 500)];
+floorOnCatchmentBoundary.catchments[0].boundaryRings = [boundaryContactRing];
+const floorOnCatchmentBoundaryEncoded = encode(floorOnCatchmentBoundary);
+const touchingRingTopology = structuredClone(basinGoldenCandidate);
+touchingRingTopology.depressionBasins[0].boundaryRings = [
+  squareRing(0, 0, 500),
+  [p(0, 100), p(0, 200), p(100, 200), p(100, 100), p(0, 100)],
+];
+const touchingRingTopologyError = failure(encode(touchingRingTopology));
 const closedFloorTerminalMismatch = structuredClone(basinGoldenCandidate);
 closedFloorTerminalMismatch.terminals[0].point = p(375, 125);
 const closedFloorTerminalMismatchError = failure(encode(closedFloorTerminalMismatch));
@@ -357,6 +372,9 @@ const checks = {
   ...floorPointFieldChecks,
   floorInsideExcludedHoleRejected: floorInsideHoleError?.code === "M02_CANDIDATE_INVALID" && floorInsideHoleError.path.includes("depressionBasins"),
   floorOutsideLinkedCatchmentRejected: floorOutsideCatchmentError?.code === "M02_CANDIDATE_INVALID" && floorOutsideCatchmentError.path.includes("depressionBasins"),
+  floorOnValidBasinBoundaryAccepted: floorOnBasinBoundaryEncoded?.ok === true,
+  floorOnValidLinkedCatchmentBoundaryAccepted: floorOnCatchmentBoundaryEncoded?.ok === true,
+  touchingRingTopologyStillRejected: touchingRingTopologyError?.code === "M02_CANDIDATE_INVALID" && touchingRingTopologyError.path.includes("boundaryRings"),
   closedFloorTerminalMismatchRejected: closedFloorTerminalMismatchError?.code === "M02_CANDIDATE_INVALID" && closedFloorTerminalMismatchError.path.includes("depressionBasins"),
   literalTerminalCanonicalBytes: text(terminalGoldenEncoded) === EXPECTED_TERMINAL_TEXT,
   literalTerminalDigest: terminalGoldenDigest?.ok === true && terminalGoldenDigest.value === expectedTerminalDigest,

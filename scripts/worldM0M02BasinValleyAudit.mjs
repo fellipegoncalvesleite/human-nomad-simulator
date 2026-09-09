@@ -43,6 +43,14 @@ function pointInRing(p, points) {
   }
   return inside;
 }
+function pointOnSegment(p,a,b) {
+  const cross=(b.xM-a.xM)*(p.yM-a.yM)-(b.yM-a.yM)*(p.xM-a.xM);
+  return cross===0&&p.xM>=Math.min(a.xM,b.xM)&&p.xM<=Math.max(a.xM,b.xM)&&
+    p.yM>=Math.min(a.yM,b.yM)&&p.yM<=Math.max(a.yM,b.yM);
+}
+function pointOnRingBoundary(p, points) {
+  return points.some((a,index)=>index+1<points.length&&pointOnSegment(p,a,points[index+1]));
+}
 function interiorProbe(points) {
   const a=area2(points), p=points[0], n=points[1], dx=n.xM-p.xM, dy=n.yM-p.yM, len=Math.hypot(dx,dy);
   if(!a||!len) return undefined;
@@ -245,6 +253,20 @@ const floorBoundaryCatchmentDrain=drainageFor("retained_closed_basin");
 floorBoundaryCatchmentDrain.catchments[0]={...floorBoundaryCatchmentDrain.catchments[0],boundaryRings:[floorBoundaryRing]};
 const floorOnCatchmentBoundaryResult=safeCall(()=>modules.basins?.finalizeDepressionBasins?.(
   f6Grid.grid,{...duplicateFinalAnalysis,retainedDepressions:[f6Dep],conditionedDepressionCount:1},coastlineFor(f6Grid.grid),floorBoundaryCatchmentDrain,f6Grid.constants));
+// Generic Task-9 witness: deleting (1000,750) is within the 125 m tolerance,
+// preserves raster classification, and replaces the upper edge with a chord
+// through the retained floor (625,625). The unsimplified boundary does not
+// touch the floor, so this specifically exercises boundary contact created by
+// final simplification rather than a literal boundary input.
+const simplificationFloorRing=ring([0,0],[1250,0],[1250,750],[1000,750],[0,500],[0,0]);
+const simplificationFloorCatchmentRing=ring([0,0],[1250,0],[1250,1250],[0,1250],[0,0]);
+const simplificationFloorDrain=drainageFor("retained_closed_basin");
+simplificationFloorDrain.catchments[0]={...simplificationFloorDrain.catchments[0],areaM2:1_562_500,boundaryRings:[simplificationFloorCatchmentRing]};
+const simplificationFloorResult=safeCall(()=>modules.basins?.finalizeDepressionBasins?.(
+  f6Grid.grid,{...duplicateFinalAnalysis,retainedDepressions:[{...f6Dep,boundaryRings:[simplificationFloorRing],areaM2:812_500}],conditionedDepressionCount:1},
+  coastlineFor(f6Grid.grid),simplificationFloorDrain,f6Grid.constants));
+const simplificationFloorPoint=point(625,625);
+const simplificationFinalRing=ok(simplificationFloorResult)?.[0]?.boundaryRings?.[0];
 const closedTerminalMismatchResult=safeCall(()=>modules.basins?.finalizeDepressionBasins?.(
   f6Grid.grid,{...duplicateFinalAnalysis,retainedDepressions:[f6Dep],conditionedDepressionCount:1},coastlineFor(f6Grid.grid),
   drainageFor("retained_closed_basin",point(875,625)),f6Grid.constants));
@@ -662,6 +684,12 @@ const checks={
   floorOutsideCatchmentRejected: err(floorOutsideCatchmentResult)?.code==="M02_CANDIDATE_INVALID" && /floor/i.test(err(floorOutsideCatchmentResult)?.path??err(floorOutsideCatchmentResult)?.detail??""),
   floorOnValidBasinBoundaryAccepted: ok(floorOnBasinBoundaryResult)?.[0]?.floorPoint?.xM===625 && ok(floorOnBasinBoundaryResult)?.[0]?.floorPoint?.yM===625,
   floorOnValidCatchmentBoundaryAccepted: ok(floorOnCatchmentBoundaryResult)?.[0]?.floorPoint?.xM===625 && ok(floorOnCatchmentBoundaryResult)?.[0]?.floorPoint?.yM===625,
+  task9SimplificationCanPlaceValidFloorOnFinalBoundary: Boolean(
+    simplificationFinalRing && simplificationFloorRing.length===6 && simplificationFinalRing.length===5 &&
+    !pointOnRingBoundary(simplificationFloorPoint,simplificationFloorRing) &&
+    pointOnRingBoundary(simplificationFloorPoint,simplificationFinalRing) &&
+    sameBytes(simplificationFinalRing,ring([0,0],[1250,0],[1250,750],[0,500],[0,0]))
+  ),
   closedFloorTerminalMismatchRejected: err(closedTerminalMismatchResult)?.code==="M02_CANDIDATE_INVALID" && /floor|terminal/i.test(err(closedTerminalMismatchResult)?.path??err(closedTerminalMismatchResult)?.detail??""),
   conditionedRoutingElevationCannotSubstituteRawFloor: err(conditionedElevationSubstitutionResult)?.code==="M02_CANDIDATE_INVALID" && /floor|elevation/i.test(err(conditionedElevationSubstitutionResult)?.path??err(conditionedElevationSubstitutionResult)?.detail??""),
   closedRejectsNonclosedTerminal: [f6OceanBad,f6ExternalBad].every((result)=>err(result)?.code==="M02_CANDIDATE_INVALID" && /spill/i.test(err(result)?.path??err(result)?.detail??"")),
@@ -704,6 +732,6 @@ const checks={
   polygonBoundFailure: (()=>{ const c=structuredClone(vc); c.geometry.maxPolygonVerticesPerFeature=4; const one={...valleyDrainage,terminals:[valleyTerminals[0]],catchments:[valleyCatchments[0]],nodes:valleyNodes.slice(0,2),reaches:[reachA]}; const r=safeCall(()=>modules.valleys?.deriveTerrainValleyGeometry?.(valleyGrid.grid,one,c)); return err(r)?.code==="M02_BOUND_EXCEEDED"; })(),
 };
 const passed=Object.values(checks).every(Boolean);
-console.log(JSON.stringify({audit:"WORLD-M0 M0.2 Task 9 basin/valley geometry",checks,evidence:{basinFloorIdentityMutations:basinFloorIdentityMutationAudit.cases,basinFloorIdentityMutationControls:basinFloorIdentityMutationAudit.controls,duplicateFinalKeyError:err(duplicateFinalKeyResult),floorOutsideBasinError:err(floorOutsideBasinResult),floorInsideHoleError:err(floorInsideHoleResult),floorOutsideCatchmentError:err(floorOutsideCatchmentResult),closedTerminalMismatchError:err(closedTerminalMismatchResult),conditionedElevationSubstitutionError:err(conditionedElevationSubstitutionResult),exorheicDownstreamClosedError:err(exorheicDownstreamClosed),exorheicDownstreamClosedMutationError:err(exorheicDownstreamClosedMutationAudit.value),exorheicDownstreamClosedMutationRestored:exorheicDownstreamClosedMutationAudit.restored,f6OceanError:err(f6OceanBad),f6ExternalError:err(f6ExternalBad),f7ProtectedError:err(f7ProtectedBad),f7NullSpillError:err(f7NullSpillBad),f7MismatchSpillError:err(f7MismatchSpillBad),f7MissingCatchmentError:err(f7MissingCatchmentBad),f7NonreciprocalError:err(f7NonreciprocalBad),nonCollinearAfter,referenceProtectedValue,earlierFinalValue,domain3FinalCoastlineWitness,exactTask8PhysicalKeyWitness,domain3Schedule:domain3ScheduleAudit.canonical?.trace,domain3NoSortSchedule:domain3ScheduleAudit.noSort?.trace,domain3AllOriginalSchedule:domain3ScheduleAudit.allOriginal?.trace,domains45Schedule:d45Trace,domains45PrematureSchedule:d45PrematureTrace},loadError:modules.loadError,verdict:passed?"PASS":"FAIL"},null,2));
+console.log(JSON.stringify({audit:"WORLD-M0 M0.2 Task 9 basin/valley geometry",checks,evidence:{basinFloorIdentityMutations:basinFloorIdentityMutationAudit.cases,basinFloorIdentityMutationControls:basinFloorIdentityMutationAudit.controls,duplicateFinalKeyError:err(duplicateFinalKeyResult),floorOutsideBasinError:err(floorOutsideBasinResult),floorInsideHoleError:err(floorInsideHoleResult),floorOutsideCatchmentError:err(floorOutsideCatchmentResult),simplificationFloorWitness:{original:simplificationFloorRing,final:simplificationFinalRing,floorPoint:simplificationFloorPoint},closedTerminalMismatchError:err(closedTerminalMismatchResult),conditionedElevationSubstitutionError:err(conditionedElevationSubstitutionResult),exorheicDownstreamClosedError:err(exorheicDownstreamClosed),exorheicDownstreamClosedMutationError:err(exorheicDownstreamClosedMutationAudit.value),exorheicDownstreamClosedMutationRestored:exorheicDownstreamClosedMutationAudit.restored,f6OceanError:err(f6OceanBad),f6ExternalError:err(f6ExternalBad),f7ProtectedError:err(f7ProtectedBad),f7NullSpillError:err(f7NullSpillBad),f7MismatchSpillError:err(f7MismatchSpillBad),f7MissingCatchmentError:err(f7MissingCatchmentBad),f7NonreciprocalError:err(f7NonreciprocalBad),nonCollinearAfter,referenceProtectedValue,earlierFinalValue,domain3FinalCoastlineWitness,exactTask8PhysicalKeyWitness,domain3Schedule:domain3ScheduleAudit.canonical?.trace,domain3NoSortSchedule:domain3ScheduleAudit.noSort?.trace,domain3AllOriginalSchedule:domain3ScheduleAudit.allOriginal?.trace,domains45Schedule:d45Trace,domains45PrematureSchedule:d45PrematureTrace},loadError:modules.loadError,verdict:passed?"PASS":"FAIL"},null,2));
 for(const g of [f5Grid.grid,f6Grid.grid,f7Grid.grid,twoGrid.grid,xBeforeElevation.fixtureGrid.grid,yBeforeElevation.fixtureGrid.grid,xBeforeYAxisPriority.fixtureGrid.grid,pointBeforePhysicalId.fixtureGrid.grid,valleyGrid.grid,longGrid.grid]) releaseGrid(g);
 if(!passed) process.exitCode=1;

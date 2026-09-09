@@ -56,6 +56,7 @@ export interface TerrainCatchment {
 export interface TerrainDepressionBasin {
   readonly id: string;
   readonly catchmentId: string;
+  readonly floorPoint: WorldM0PointM;
   readonly floorElevationMeters: number;
   readonly spillElevationMeters: number | null;
   readonly outletTerminalId: string | null;
@@ -138,8 +139,8 @@ export interface StrategicTerrainSummary {
   readonly crossingCandidateIds: readonly string[];
 }
 
-export interface WorldM0TerrainHydroCandidateV2 {
-  readonly schema: "world-m0-terrain-hydro-candidate/v2";
+export interface WorldM0TerrainHydroCandidateV3 {
+  readonly schema: "world-m0-terrain-hydro-candidate/v3";
   readonly recipeDigest: WorldM0RecipeDigest;
   readonly physicalConstants: WorldM0ContentIdentity;
   readonly physicalGeneratorVersion: string;

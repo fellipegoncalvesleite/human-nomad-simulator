@@ -501,6 +501,25 @@ function compareBasinDomain3PreKey(left: BasinCandidate, right: BasinCandidate):
   return area !== 0 ? area : compareTask9RingRegistryV1(left.unsimplifiedBoundaryRings, right.unsimplifiedBoundaryRings);
 }
 
+function compareBasinFinalPhysicalKey(left: BasinCandidate, right: BasinCandidate): number {
+  if (left.analysis.closedEndorheic !== right.analysis.closedEndorheic) return left.analysis.closedEndorheic ? 1 : -1;
+  const floor = comparePointM(left.floorPoint, right.floorPoint);
+  if (floor !== 0) return floor;
+  const floorElevation = compareNumber(left.analysis.floorElevationMeters, right.analysis.floorElevationMeters);
+  if (floorElevation !== 0) return floorElevation;
+  const leftSpill = left.analysis.persistentSpillElevationMeters;
+  const rightSpill = right.analysis.persistentSpillElevationMeters;
+  if (leftSpill === null || rightSpill === null) {
+    if (leftSpill !== rightSpill) return leftSpill === null ? 1 : -1;
+  } else {
+    const spill = compareNumber(leftSpill, rightSpill);
+    if (spill !== 0) return spill;
+  }
+  const rings = compareTask9RingRegistryV1(left.boundaryRings ?? [], right.boundaryRings ?? []);
+  if (rings !== 0) return rings;
+  return compareCatchmentPhysical(left.catchment, right.catchment, left.terminal, right.terminal);
+}
+
 export function finalizeDepressionBasins(
   scratch: TerrainScratchGrid,
   depression: TerrainDepressionAnalysis,
@@ -544,17 +563,30 @@ export function finalizeDepressionBasins(
         !Number.isFinite(item.areaM2) || item.areaM2 <= 0) {
       return invalid("retainedDepressions", "retained basin physical tuple is invalid");
     }
+    if (item.floorElevationMeters !== scratch.elevationMeters[item.canonicalFloorCell]) {
+      return invalid("retainedDepressions.floorElevationMeters", "retained basin floor elevation must be the canonical raw floor-cell elevation");
+    }
     if (item.closedEndorheic) {
       if (item.protectedIntentToken === null || item.persistentSpillElevationMeters !== null || terminal.kind !== "retained_closed_basin") {
         return invalid("retainedDepressions.spill", "closed basin requires protected intent, null persistent spill, and retained-closed terminal");
       }
+      if (!samePoint(point, terminal.point)) {
+        return invalid("retainedDepressions.floorPoint", "closed basin floor must equal its retained-closed terminal point");
+      }
     } else if (item.protectedIntentToken !== null || item.persistentSpillElevationMeters === null ||
                !Number.isFinite(item.persistentSpillElevationMeters) ||
-               item.persistentSpillElevationMeters !== item.physicalSpillElevationMeters) {
+               item.persistentSpillElevationMeters !== item.physicalSpillElevationMeters ||
+               item.persistentSpillElevationMeters <= item.floorElevationMeters || samePoint(point, terminal.point)) {
       return invalid("retainedDepressions.spill", "exorheic basin requires no protected intent, exact finite persistent spill, and an onward terminal");
     }
     const normalized = normalizeTask9RasterRingFeatureV1(item.boundaryRings, scratch, "depressionBasins.boundaryRings");
     if (!normalized.ok) return normalized;
+    if (!registryContainsPoint(point, normalized.value)) {
+      return invalid("retainedDepressions.floorPoint", "canonical floor point is outside retained basin filled geometry");
+    }
+    if (!registryContainsPoint(point, catchment.boundaryRings)) {
+      return invalid("retainedDepressions.floorPoint", "canonical floor point is outside its linked catchment");
+    }
     if (registryAreaM2(normalized.value) !== item.areaM2) {
       return invalid("retainedDepressions.areaM2", "retained basin area disagrees with its unsimplified boundary rings");
     }
@@ -601,24 +633,12 @@ export function finalizeDepressionBasins(
   }
 
   // Domain 3 is final; only now sort by final basin physical key and assign IDs.
-  finalDomain.sort((left, right) => {
-    if (left.analysis.closedEndorheic !== right.analysis.closedEndorheic) return left.analysis.closedEndorheic ? 1 : -1;
-    const floor = comparePointM(left.floorPoint, right.floorPoint);
-    if (floor !== 0) return floor;
-    const floorElevation = compareNumber(left.analysis.floorElevationMeters, right.analysis.floorElevationMeters);
-    if (floorElevation !== 0) return floorElevation;
-    const leftSpill = left.analysis.persistentSpillElevationMeters;
-    const rightSpill = right.analysis.persistentSpillElevationMeters;
-    if (leftSpill === null || rightSpill === null) {
-      if (leftSpill !== rightSpill) return leftSpill === null ? 1 : -1;
-    } else {
-      const spill = compareNumber(leftSpill, rightSpill);
-      if (spill !== 0) return spill;
+  finalDomain.sort(compareBasinFinalPhysicalKey);
+  for (let index = 1; index < finalDomain.length; index += 1) {
+    if (compareBasinFinalPhysicalKey(finalDomain[index - 1], finalDomain[index]) === 0) {
+      return invalid("depressionBasins", "duplicate complete final basin physical key");
     }
-    const rings = compareTask9RingRegistryV1(left.boundaryRings ?? [], right.boundaryRings ?? []);
-    if (rings !== 0) return rings;
-    return compareCatchmentPhysical(left.catchment, right.catchment, left.terminal, right.terminal);
-  });
+  }
   const result: TerrainDepressionBasin[] = [];
   for (let index = 0; index < finalDomain.length; index += 1) {
     const candidate = finalDomain[index];
@@ -628,6 +648,7 @@ export function finalizeDepressionBasins(
     result.push({
       id: basinId.value,
       catchmentId: candidate.catchment.id,
+      floorPoint: candidate.floorPoint,
       floorElevationMeters: candidate.analysis.floorElevationMeters,
       spillElevationMeters: candidate.analysis.persistentSpillElevationMeters,
       outletTerminalId: candidate.analysis.closedEndorheic ? null : candidate.terminal.id,

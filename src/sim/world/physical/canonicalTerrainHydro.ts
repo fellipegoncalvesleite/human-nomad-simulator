@@ -13,7 +13,7 @@ import {
 import type {
   WorldM0PointM,
   WorldM0StrategicCellRef,
-  WorldM0TerrainHydroCandidateV2,
+  WorldM0TerrainHydroCandidateV3,
 } from "./terrainHydroTypes";
 
 export type WorldM0TerrainHydroCandidateDigest =
@@ -249,7 +249,10 @@ function containsPoint(ring: readonly WorldM0PointM[], tested: WorldM0PointM, pa
   return inside;
 }
 
-function boundaryRings(input: unknown, path: string): string {
+function boundaryRingRegistry(
+  input: unknown,
+  path: string,
+): { rings: readonly (readonly WorldM0PointM[])[]; text: string } {
   const values = array(input, path);
   const rings = values.map((value, index) => {
     const written = pointSequence(value, `${path}[${index}]`, 4);
@@ -276,7 +279,41 @@ function boundaryRings(input: unknown, path: string): string {
     const first = comparePointM(left.points[0], right.points[0]);
     return first !== 0 ? first : compareAscii(left.text, right.text);
   });
-  return `[${sorted.map((item) => item.text).join(",")}]`;
+  return {
+    rings: sorted.map((item) => item.points),
+    text: `[${sorted.map((item) => item.text).join(",")}]`,
+  };
+}
+
+function boundaryRings(input: unknown, path: string): string {
+  return boundaryRingRegistry(input, path).text;
+}
+
+function boundaryRegistryContainsPoint(
+  rings: readonly (readonly WorldM0PointM[])[],
+  tested: WorldM0PointM,
+  path: string,
+): boolean {
+  let inside = false;
+  for (const ring of rings) if (containsPoint(ring, tested, path)) inside = !inside;
+  return inside;
+}
+
+function basinFloorPoint(
+  input: unknown,
+  path: string,
+  width: number,
+  height: number,
+): { value: WorldM0PointM; text: string } {
+  const written = point(input, path);
+  const { xM, yM } = written.value;
+  const halfCell = 125;
+  const cellSize = 250;
+  if (xM < halfCell || yM < halfCell || xM >= width * cellSize || yM >= height * cellSize ||
+      (xM - halfCell) % cellSize !== 0 || (yM - halfCell) % cellSize !== 0) {
+    reject(path, "floor point must be an in-domain 250 m cell center");
+  }
+  return written;
 }
 
 function registry(
@@ -321,7 +358,7 @@ function canonicalText(input: unknown): string {
     "catchments", "drainageNodes", "drainageReaches", "depressionBasins", "valleys", "floodplainCandidates",
     "crossingCandidates", "deterministicProvenance",
   ], "$");
-  const schema = literal(root.schema, ["world-m0-terrain-hydro-candidate/v2"], "$.schema");
+  const schema = literal(root.schema, ["world-m0-terrain-hydro-candidate/v3"], "$.schema");
   const recipeDigest = digest(root.recipeDigest, "$.recipeDigest");
   const constants = record(root.physicalConstants, ["id", "version", "digest"], "$.physicalConstants");
   const constantsText = `{"id":${jsonString(token(constants.id, "$.physicalConstants.id"))},"version":${jsonString(token(constants.version, "$.physicalConstants.version"))},"digest":${jsonString(digest(constants.digest, "$.physicalConstants.digest"))}}`;
@@ -373,17 +410,35 @@ function canonicalText(input: unknown): string {
   }
   const coastline = `[${[...coastlineValues].sort((a, b) => compareAscii(a.key, b.key)).map((item) => item.text).join(",")}]`;
 
+  const terminalRefs: {
+    readonly id: string;
+    readonly kind: "ocean_outlet" | "retained_closed_basin" | "external_domain_outlet";
+    readonly point: WorldM0PointM;
+    readonly catchmentId: string;
+  }[] = [];
   const terminals = registry(root.terminals, "$.terminals", "terminal", (item, path) => {
     const value = record(item, ["id", "kind", "point", "catchmentId", "localContributingAreaM2"], path);
     const itemId = id(value.id, "terminal", `${path}.id`);
     const localArea = numberValue(value.localContributingAreaM2, `${path}.localContributingAreaM2`);
     if ((value.localContributingAreaM2 as number) < 0) reject(`${path}.localContributingAreaM2`, "expected nonnegative terminal local area");
-    return { id: itemId, text: `{"id":${jsonString(itemId)},"kind":${jsonString(literal(value.kind, ["ocean_outlet", "retained_closed_basin", "external_domain_outlet"], `${path}.kind`))},"point":${point(value.point, `${path}.point`).text},"catchmentId":${jsonString(id(value.catchmentId, "catchment", `${path}.catchmentId`))},"localContributingAreaM2":${localArea}}` };
+    const kind = literal(value.kind, ["ocean_outlet", "retained_closed_basin", "external_domain_outlet"], `${path}.kind`);
+    const terminalPoint = point(value.point, `${path}.point`);
+    const catchmentId = id(value.catchmentId, "catchment", `${path}.catchmentId`);
+    terminalRefs.push({ id: itemId, kind, point: terminalPoint.value, catchmentId });
+    return { id: itemId, text: `{"id":${jsonString(itemId)},"kind":${jsonString(kind)},"point":${terminalPoint.text},"catchmentId":${jsonString(catchmentId)},"localContributingAreaM2":${localArea}}` };
   });
+  const catchmentRefs: {
+    readonly id: string;
+    readonly terminalId: string;
+    readonly boundaryRings: readonly (readonly WorldM0PointM[])[];
+  }[] = [];
   const catchments = registry(root.catchments, "$.catchments", "catchment", (item, path) => {
     const value = record(item, ["id", "terminalId", "areaM2", "boundaryRings"], path);
     const itemId = id(value.id, "catchment", `${path}.id`);
-    return { id: itemId, text: `{"id":${jsonString(itemId)},"terminalId":${jsonString(id(value.terminalId, "terminal", `${path}.terminalId`))},"areaM2":${numberValue(value.areaM2, `${path}.areaM2`)},"boundaryRings":${boundaryRings(value.boundaryRings, `${path}.boundaryRings`)}}` };
+    const terminalId = id(value.terminalId, "terminal", `${path}.terminalId`);
+    const rings = boundaryRingRegistry(value.boundaryRings, `${path}.boundaryRings`);
+    catchmentRefs.push({ id: itemId, terminalId, boundaryRings: rings.rings });
+    return { id: itemId, text: `{"id":${jsonString(itemId)},"terminalId":${jsonString(terminalId)},"areaM2":${numberValue(value.areaM2, `${path}.areaM2`)},"boundaryRings":${rings.text}}` };
   });
   const nodes = registry(root.drainageNodes, "$.drainageNodes", "drainage-node", (item, path) => {
     const value = record(item, ["id", "point", "kind", "terminalId"], path);
@@ -398,9 +453,42 @@ function canonicalText(input: unknown): string {
     return { id: itemId, text: `{"id":${jsonString(itemId)},"upstreamNodeId":${jsonString(id(value.upstreamNodeId, "drainage-node", `${path}.upstreamNodeId`))},"downstreamNodeId":${jsonString(id(value.downstreamNodeId, "drainage-node", `${path}.downstreamNodeId`))},"downstreamReachId":${nullable(value.downstreamReachId, (entry) => jsonString(id(entry, "drainage-reach", `${path}.downstreamReachId`)))},"catchmentId":${jsonString(id(value.catchmentId, "catchment", `${path}.catchmentId`))},"terminalId":${jsonString(id(value.terminalId, "terminal", `${path}.terminalId`))},"geometry":${geometry.text},"lengthMeters":${numberValue(value.lengthMeters, `${path}.lengthMeters`)},"contributingAreaM2":${numberValue(value.contributingAreaM2, `${path}.contributingAreaM2`)},"localContributingAreaM2":${numberValue(value.localContributingAreaM2, `${path}.localContributingAreaM2`)},"meanTerrainGradient":${numberValue(value.meanTerrainGradient, `${path}.meanTerrainGradient`)},"localReliefMeters":${numberValue(value.localReliefMeters, `${path}.localReliefMeters`)},"channelIncisionMeters":${numberValue(value.channelIncisionMeters, `${path}.channelIncisionMeters`)}}` };
   });
   const basins = registry(root.depressionBasins, "$.depressionBasins", "depression-basin", (item, path) => {
-    const value = record(item, ["id", "catchmentId", "floorElevationMeters", "spillElevationMeters", "outletTerminalId", "closedEndorheic", "areaM2", "boundaryRings"], path);
+    const value = record(item, ["id", "catchmentId", "floorPoint", "floorElevationMeters", "spillElevationMeters", "outletTerminalId", "closedEndorheic", "areaM2", "boundaryRings"], path);
     const itemId = id(value.id, "depression-basin", `${path}.id`);
-    return { id: itemId, text: `{"id":${jsonString(itemId)},"catchmentId":${jsonString(id(value.catchmentId, "catchment", `${path}.catchmentId`))},"floorElevationMeters":${numberValue(value.floorElevationMeters, `${path}.floorElevationMeters`)},"spillElevationMeters":${nullable(value.spillElevationMeters, (entry) => numberValue(entry, `${path}.spillElevationMeters`))},"outletTerminalId":${nullable(value.outletTerminalId, (entry) => jsonString(id(entry, "terminal", `${path}.outletTerminalId`)))},"closedEndorheic":${booleanValue(value.closedEndorheic, `${path}.closedEndorheic`)},"areaM2":${numberValue(value.areaM2, `${path}.areaM2`)},"boundaryRings":${boundaryRings(value.boundaryRings, `${path}.boundaryRings`)}}` };
+    const catchmentId = id(value.catchmentId, "catchment", `${path}.catchmentId`);
+    const floor = basinFloorPoint(value.floorPoint, `${path}.floorPoint`, width, height);
+    const floorElevationText = numberValue(value.floorElevationMeters, `${path}.floorElevationMeters`);
+    const spillText = nullable(value.spillElevationMeters, (entry) => numberValue(entry, `${path}.spillElevationMeters`));
+    const outletText = nullable(value.outletTerminalId, (entry) => jsonString(id(entry, "terminal", `${path}.outletTerminalId`)));
+    const closedText = booleanValue(value.closedEndorheic, `${path}.closedEndorheic`);
+    const areaText = numberValue(value.areaM2, `${path}.areaM2`);
+    const rings = boundaryRingRegistry(value.boundaryRings, `${path}.boundaryRings`);
+    const linkedCatchment = catchmentRefs.find((candidate) => candidate.id === catchmentId);
+    if (!linkedCatchment) reject(`${path}.catchmentId`, "basin requires its linked catchment");
+    const linkedTerminal = terminalRefs.find((candidate) => candidate.id === linkedCatchment.terminalId);
+    if (!linkedTerminal || linkedTerminal.catchmentId !== catchmentId) {
+      reject(`${path}.catchmentId`, "basin linked catchment/terminal must be reciprocal");
+    }
+    if (!boundaryRegistryContainsPoint(rings.rings, floor.value, `${path}.floorPoint`)) {
+      reject(`${path}.floorPoint`, "floor point must belong to basin filled geometry");
+    }
+    if (!boundaryRegistryContainsPoint(linkedCatchment.boundaryRings, floor.value, `${path}.floorPoint`)) {
+      reject(`${path}.floorPoint`, "floor point must belong to linked catchment");
+    }
+    const closed = value.closedEndorheic as boolean;
+    const spill = value.spillElevationMeters as number | null;
+    const outlet = value.outletTerminalId === null ? null : id(value.outletTerminalId, "terminal", `${path}.outletTerminalId`);
+    const floorElevation = value.floorElevationMeters as number;
+    if (closed) {
+      if (spill !== null || outlet !== null || linkedTerminal.kind !== "retained_closed_basin" ||
+          !samePoint(linkedTerminal.point, floor.value)) {
+        reject(path, "closed basin requires null spill/outlet and reciprocal retained-closed terminal at floor point");
+      }
+    } else if (spill === null || spill <= floorElevation || outlet === null || outlet !== linkedTerminal.id ||
+               samePoint(linkedTerminal.point, floor.value)) {
+      reject(path, "exorheic basin requires finite spill above raw floor and a distinct onward terminal");
+    }
+    return { id: itemId, text: `{"id":${jsonString(itemId)},"catchmentId":${jsonString(catchmentId)},"floorPoint":${floor.text},"floorElevationMeters":${floorElevationText},"spillElevationMeters":${spillText},"outletTerminalId":${outletText},"closedEndorheic":${closedText},"areaM2":${areaText},"boundaryRings":${rings.text}}` };
   });
   const valleys = registry(root.valleys, "$.valleys", "valley", (item, path) => {
     const value = record(item, ["id", "reachId", "boundaryRings", "areaM2", "localReliefMeters"], path);
@@ -428,7 +516,7 @@ function canonicalText(input: unknown): string {
 }
 
 export function encodeCanonicalTerrainHydroCandidate(
-  input: WorldM0TerrainHydroCandidateV2,
+  input: WorldM0TerrainHydroCandidateV3,
 ): WorldM0Result<Uint8Array> {
   try {
     return { ok: true, value: new TextEncoder().encode(canonicalText(input)) };
@@ -439,7 +527,7 @@ export function encodeCanonicalTerrainHydroCandidate(
 }
 
 export async function computeTerrainHydroCandidateDigest(
-  input: WorldM0TerrainHydroCandidateV2,
+  input: WorldM0TerrainHydroCandidateV3,
 ): Promise<WorldM0Result<WorldM0TerrainHydroCandidateDigest>> {
   const encoded = encodeCanonicalTerrainHydroCandidate(input);
   if (!encoded.ok) return encoded;
